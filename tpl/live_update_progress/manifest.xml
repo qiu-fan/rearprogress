@@ -13,7 +13,7 @@
 
   <!-- 文字区域参数 -->
   <Var name="title_size" type="number" expression="(18 * #scale)"/>
-  <Var name="text_size" type="number" expression="(14 * #scale)"/>
+  <Var name="text_size" type="number" expression="(14 * #scale)"/><Var name="subtext_size" type="number" expression="(20 * #scale)"/>
   <Var name="text_area_y" type="number" expression="(68 * #scale)"/>
   <Var name="title_gap" type="number" expression="(2 * #scale)"/>
   <Var name="text_gap" type="number" expression="(0 * #scale)"/>
@@ -289,13 +289,12 @@
 
   <!-- App 图标（固定顶部） -->
   <Image x="#icon_x" y="#icon_y" w="#icon_size" h="#icon_size" srcExp="@lu_package_name" cornerRadiusExp="#icon_corner" name="app_icon" srcType="ApplicationIcon"/>
-  <Text text="CUSTOM-V1" color="#FF3333" size="(22 * #scale)" x="#text_x" y="2" bold="true" name="custom_mark"/>
 
   <!-- ==================== 自然测量（用单行宽度估算行数） ==================== -->
   <!-- 不限宽度的隐藏 Text，用 text_width 获取单行总宽度 -->
   <Text x="0" y="0" size="#title_size" textExp="@lu_title" name="title_natural" fontFamily="mipro-semibold" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_text" name="text_natural" fontFamily="mipro-medium" alpha="0"/>
-  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" name="subtext_natural" fontFamily="mipro-medium" alpha="0"/>
+  <Text x="0" y="0" size="#subtext_size" textExp="@lu_sub_text" name="subtext_natural" fontFamily="mipro-semibold" alpha="0"/>
 
   <!-- 用单行宽度除以可用宽度，向上取整得到自然行数 -->
   <Var name="title_natural_lines" type="number" expression="max(1, ceil(#title_natural.text_width / max(1, #text_w)))"/>
@@ -329,7 +328,7 @@
   <!-- 受限测量 -->
   <Text x="0" y="0" size="#title_size" textExp="@lu_title" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_text" width="#text_w" name="text_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true" alpha="0"/>
-  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#subtext_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
 
   <!-- ==================== 文字（固定从 text_area_y 开始） ==================== -->
   <!-- Large Icon（进度条上方右侧，有图时显示） -->
@@ -344,11 +343,11 @@
 
   <!-- Subtext（第二行，紧跟 Title） -->
   <Var name="subtext_y" type="number" expression="(#text_area_y + #title_measure.text_height + #title_gap)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#subtext_size" color="#FFFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-semibold" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- Text（第三行，紧跟 Subtext） -->
   <Var name="text_y" type="number" expression="ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height + #text_gap), (#text_area_y + #title_measure.text_height + #title_gap))"/>
-  <Text visibility="#has_text" x="#text_x" y="#text_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_text" width="#text_w" name="content_text" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true"/>
+  <Text visibility="#has_text" x="#text_x" y="#text_y" size="#text_size" color="#99FFFFFF" textExp="@lu_text" width="#text_w" name="content_text" fontFamily="mipro-regular" multiLine="true" lineClamp="#text_max_lines" ellipsis="true"/>
 
   <!-- ==================== 进度条（P1 基础进度，P2 不确定时隐藏） ==================== -->
   <Var name="bar_y" type="number" expression="(178 * #scale)"/>

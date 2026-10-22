@@ -119,21 +119,12 @@ final class AgentProgress {
     // ---------------------------------------------------------------- 输出
 
     /**
-     * 标题：
-     *   AI 主动上传了进度 → 用 AI 文字（可选增强）
-     *   否则 → 最新一次调用的工具名称
-     *   没有工具调用时 → 状态文字兜底
+     * 标题：主标题行。
+     *   AI 上传进度 → 显示 AI 文字（置顶优先）
+     *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
     static String title() {
         if (hasAiTitle()) return sAiTitle;
-
-        synchronized (AgentProgress.class) {
-            if (!sRecent.isEmpty()) {
-                String last = sRecent.get(sRecent.size() - 1)[0];
-                if ("1".equals(sRecent.get(sRecent.size() - 1)[2])) return last;
-                return last + " ✗";
-            }
-        }
         switch (sState) {
             case RUNNING:
                 return "任务进行中";
@@ -146,8 +137,19 @@ final class AgentProgress {
     }
 
     /**
-     * 内容：调用的参数，一行一条（最新在上）。
-     * 无工具调用时给状态说明。
+     * 副标题：当前工具名（模板里放大加粗，作为视觉主体）。
+     * 没有工具调用时留空，模板会隐藏这一行。
+     */
+    static String toolName() {
+        synchronized (AgentProgress.class) {
+            if (sRecent.isEmpty()) return "";
+            String[] last = sRecent.get(sRecent.size() - 1);
+            return "1".equals(last[2]) ? last[0] : last[0] + " ✗";
+        }
+    }
+
+    /**
+     * 内容：调用的参数，一行一条（最新在上），小字弱化显示。
      */
     static String body() {
         synchronized (AgentProgress.class) {
