@@ -85,6 +85,7 @@ public class MainHook extends XposedModule {
             log(android.util.Log.INFO, TAG, "package ready: " + pkg);
 
             resolveHandles();
+            installMamlTemplateHook();
             installLiveUpdateSwitchHook();
             installNlsTraceHook();
             installNlsGateTraceHook();
@@ -316,6 +317,190 @@ public class MainHook extends XposedModule {
         } catch (Throwable t) {
             log(android.util.Log.ERROR, TAG, "installNlsTraceHook failed", t);
         }
+    }
+
+    /**
+     * Hook com.miui.maml.util.ZipResourceLoader.<init>(String,String,String)
+     *
+     * 背景：smart_assistant 下的模板每次副屏中心启动都会被重新从 APK 释放，
+     * 直接改 live_update_progress 文件会被覆盖（已验证 md5 回滚到原版）。
+     * 所以改在「读取前」重定向：同目录放 rp_<原名>，存在就用它。
+     * 同目录保证副屏中心有读权限，且名字不在释放列表里不会被覆盖。
+     */
+    private static final String TPL_DIR =
+            "/data/local/tmp/rp_tpl";
+
+    private void installMamlTemplateHook() {
+        try {
+            Class<?> cls = Class.forName("com.miui.maml.util.ZipResourceLoader", true, mCl);
+            int n = 0;
+            // hook 全部 1/2/3 参数构造器（双参数构造器会委托到三参数，但
+            // LSPosed 对委托链的参数改写不保证生效，所以逐个挂）
+            for (java.lang.reflect.Constructor<?> c : cls.getDeclaredConstructors()) {
+                int pc = c.getParameterCount();
+                if (pc < 1 || pc > 3) continue;
+                if (c.getParameterTypes()[0] != String.class) continue;
+                hook(c).intercept(chain -> rewriteTemplateArg(chain));
+                n++;
+            }
+            log(android.util.Log.INFO, TAG,
+                    "HOOKED ZipResourceLoader x" + n + " -> template redirect");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installMamlTemplateHook failed", t);
+        }
+        installWidgetSpecPathHook();
+    }
+
+    /**
+     * Hook j2/a.f()Ljava/lang/String; —— widget 的模板路径来源。
+     * q2/v.g(Lj2/a) 里 `v0 = p0.f()` 拿到路径后直接 new q2/k(v0,...)，
+     * 这是模板加载的真正入口（不走 ZipResourceLoader 时也能拦住）。
+     */
+    /**
+     * Hook m2.d.i(String,String)Ljava/lang/String; —— 模板路径的唯一解析出口。
+     *
+     * 反编译依据：
+     *   m2/d.smali 801/839/854 三处都是
+     *     sget-object p1, Lm2/a;->c   （静态映射 business -> 模板路径）
+     *     invoke-interface {p1, p0}, Ljava/util/Map;->get(...)
+     *   而 m2/a.a() 并没有被调用，所以只能在 i() 的返回值上改写。
+     */
+    private void installWidgetSpecPathHook() {
+        installStaticTablePatch();
+        try {
+            Class<?> cls = Class.forName("m2.d", true, mCl);
+            Method target = null;
+            for (Method m : cls.getDeclaredMethods()) {
+                if (!"i".equals(m.getName())) continue;
+                if (m.getParameterCount() != 2) continue;
+                if (m.getReturnType() != String.class) continue;
+                if (m.getParameterTypes()[0] != String.class) continue;
+                target = m;
+                break;
+            }
+            if (target == null) {
+                log(android.util.Log.ERROR, TAG, "m2.d.i(String,String) not found");
+                return;
+            }
+            hook(target).intercept(chain -> {
+                Object r = chain.proceed();
+                try {
+                    log(android.util.Log.INFO, TAG, "m2.d.i -> " + r);
+                    if (r instanceof String) {
+                        String custom = mapTemplatePath((String) r);
+                        if (custom != null) {
+                            log(android.util.Log.INFO, TAG,
+                                    "PATH redirect: " + r + " -> " + custom);
+                            return custom;
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+                return r;
+            });
+            log(android.util.Log.INFO, TAG, "HOOKED m2.d.i -> template path redirect");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installWidgetSpecPathHook failed", t);
+        }
+    }
+
+    /**
+     * 直接改静态映射表 m2/a.c：business -> 模板路径。
+     * m2/a.<clinit> 用 unmodifiableMap 包装，所以反射取出后新建可写 Map 再塞回去。
+     * 这样无论上游从哪条路取路径，拿到的都是我们的 rp_ 模板。
+     */
+    private void installStaticTablePatch() {
+        Thread t = new Thread(() -> {
+            for (int i = 0; i < 40; i++) {
+                try {
+                    Class<?> a = Class.forName("m2.a", true, mCl);
+                    java.lang.reflect.Field f = a.getDeclaredField("c");
+                    f.setAccessible(true);
+                    Object cur = f.get(null);
+                    if (cur instanceof java.util.Map) {
+                        java.util.Map<String, String> src = new java.util.HashMap<>();
+                        for (Object o : ((java.util.Map<?, ?>) cur).entrySet()) {
+                            java.util.Map.Entry<?, ?> e = (java.util.Map.Entry<?, ?>) o;
+                            if (e.getKey() instanceof String && e.getValue() instanceof String) {
+                                src.put((String) e.getKey(), (String) e.getValue());
+                            }
+                        }
+                        boolean changed = false;
+                        java.util.Map<String, String> dst = new java.util.HashMap<>(src);
+                        for (java.util.Map.Entry<String, String> e : src.entrySet()) {
+                            String custom = mapTemplatePath(e.getValue());
+                            if (custom != null) {
+                                dst.put(e.getKey(), custom);
+                                changed = true;
+                                log(android.util.Log.INFO, TAG, "TABLE patch: "
+                                        + e.getKey() + " -> " + custom);
+                            }
+                        }
+                        if (changed) {
+                            java.lang.reflect.Field mod = null;
+                            try {
+                                mod = java.util.Map.class.getDeclaredField("modifiers");
+                                mod.setAccessible(true);
+                            } catch (Throwable ignored) {
+                            }
+                            f.set(null, java.util.Collections.unmodifiableMap(dst));
+                            log(android.util.Log.INFO, TAG, "TABLE patched, entries=" + dst.size());
+                            return;
+                        }
+                        log(android.util.Log.INFO, TAG,
+                                "TABLE ready but no rp_ template found yet (try " + i + ")");
+                    }
+                } catch (Throwable e) {
+                    if (i % 10 == 0) {
+                        log(android.util.Log.WARN, TAG, "TABLE wait " + i + " : " + e);
+                    }
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+            log(android.util.Log.WARN, TAG, "TABLE patch gave up");
+        }, "rp-table-patch");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private Object rewriteTemplateArg(io.github.libxposed.api.XposedInterface.Chain chain)
+            throws Throwable {
+        try {
+            java.util.List<Object> args = chain.getArgs();
+            if (!args.isEmpty() && args.get(0) instanceof String) {
+                String orig = (String) args.get(0);
+                String custom = mapTemplatePath(orig);
+                if (custom != null) {
+                    Object[] na = args.toArray();
+                    na[0] = custom;
+                    log(android.util.Log.INFO, TAG,
+                            "MAML redirect: " + orig + " -> " + custom);
+                    return chain.proceed(na);
+                }
+            }
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "rewriteTemplateArg err", t);
+        }
+        return chain.proceed();
+    }
+
+    /** .../smart_assistant/live_update_progress -> 同目录 rp_live_update_progress
+     *  注意：表里的原始值可能是 ".../users/$user_id/subscreencenter/..." 这种字面量，
+     *  也可能已被替换成真实用户号，两种都要认。 */
+    private static String mapTemplatePath(String orig) {
+        if (orig == null) return null;
+        // 表里的值是字面量 ".../users/$user_id/..."，需要展开成真实用户目录
+        String real = orig.replace("$user_id", "0");
+        int idx = real.lastIndexOf("smart_assistant/");
+        if (idx < 0) return null;
+        String tail = real.substring(idx + "smart_assistant/".length());
+        if (tail.isEmpty() || tail.contains("/")) return null;
+        File f = new File(TPL_DIR, tail);
+        return f.exists() ? f.getAbsolutePath() : null;
     }
 
     /**

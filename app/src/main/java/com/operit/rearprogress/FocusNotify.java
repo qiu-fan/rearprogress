@@ -107,12 +107,13 @@ final class FocusNotify {
     private static String sLastBody;
 
     /**
-     * 两段式上报：
-     *   title   → 上半部分（AI 主动上传的文字）
-     *   body    → 下半部分（最近工具调用，一行一条）
-     *   percent → 0-100 进度条，<0 表示不显示
+     * 三段式上报（对应背屏模板的三行）：
+     *   title     → 主标题（AI 进度，或状态「已就绪/任务进行中/已完成」）
+     *   toolName  → 副标题，模板里放大加粗
+     *   body      → 参数，一行一条，模板里小字弱化
+     *   percent   → 0-100 进度条，<0 表示不显示
      */
-    static void pushRaw(String title, String body, int percent) {
+    static void pushState(String title, String toolName, String body, int percent) {
         try {
             if (sNm == null || sCtx == null) {
                 // 在 Operit 进程里调用时还没 init，这里自愈
@@ -120,24 +121,31 @@ final class FocusNotify {
             }
             if (sNm == null || sCtx == null) return;
             if (title == null) title = "";
+            if (toolName == null) toolName = "";
             if (body == null) body = "";
             title = title.trim();
+            toolName = toolName.trim();
             body = body.trim();
             if (title.isEmpty() && body.isEmpty()) return;
 
-            String key = title + "\u0001" + body + "\u0001" + percent;
+            String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
             if (key.equals(sLastTitle)) return;   // 完全没变就不发
             sLastTitle = key;
 
             int pct = (percent < 0) ? 0 : Math.min(100, percent);
             boolean hasBar = percent >= 0;
 
-            Notification n = buildNotification(sCtx, title, body, pct, hasBar);
+            Notification n = buildNotification(sCtx, title, toolName, body, pct, hasBar);
             sNm.notify(NOTIF_ID, n);
             sSeq++;
         } catch (Throwable t) {
-            android.util.Log.w(TAG, "pushRaw failed", t);
+            android.util.Log.w(TAG, "pushState failed", t);
         }
+    }
+
+    /** 兼容旧调用：没有单独的工具名 */
+    static void pushRaw(String title, String body, int percent) {
+        pushState(title, "", body, percent);
     }
 
     /**
@@ -186,8 +194,8 @@ final class FocusNotify {
     }
 
     @SuppressWarnings("deprecation")
-    private static Notification buildNotification(Context ctx, String title, String body,
-                                                  int percent, boolean hasBar) {
+    private static Notification buildNotification(Context ctx, String title, String toolName,
+                                                  String body, int percent, boolean hasBar) {
         Notification.Builder b;
         if (android.os.Build.VERSION.SDK_INT >= 26) {
             b = new Notification.Builder(ctx, CHANNEL_ID);
@@ -195,7 +203,11 @@ final class FocusNotify {
             b = new Notification.Builder(ctx);
         }
         b.setContentTitle(title);
-        // 上半部分 title，下半部分 body（多行工具调用）
+        // 工具名走 subText，副屏中心 m2.b.c() 会把 extras 的
+        // android.subText 映射成 lu_sub_text，正好对应模板第二行
+        if (toolName != null && !toolName.isEmpty()) {
+            b.setSubText(toolName);
+        }
         b.setContentText(body);
         b.setSmallIcon(android.R.drawable.stat_sys_download_done);
         b.setOngoing(true);

@@ -1,0 +1,598 @@
+<Widget frameRate="0" useVariableUpdater="" scaleByDensity="false" screenWidth="1080" version="2" transparentSurface="true">
+  <!-- ==================== 缩放与布局常量 ==================== -->
+  <Var name="scale" type="number" expression="(#view_height / 213)"/>
+  <Var name="content_x" type="number" expression="(103 * #scale)"/>
+  <Var name="content_pad" type="number" expression="(20 * #scale)"/>
+  <Var name="content_pad_right" type="number" expression="(20 * #scale)"/>
+  <Var name="text_x" type="number" expression="(#content_x + #content_pad)"/>
+  <Var name="text_w" type="number" expression="(#view_width - #content_x - #content_pad - #content_pad_right)"/>
+  <Var name="icon_size" type="number" expression="(40 * #scale)"/>
+  <Var name="icon_x" type="number" expression="#text_x"/>
+  <Var name="icon_y" type="number" expression="(18 * #scale)"/>
+  <Var name="icon_corner" type="number" expression="(120 * #scale)"/>
+
+  <!-- 文字区域参数 -->
+  <Var name="title_size" type="number" expression="(18 * #scale)"/>
+  <Var name="text_size" type="number" expression="(14 * #scale)"/><Var name="subtext_size" type="number" expression="(20 * #scale)"/>
+  <Var name="text_area_y" type="number" expression="(68 * #scale)"/>
+  <Var name="title_gap" type="number" expression="(2 * #scale)"/>
+  <Var name="text_gap" type="number" expression="(0 * #scale)"/>
+
+  <!-- ==================== 状态变量 ==================== -->
+  <Var name="is_pause" type="number" expression="0" const="true"/>
+  <Var name="frame_ref" type="number" expression="0" const="true"/>
+
+  <!-- ==================== 数据变量 ==================== -->
+  <Var name="data" type="jsonO" expression="newJsonObject()" const="true"/>
+  <Var name="lu_package_name" type="string" expression="''" const="true"/>
+  <Var name="lu_title" type="string" expression="''" const="true"/>
+  <Var name="lu_text" type="string" expression="''" const="true"/>
+  <Var name="lu_sub_text" type="string" expression="''" const="true"/>
+  <Var name="has_text" type="number" expression="0" const="true"/>
+  <Var name="has_subtext" type="number" expression="0" const="true"/>
+  <Var name="field_count" type="number" expression="1" const="true"/>
+  <Var name="lu_pic_keys" type="string" expression="''" const="true"/>
+
+  <!-- 进度条数据（P1 基础进度 + P2 不确定进度） -->
+  <Var name="lu_progress" type="number" expression="0" const="true"/>
+  <Var name="lu_progress_max" type="number" expression="0" const="true"/>
+  <Var name="lu_progress_indeterminate" type="number" expression="0" const="true"/>
+  <Var name="has_progress" type="number" expression="0" const="true"/>
+  <Var name="progress_percent" type="number" expression="0" const="true"/>
+
+  <!-- P3 多彩分段 -->
+  <Var name="lu_progress_segments_count" type="number" expression="0" const="true"/>
+  <Var name="seg_0_length" type="number" expression="0" const="true"/>
+  <Var name="seg_0_color" type="string" expression="''" const="true"/>
+  <Var name="seg_0_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_1_length" type="number" expression="0" const="true"/>
+  <Var name="seg_1_color" type="string" expression="''" const="true"/>
+  <Var name="seg_1_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_2_length" type="number" expression="0" const="true"/>
+  <Var name="seg_2_color" type="string" expression="''" const="true"/>
+  <Var name="seg_2_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_3_length" type="number" expression="0" const="true"/>
+  <Var name="seg_3_color" type="string" expression="''" const="true"/>
+  <Var name="seg_3_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_4_length" type="number" expression="0" const="true"/>
+  <Var name="seg_4_color" type="string" expression="''" const="true"/>
+  <Var name="seg_4_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_5_length" type="number" expression="0" const="true"/>
+  <Var name="seg_5_color" type="string" expression="''" const="true"/>
+  <Var name="seg_5_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_6_length" type="number" expression="0" const="true"/>
+  <Var name="seg_6_color" type="string" expression="''" const="true"/>
+  <Var name="seg_6_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_7_length" type="number" expression="0" const="true"/>
+  <Var name="seg_7_color" type="string" expression="''" const="true"/>
+  <Var name="seg_7_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_8_length" type="number" expression="0" const="true"/>
+  <Var name="seg_8_color" type="string" expression="''" const="true"/>
+  <Var name="seg_8_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="seg_9_length" type="number" expression="0" const="true"/>
+  <Var name="seg_9_color" type="string" expression="''" const="true"/>
+  <Var name="seg_9_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+
+  <!-- P4 里程碑点（最多5个） -->
+  <Var name="lu_progress_points_count" type="number" expression="0" const="true"/>
+  <Var name="pt_0_position" type="number" expression="0" const="true"/>
+  <Var name="pt_0_color" type="string" expression="''" const="true"/>
+  <Var name="pt_0_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="pt_1_position" type="number" expression="0" const="true"/>
+  <Var name="pt_1_color" type="string" expression="''" const="true"/>
+  <Var name="pt_1_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="pt_2_position" type="number" expression="0" const="true"/>
+  <Var name="pt_2_color" type="string" expression="''" const="true"/>
+  <Var name="pt_2_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+  <Var name="pt_3_position" type="number" expression="0" const="true"/>
+  <Var name="pt_3_color" type="string" expression="''" const="true"/>
+  <Var name="pt_3_color_hex" type="string" expression="'#FFFFFF'" const="true"/>
+
+  <!-- P5 追踪图标 -->
+  <Var name="pic_key_tracker_icon" type="string" expression="'lu_progress_tracker_icon'" const="true"/>
+  <Var name="has_tracker_icon" type="number" expression="0" const="true"/>
+
+  <!-- P6 首尾端图标 -->
+  <Var name="pic_key_start_icon" type="string" expression="'lu_progress_start_icon'" const="true"/>
+  <Var name="pic_key_end_icon" type="string" expression="'lu_progress_end_icon'" const="true"/>
+  <Var name="has_start_icon" type="number" expression="0" const="true"/>
+  <Var name="has_end_icon" type="number" expression="0" const="true"/>
+
+  <!-- P7 进度着色策略 -->
+  <Var name="lu_styled_by_progress" type="number" expression="0" const="true"/>
+
+  <!-- 大图标 -->
+  <Var name="pic_key_large_icon" type="string" expression="'lu_large_icon'" const="true"/>
+  <Var name="has_large_icon" type="number" expression="0" const="true"/>
+
+  <!-- 调色板 -->
+  <Var name="paletteColorHex" type="string" expression="''" const="true"/>
+  <Var name="mainColor" type="number" expression="0" const="true"/>
+  <Var name="mainColorHex" type="string" expression="''" const="true"/>
+  <Var name="paletteColor" type="number" expression="0" const="true"/>
+
+  <!-- ==================== 折行计算 ==================== -->
+  <!-- layout1 最多3行，折行优先级 contentText > contentTitle > subText -->
+  <!-- 每个非空字段至少保留1行 -->
+  <Var name="max_lines" type="number" expression="ifelse(#has_large_icon, 3, 4)"/>
+
+  <!-- ==================== 帧率管理 ==================== -->
+  <Function name="acquireFrameRate">
+    <VariableCommand name="frame_ref" expression="(#frame_ref + 1)" type="number"/>
+    <FrameRateCommand rate="60"/>
+  </Function>
+  <Function name="releaseFrameRate">
+    <VariableCommand name="frame_ref" expression="(#frame_ref - 1)" type="number"/>
+    <MultiCommand condition="(#frame_ref {= 0)">
+      <VariableCommand name="frame_ref" expression="0" type="number"/>
+      <FrameRateCommand rate="0"/>
+    </MultiCommand>
+  </Function>
+  <Function name="updateFrameRate">
+    <FunctionCommand target="acquireFrameRate"/>
+    <FunctionCommand target="releaseFrameRate" delay="1000"/>
+  </Function>
+
+  <!-- ==================== AOD 动画 ==================== -->
+  <Function name="goAodState">
+    <FunctionCommand target="updateFrameRate"/>
+    <FolmeCommand target="aod_mask" config="'folme_aod_config'" states="'folme_aod'" command="to"/>
+  </Function>
+  <Function name="goDeskState">
+    <FunctionCommand target="updateFrameRate"/>
+    <FolmeCommand target="aod_mask" config="'folme_desk_config'" states="'folme_desk'" command="to"/>
+  </Function>
+
+  <!-- ==================== 数据解析 ==================== -->
+  <Function name="remove_rich_text">
+    <VariableCommand name="lu_title" expression="strReplaceAll(@lu_title,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_text" expression="strReplaceAll(@lu_text,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_sub_text" expression="strReplaceAll(@lu_sub_text,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <!-- 清理换行符（\n / \r 替换为空格，避免被 lineClamp 误判截断） -->
+    <VariableCommand name="lu_title" expression="strReplaceAll(@lu_title,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_text" expression="strReplaceAll(@lu_text,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_sub_text" expression="strReplaceAll(@lu_sub_text,'[\r\n]+',' ')" type="string"/>
+  </Function>
+
+  <Function name="parseData">
+    <!-- 包名 -->
+    <VariableCommand name="lu_package_name" expression="jsonGetString($data, 'lu_package_name')" type="string"/>
+    <!-- 文字 -->
+    <VariableCommand name="lu_title" expression="jsonGetString($data, 'lu_title')" type="string"/>
+    <VariableCommand name="lu_text" expression="jsonGetString($data, 'lu_text')" type="string"/>
+    <VariableCommand name="lu_sub_text" expression="jsonGetString($data, 'lu_sub_text')" type="string"/>
+    <VariableCommand name="has_text" expression="(len(@lu_text) } 0)" type="number"/>
+    <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
+    <VariableCommand name="field_count" expression="(1 + #has_text + #has_subtext)" type="number"/>
+    <!-- 图片可用性 -->
+    <VariableCommand name="lu_pic_keys" expression="jsonGetString($data, 'lu_pic_keys')" type="string"/>
+    <VariableCommand name="has_large_icon" expression="strContains(@lu_pic_keys, 'lu_large_icon')" type="number"/>
+    <!-- 进度条（P1 + P2） -->
+    <VariableCommand name="lu_progress" expression="jsonGetInt($data, 'lu_progress')" type="number"/>
+    <VariableCommand name="lu_progress_max" expression="jsonGetInt($data, 'lu_progress_max')" type="number"/>
+    <VariableCommand name="lu_progress_indeterminate" expression="jsonGetBoolean($data, 'lu_progress_indeterminate')" type="number"/>
+    <VariableCommand name="has_progress" expression="(#lu_progress_max } 0)" type="number"/>
+    <VariableCommand name="progress_percent" expression="ifelse(#has_progress, min(1, (#lu_progress / max(1, #lu_progress_max))), 0)" type="number"/>
+    <!-- P3 多彩分段 -->
+    <VariableCommand name="lu_progress_segments_count" expression="jsonGetInt($data, 'lu_progress_segments_count')" type="number"/>
+    <VariableCommand name="seg_0_length" expression="jsonGetInt($data, 'lu_progress_segments_0_length')" type="number"/>
+    <VariableCommand name="seg_0_color" expression="jsonGetString($data, 'lu_progress_segments_0_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_0_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_0_color)" paramTypes="int" return="seg_0_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_1_length" expression="jsonGetInt($data, 'lu_progress_segments_1_length')" type="number"/>
+    <VariableCommand name="seg_1_color" expression="jsonGetString($data, 'lu_progress_segments_1_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_1_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_1_color)" paramTypes="int" return="seg_1_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_2_length" expression="jsonGetInt($data, 'lu_progress_segments_2_length')" type="number"/>
+    <VariableCommand name="seg_2_color" expression="jsonGetString($data, 'lu_progress_segments_2_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_2_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_2_color)" paramTypes="int" return="seg_2_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_3_length" expression="jsonGetInt($data, 'lu_progress_segments_3_length')" type="number"/>
+    <VariableCommand name="seg_3_color" expression="jsonGetString($data, 'lu_progress_segments_3_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_3_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_3_color)" paramTypes="int" return="seg_3_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_4_length" expression="jsonGetInt($data, 'lu_progress_segments_4_length')" type="number"/>
+    <VariableCommand name="seg_4_color" expression="jsonGetString($data, 'lu_progress_segments_4_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_4_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_4_color)" paramTypes="int" return="seg_4_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_5_length" expression="jsonGetInt($data, 'lu_progress_segments_5_length')" type="number"/>
+    <VariableCommand name="seg_5_color" expression="jsonGetString($data, 'lu_progress_segments_5_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_5_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_5_color)" paramTypes="int" return="seg_5_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_6_length" expression="jsonGetInt($data, 'lu_progress_segments_6_length')" type="number"/>
+    <VariableCommand name="seg_6_color" expression="jsonGetString($data, 'lu_progress_segments_6_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_6_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_6_color)" paramTypes="int" return="seg_6_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_7_length" expression="jsonGetInt($data, 'lu_progress_segments_7_length')" type="number"/>
+    <VariableCommand name="seg_7_color" expression="jsonGetString($data, 'lu_progress_segments_7_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_7_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_7_color)" paramTypes="int" return="seg_7_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_8_length" expression="jsonGetInt($data, 'lu_progress_segments_8_length')" type="number"/>
+    <VariableCommand name="seg_8_color" expression="jsonGetString($data, 'lu_progress_segments_8_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_8_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_8_color)" paramTypes="int" return="seg_8_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="seg_9_length" expression="jsonGetInt($data, 'lu_progress_segments_9_length')" type="number"/>
+    <VariableCommand name="seg_9_color" expression="jsonGetString($data, 'lu_progress_segments_9_color_int')" type="string"/>
+    <MultiCommand condition="(len(@seg_9_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@seg_9_color)" paramTypes="int" return="seg_9_color_hex" returnType="string"/>
+    </MultiCommand>
+    <!-- P4 里程碑点 -->
+    <VariableCommand name="lu_progress_points_count" expression="jsonGetInt($data, 'lu_progress_points_count')" type="number"/>
+    <VariableCommand name="pt_0_position" expression="jsonGetInt($data, 'lu_progress_points_0_position')" type="number"/>
+    <VariableCommand name="pt_0_color" expression="jsonGetString($data, 'lu_progress_points_0_color_int')" type="string"/>
+    <MultiCommand condition="(len(@pt_0_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@pt_0_color)" paramTypes="int" return="pt_0_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="pt_1_position" expression="jsonGetInt($data, 'lu_progress_points_1_position')" type="number"/>
+    <VariableCommand name="pt_1_color" expression="jsonGetString($data, 'lu_progress_points_1_color_int')" type="string"/>
+    <MultiCommand condition="(len(@pt_1_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@pt_1_color)" paramTypes="int" return="pt_1_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="pt_2_position" expression="jsonGetInt($data, 'lu_progress_points_2_position')" type="number"/>
+    <VariableCommand name="pt_2_color" expression="jsonGetString($data, 'lu_progress_points_2_color_int')" type="string"/>
+    <MultiCommand condition="(len(@pt_2_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@pt_2_color)" paramTypes="int" return="pt_2_color_hex" returnType="string"/>
+    </MultiCommand>
+    <VariableCommand name="pt_3_position" expression="jsonGetInt($data, 'lu_progress_points_3_position')" type="number"/>
+    <VariableCommand name="pt_3_color" expression="jsonGetString($data, 'lu_progress_points_3_color_int')" type="string"/>
+    <MultiCommand condition="(len(@pt_3_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@pt_3_color)" paramTypes="int" return="pt_3_color_hex" returnType="string"/>
+    </MultiCommand>
+    <!-- P5/P6 图标可用性 -->
+    <VariableCommand name="has_tracker_icon" expression="strContains(@lu_pic_keys, 'lu_progress_tracker_icon')" type="number"/>
+    <VariableCommand name="has_start_icon" expression="strContains(@lu_pic_keys, 'lu_progress_start_icon')" type="number"/>
+    <VariableCommand name="has_end_icon" expression="strContains(@lu_pic_keys, 'lu_progress_end_icon')" type="number"/>
+    <!-- P7 -->
+    <VariableCommand name="lu_styled_by_progress" expression="jsonGetBoolean($data, 'lu_styled_by_progress')" type="number"/>
+    <FunctionCommand target="remove_rich_text"/>
+  </Function>
+
+  <Function name="logData">
+    <ExternCommand command="FLLogD" strPara="('liveupdate_layout1 | pkg=' + @lu_package_name + ' title=' + @lu_title + ' text=' + @lu_text + ' sub=' + @lu_sub_text + ' progress=' + #lu_progress + '/' + #lu_progress_max + ' ind=' + #lu_progress_indeterminate + ' seg=' + #lu_progress_segments_count + ' pt=' + #lu_progress_points_count + ' large_icon=' + #has_large_icon)"/>
+  </Function>
+
+  <Function name="refreshIconColor">
+    <BinderCommand name="getIconColor" command="refresh"/>
+  </Function>
+
+  <Function name="initData">
+    <MultiCommand condition="(len(@miui.liveupdate.param) } 0)">
+      <VariableCommand name="data" expression="strToJson(@miui.liveupdate.param)" type="jsonO"/>
+      <FunctionCommand target="parseData"/>
+      <FunctionCommand target="logData"/>
+      <!-- 加载大图标 -->
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_large_icon"/>
+      <!-- 加载进度条图标（P5/P6） -->
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_tracker_icon"/>
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_start_icon"/>
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_end_icon"/>
+    </MultiCommand>
+    <FunctionCommand target="refreshIconColor" delay="500"/>
+  </Function>
+
+  <!-- ==================== UI 渲染 ==================== -->
+  <!-- 背景 -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" fillColor="@paletteColorHex"/>
+  <Image x="0" y="0" w="#view_width" h="#view_height" src="assets/bg.png"/>
+
+  <!-- AOD 遮罩（只盖背景，不盖内容） -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" alpha="((eqs(@aod_desk_state,'1') * 255) * 0.4)" folmeMode="true" name="aod_mask" fillColor="#000000"/>
+
+  <!-- App 图标（固定顶部） -->
+  <Image x="#icon_x" y="#icon_y" w="#icon_size" h="#icon_size" srcExp="@lu_package_name" cornerRadiusExp="#icon_corner" name="app_icon" srcType="ApplicationIcon"/>
+
+  <!-- ==================== 自然测量（用单行宽度估算行数） ==================== -->
+  <!-- 不限宽度的隐藏 Text，用 text_width 获取单行总宽度 -->
+  <Text x="0" y="0" size="#title_size" textExp="@lu_title" name="title_natural" fontFamily="mipro-semibold" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_text" name="text_natural" fontFamily="mipro-medium" alpha="0"/>
+  <Text x="0" y="0" size="#subtext_size" textExp="@lu_sub_text" name="subtext_natural" fontFamily="mipro-semibold" alpha="0"/>
+
+  <!-- 用单行宽度除以可用宽度，向上取整得到自然行数 -->
+  <Var name="title_natural_lines" type="number" expression="max(1, ceil(#title_natural.text_width / max(1, #text_w)))"/>
+  <Var name="text_natural_lines" type="number" expression="ifelse(#has_text, max(1, ceil(#text_natural.text_width / max(1, #text_w))), 0)"/>
+  <Var name="subtext_natural_lines" type="number" expression="ifelse(#has_subtext, max(1, ceil(#subtext_natural.text_width / max(1, #text_w))), 0)"/>
+  <Var name="total_natural_lines" type="number" expression="(#title_natural_lines + #text_natural_lines + #subtext_natural_lines)"/>
+
+  <!-- 动态折行：优先级 Text > Title > Subtext -->
+  <!-- 每个非空字段保底1行 -->
+  <Var name="base_title" type="number" expression="1"/>
+  <Var name="base_text" type="number" expression="ifelse(#has_text, 1, 0)"/>
+  <Var name="base_sub" type="number" expression="ifelse(#has_subtext, 1, 0)"/>
+  <!-- 剩余可分配行数 -->
+  <Var name="remaining_0" type="number" expression="max(0, (#max_lines - #base_title - #base_text - #base_sub))"/>
+  <!-- 先给 Text（按自然行数需求） -->
+  <Var name="text_want" type="number" expression="ifelse(#has_text, max(0, (#text_natural_lines - #base_text)), 0)"/>
+  <Var name="extra_text" type="number" expression="min(#remaining_0, #text_want)"/>
+  <Var name="remaining_1" type="number" expression="(#remaining_0 - #extra_text)"/>
+  <!-- 再给 Title（按自然行数需求） -->
+  <Var name="title_want" type="number" expression="max(0, (#title_natural_lines - #base_title))"/>
+  <Var name="extra_title" type="number" expression="min(#remaining_1, #title_want)"/>
+  <Var name="remaining_2" type="number" expression="(#remaining_1 - #extra_title)"/>
+  <!-- 再给 Subtext（按自然行数需求） -->
+  <Var name="sub_want" type="number" expression="ifelse(#has_subtext, max(0, (#subtext_natural_lines - #base_sub)), 0)"/>
+  <Var name="extra_sub" type="number" expression="min(#remaining_2, #sub_want)"/>
+  <!-- 最终行数（只按自然需求分配，不多给） -->
+  <Var name="title_max_lines" type="number" expression="(#base_title + #extra_title)"/>
+  <Var name="text_max_lines" type="number" expression="(#base_text + #extra_text)"/>
+  <Var name="subtext_max_lines" type="number" expression="(#base_sub + #extra_sub)"/>
+
+  <!-- 受限测量 -->
+  <Text x="0" y="0" size="#title_size" textExp="@lu_title" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_text" width="#text_w" name="text_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#subtext_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
+
+  <!-- ==================== 文字（固定从 text_area_y 开始） ==================== -->
+  <!-- Large Icon（进度条上方右侧，有图时显示） -->
+  <Var name="large_icon_w" type="number" expression="(28 * #scale)"/>
+  <Var name="large_icon_h" type="number" expression="(28 * #scale)"/>
+  <Var name="large_icon_x" type="number" expression="(#text_x + #text_w - #large_icon_w)"/>
+  <Var name="large_icon_y" type="number" expression="(142 * #scale)"/>
+  <Image visibility="#has_large_icon" x="#large_icon_x" y="#large_icon_y" w="#large_icon_w" h="#large_icon_h" srcExp="@pic_key_large_icon" srcType="BitmapVar"/>
+
+  <!-- Title -->
+  <Text x="#text_x" y="#text_area_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
+
+  <!-- Subtext（第二行，紧跟 Title） -->
+  <Var name="subtext_y" type="number" expression="(#text_area_y + #title_measure.text_height + #title_gap)"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#subtext_size" color="#FFFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-semibold" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+
+  <!-- Text（第三行，紧跟 Subtext） -->
+  <Var name="text_y" type="number" expression="ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height + #text_gap), (#text_area_y + #title_measure.text_height + #title_gap))"/>
+  <Text visibility="#has_text" x="#text_x" y="#text_y" size="#text_size" color="#99FFFFFF" textExp="@lu_text" width="#text_w" name="content_text" fontFamily="mipro-regular" multiLine="true" lineClamp="#text_max_lines" ellipsis="true"/>
+
+  <!-- ==================== 进度条（P1 基础进度，P2 不确定时隐藏） ==================== -->
+  <Var name="bar_y" type="number" expression="(178 * #scale)"/>
+  <Var name="bar_h" type="number" expression="(8 * #scale)"/>
+  <Var name="bar_corner" type="number" expression="(99 * #scale)"/>
+  <Var name="bar_bg_h" type="number" expression="(2 * #scale)"/>
+
+  <!-- P6 首尾图标占位：图标在进度条两端，进度条宽度相应缩减 -->
+  <Var name="end_icon_size" type="number" expression="(20 * #scale)"/>
+  <Var name="end_icon_gap" type="number" expression="(4 * #scale)"/>
+  <Var name="start_icon_reserved" type="number" expression="(#has_start_icon * (#end_icon_size + #end_icon_gap))"/>
+  <Var name="end_icon_reserved" type="number" expression="(#has_end_icon * (#end_icon_size + #end_icon_gap))"/>
+  <Var name="bar_start_x" type="number" expression="(#text_x + #start_icon_reserved)"/>
+  <Var name="bar_w" type="number" expression="(#text_w - #start_icon_reserved - #end_icon_reserved)"/>
+  <!-- 进度条显示条件：有进度 且 非不确定模式 -->
+  <Var name="show_progress" type="number" expression="(#has_progress ** (! #lu_progress_indeterminate))"/>
+  <Var name="has_segments" type="number" expression="(#lu_progress_segments_count } 0)"/>
+
+  <!-- 分段间隙与里程碑点参数 -->
+  <Var name="seg_gap" type="number" expression="(2 * #scale)"/>
+  <Var name="pt_size" type="number" expression="(#bar_h * 1.5)"/>
+  <Var name="pt_gap" type="number" expression="(2 * #scale)"/>
+  <Var name="pt_slot" type="number" expression="(#pt_size + (2 * #pt_gap))"/>
+
+  <!-- 【核心】总扣除：所有段边界 seg_gap + 所有 point 额外占用 pt_extra -->
+  <Var name="boundary_count" type="number" expression="max(0, (#lu_progress_segments_count - 1))"/>
+  <Var name="pt_extra" type="number" expression="max(0, (#pt_slot - #seg_gap))"/>
+  <Var name="total_reserved" type="number" expression="((#boundary_count * #seg_gap) + (#lu_progress_points_count * #pt_extra))"/>
+  <Var name="content_w" type="number" expression="max(0, (#bar_w - #total_reserved))"/>
+
+  <!-- 各段按比例分配 content_w -->
+  <Var name="seg_0_cw" type="number" expression="ifelse(#has_segments, (#content_w * #seg_0_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_1_cw" type="number" expression="ifelse((#lu_progress_segments_count } 1), (#content_w * #seg_1_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_2_cw" type="number" expression="ifelse((#lu_progress_segments_count } 2), (#content_w * #seg_2_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_3_cw" type="number" expression="ifelse((#lu_progress_segments_count } 3), (#content_w * #seg_3_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_4_cw" type="number" expression="ifelse((#lu_progress_segments_count } 4), (#content_w * #seg_4_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_5_cw" type="number" expression="ifelse((#lu_progress_segments_count } 5), (#content_w * #seg_5_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_6_cw" type="number" expression="ifelse((#lu_progress_segments_count } 6), (#content_w * #seg_6_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_7_cw" type="number" expression="ifelse((#lu_progress_segments_count } 7), (#content_w * #seg_7_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_8_cw" type="number" expression="ifelse((#lu_progress_segments_count } 8), (#content_w * #seg_8_length / max(1, #lu_progress_max)), 0)"/>
+  <Var name="seg_9_cw" type="number" expression="ifelse((#lu_progress_segments_count } 9), (#content_w * #seg_9_length / max(1, #lu_progress_max)), 0)"/>
+
+  <!-- 各段原始右边界（尺度 [0, max]） -->
+  <Var name="seg_0_end_raw" type="number" expression="#seg_0_length"/>
+  <Var name="seg_1_end_raw" type="number" expression="(#seg_0_end_raw + #seg_1_length)"/>
+  <Var name="seg_2_end_raw" type="number" expression="(#seg_1_end_raw + #seg_2_length)"/>
+  <Var name="seg_3_end_raw" type="number" expression="(#seg_2_end_raw + #seg_3_length)"/>
+  <Var name="seg_4_end_raw" type="number" expression="(#seg_3_end_raw + #seg_4_length)"/>
+  <Var name="seg_5_end_raw" type="number" expression="(#seg_4_end_raw + #seg_5_length)"/>
+  <Var name="seg_6_end_raw" type="number" expression="(#seg_5_end_raw + #seg_6_length)"/>
+  <Var name="seg_7_end_raw" type="number" expression="(#seg_6_end_raw + #seg_7_length)"/>
+  <Var name="seg_8_end_raw" type="number" expression="(#seg_7_end_raw + #seg_8_length)"/>
+
+  <!-- 每个段边界是否存在 -->
+  <Var name="has_bd_0" type="number" expression="(#lu_progress_segments_count } 1)"/>
+  <Var name="has_bd_1" type="number" expression="(#lu_progress_segments_count } 2)"/>
+  <Var name="has_bd_2" type="number" expression="(#lu_progress_segments_count } 3)"/>
+  <Var name="has_bd_3" type="number" expression="(#lu_progress_segments_count } 4)"/>
+  <Var name="has_bd_4" type="number" expression="(#lu_progress_segments_count } 5)"/>
+  <Var name="has_bd_5" type="number" expression="(#lu_progress_segments_count } 6)"/>
+  <Var name="has_bd_6" type="number" expression="(#lu_progress_segments_count } 7)"/>
+  <Var name="has_bd_7" type="number" expression="(#lu_progress_segments_count } 8)"/>
+  <Var name="has_bd_8" type="number" expression="(#lu_progress_segments_count } 9)"/>
+
+  <!-- 每个 point 是否存在 -->
+  <Var name="pt_0_in" type="number" expression="(#lu_progress_points_count } 0)"/>
+  <Var name="pt_1_in" type="number" expression="(#lu_progress_points_count } 1)"/>
+  <Var name="pt_2_in" type="number" expression="(#lu_progress_points_count } 2)"/>
+  <Var name="pt_3_in" type="number" expression="(#lu_progress_points_count } 3)"/>
+
+  <!-- 段 K 的起始 x 前累计的 point 数：pts_before_bK = 位置 ≤ seg_K_end_raw 的 point 数 -->
+  <Var name="pts_before_b0" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_0_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_0_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_0_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_0_end_raw)))"/>
+  <Var name="pts_before_b1" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_1_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_1_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_1_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_1_end_raw)))"/>
+  <Var name="pts_before_b2" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_2_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_2_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_2_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_2_end_raw)))"/>
+  <Var name="pts_before_b3" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_3_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_3_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_3_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_3_end_raw)))"/>
+  <Var name="pts_before_b4" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_4_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_4_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_4_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_4_end_raw)))"/>
+  <Var name="pts_before_b5" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_5_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_5_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_5_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_5_end_raw)))"/>
+  <Var name="pts_before_b6" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_6_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_6_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_6_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_6_end_raw)))"/>
+  <Var name="pts_before_b7" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_7_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_7_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_7_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_7_end_raw)))"/>
+  <Var name="pts_before_b8" type="number" expression="((#pt_0_in ** (#pt_0_position {= #seg_8_end_raw)) + (#pt_1_in ** (#pt_1_position {= #seg_8_end_raw)) + (#pt_2_in ** (#pt_2_position {= #seg_8_end_raw)) + (#pt_3_in ** (#pt_3_position {= #seg_8_end_raw)))"/>
+
+  <!-- 各段绘制起始 x 和宽度 -->
+  <Var name="seg_0_draw_x" type="number" expression="#bar_start_x"/>
+  <Var name="seg_1_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + (1 * #seg_gap) + (#pts_before_b0 * #pt_extra))"/>
+  <Var name="seg_2_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + (2 * #seg_gap) + (#pts_before_b1 * #pt_extra))"/>
+  <Var name="seg_3_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + #seg_2_cw + (3 * #seg_gap) + (#pts_before_b2 * #pt_extra))"/>
+  <Var name="seg_4_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + #seg_2_cw + #seg_3_cw + (4 * #seg_gap) + (#pts_before_b3 * #pt_extra))"/>
+  <Var name="seg_5_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + #seg_2_cw + #seg_3_cw + #seg_4_cw + (5 * #seg_gap) + (#pts_before_b4 * #pt_extra))"/>
+  <Var name="seg_6_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + #seg_2_cw + #seg_3_cw + #seg_4_cw + #seg_5_cw + (6 * #seg_gap) + (#pts_before_b5 * #pt_extra))"/>
+  <Var name="seg_7_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + #seg_2_cw + #seg_3_cw + #seg_4_cw + #seg_5_cw + #seg_6_cw + (7 * #seg_gap) + (#pts_before_b6 * #pt_extra))"/>
+  <Var name="seg_8_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + #seg_2_cw + #seg_3_cw + #seg_4_cw + #seg_5_cw + #seg_6_cw + #seg_7_cw + (8 * #seg_gap) + (#pts_before_b7 * #pt_extra))"/>
+  <Var name="seg_9_draw_x" type="number" expression="(#bar_start_x + #seg_0_cw + #seg_1_cw + #seg_2_cw + #seg_3_cw + #seg_4_cw + #seg_5_cw + #seg_6_cw + #seg_7_cw + #seg_8_cw + (9 * #seg_gap) + (#pts_before_b8 * #pt_extra))"/>
+
+  <!-- 进度原始尺度位置（用于判断段是否已完成） -->
+  <Var name="raw_prog_pos" type="number" expression="(#progress_percent * max(1, #lu_progress_max))"/>
+
+  <!-- 各段原始起点（尺度 [0, max]） -->
+  <!-- seg_0_start_raw = 0；seg_K_start_raw = seg_{K-1}_end_raw -->
+  <!-- 粗色段的绘制宽度：
+       styled_by_progress=false 时 = 段完整宽度 seg_K_cw；
+       styled_by_progress=true 时 = seg_K_cw * clamp((raw_prog_pos - seg_K_start_raw) / seg_K_length, 0, 1)
+       （未完成段=0；部分完成段按进度裁剪；已完成段=cw） -->
+  <Var name="seg_0_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_0_cw * min(1, max(0, (#raw_prog_pos / max(1, #seg_0_length))))), #seg_0_cw)"/>
+  <Var name="seg_1_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_1_cw * min(1, max(0, ((#raw_prog_pos - #seg_0_end_raw) / max(1, #seg_1_length))))), #seg_1_cw)"/>
+  <Var name="seg_2_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_2_cw * min(1, max(0, ((#raw_prog_pos - #seg_1_end_raw) / max(1, #seg_2_length))))), #seg_2_cw)"/>
+  <Var name="seg_3_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_3_cw * min(1, max(0, ((#raw_prog_pos - #seg_2_end_raw) / max(1, #seg_3_length))))), #seg_3_cw)"/>
+  <Var name="seg_4_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_4_cw * min(1, max(0, ((#raw_prog_pos - #seg_3_end_raw) / max(1, #seg_4_length))))), #seg_4_cw)"/>
+  <Var name="seg_5_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_5_cw * min(1, max(0, ((#raw_prog_pos - #seg_4_end_raw) / max(1, #seg_5_length))))), #seg_5_cw)"/>
+  <Var name="seg_6_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_6_cw * min(1, max(0, ((#raw_prog_pos - #seg_5_end_raw) / max(1, #seg_6_length))))), #seg_6_cw)"/>
+  <Var name="seg_7_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_7_cw * min(1, max(0, ((#raw_prog_pos - #seg_6_end_raw) / max(1, #seg_7_length))))), #seg_7_cw)"/>
+  <Var name="seg_8_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_8_cw * min(1, max(0, ((#raw_prog_pos - #seg_7_end_raw) / max(1, #seg_8_length))))), #seg_8_cw)"/>
+  <Var name="seg_9_thick_w" type="number" expression="ifelse(#lu_styled_by_progress, (#seg_9_cw * min(1, max(0, ((#raw_prog_pos - #seg_8_end_raw) / max(1, #seg_9_length))))), #seg_9_cw)"/>
+
+  <!-- 无分段时：单色白色进度条 -->
+  <!-- 进度条背景（未完成部分：白色30%，高2px） -->
+  <Rectangle visibility="(#show_progress ** (! #has_segments))" x="#bar_start_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#bar_w" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="#FFFFFF" alpha="77"/>
+  <!-- 进度条已完成部分（实色，高8px） -->
+  <Rectangle visibility="(#show_progress ** (! #has_segments))" x="#bar_start_x" y="#bar_y" w="(#bar_w * #progress_percent)" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="#FFFFFF"/>
+
+  <!-- 有分段时：多彩分段进度条（P3） -->
+  <!-- styled_by_progress=true 时，每段先画 2px 彩色细线（0.45 透明度，作为未完成部分的样式） -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 0) ** #lu_styled_by_progress)" x="#seg_0_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_0_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_0_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 1) ** #lu_styled_by_progress)" x="#seg_1_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_1_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_1_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 2) ** #lu_styled_by_progress)" x="#seg_2_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_2_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_2_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 3) ** #lu_styled_by_progress)" x="#seg_3_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_3_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_3_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 4) ** #lu_styled_by_progress)" x="#seg_4_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_4_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_4_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 5) ** #lu_styled_by_progress)" x="#seg_5_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_5_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_5_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 6) ** #lu_styled_by_progress)" x="#seg_6_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_6_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_6_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 7) ** #lu_styled_by_progress)" x="#seg_7_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_7_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_7_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 8) ** #lu_styled_by_progress)" x="#seg_8_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_8_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_8_color_hex" alpha="77"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 9) ** #lu_styled_by_progress)" x="#seg_9_draw_x" y="(#bar_y + ((#bar_h - #bar_bg_h) / 2))" w="#seg_9_cw" h="#bar_bg_h" cornerRadiusExp="#bar_corner" fillColor="@seg_9_color_hex" alpha="77"/>
+
+  <!-- 粗彩色段：
+       styled_by_progress=false 时全宽；
+       styled_by_progress=true 时按进度裁剪到 seg_N_thick_w（未完成段宽度为 0 不显示） -->
+  <!-- 分段0 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 0) ** (#seg_0_thick_w } 0))" x="#seg_0_draw_x" y="#bar_y" w="#seg_0_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_0_color_hex"/>
+  <!-- 分段1 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 1) ** (#seg_1_thick_w } 0))" x="#seg_1_draw_x" y="#bar_y" w="#seg_1_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_1_color_hex"/>
+  <!-- 分段2 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 2) ** (#seg_2_thick_w } 0))" x="#seg_2_draw_x" y="#bar_y" w="#seg_2_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_2_color_hex"/>
+  <!-- 分段3 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 3) ** (#seg_3_thick_w } 0))" x="#seg_3_draw_x" y="#bar_y" w="#seg_3_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_3_color_hex"/>
+  <!-- 分段4 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 4) ** (#seg_4_thick_w } 0))" x="#seg_4_draw_x" y="#bar_y" w="#seg_4_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_4_color_hex"/>
+  <!-- 分段5 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 5) ** (#seg_5_thick_w } 0))" x="#seg_5_draw_x" y="#bar_y" w="#seg_5_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_5_color_hex"/>
+  <!-- 分段6 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 6) ** (#seg_6_thick_w } 0))" x="#seg_6_draw_x" y="#bar_y" w="#seg_6_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_6_color_hex"/>
+  <!-- 分段7 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 7) ** (#seg_7_thick_w } 0))" x="#seg_7_draw_x" y="#bar_y" w="#seg_7_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_7_color_hex"/>
+  <!-- 分段8 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 8) ** (#seg_8_thick_w } 0))" x="#seg_8_draw_x" y="#bar_y" w="#seg_8_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_8_color_hex"/>
+  <!-- 分段9 -->
+  <Rectangle visibility="(#show_progress ** (#lu_progress_segments_count } 9) ** (#seg_9_thick_w } 0))" x="#seg_9_draw_x" y="#bar_y" w="#seg_9_thick_w" h="#bar_h" cornerRadiusExp="#bar_corner" fillColor="@seg_9_color_hex"/>
+
+  <!-- P6 首尾端图标（在进度条两端） -->
+  <Image visibility="(#show_progress ** #has_start_icon)" x="#text_x" y="(#bar_y + ((#bar_h - #end_icon_size) / 2))" w="#end_icon_size" h="#end_icon_size" srcExp="@pic_key_start_icon" srcType="BitmapVar"/>
+  <Image visibility="(#show_progress ** #has_end_icon)" x="(#bar_start_x + #bar_w + #end_icon_gap)" y="(#bar_y + ((#bar_h - #end_icon_size) / 2))" w="#end_icon_size" h="#end_icon_size" srcExp="@pic_key_end_icon" srcType="BitmapVar"/>
+
+  <!-- P4 里程碑点（正方形，1.5 倍进度条高度；居中在段边界上）
+       使用累加器定位：
+         bd_leq_pt_N = 位置 ≤ pt_N_pos 的段边界数（每个贡献 seg_gap）
+         pt_leq_pt_N = 位置 ≤ pt_N_pos 的 point 数（含自己，每个贡献 pt_extra）
+         pt_N_cx = text_x + content_w * pt_N_pos/max + bd_leq_pt_N * seg_gap + pt_leq_pt_N * pt_extra - pt_slot/2 -->
+  <Var name="bd_leq_pt_0" type="number" expression="((#has_bd_0 ** (#seg_0_end_raw {= #pt_0_position)) + (#has_bd_1 ** (#seg_1_end_raw {= #pt_0_position)) + (#has_bd_2 ** (#seg_2_end_raw {= #pt_0_position)) + (#has_bd_3 ** (#seg_3_end_raw {= #pt_0_position)) + (#has_bd_4 ** (#seg_4_end_raw {= #pt_0_position)) + (#has_bd_5 ** (#seg_5_end_raw {= #pt_0_position)) + (#has_bd_6 ** (#seg_6_end_raw {= #pt_0_position)) + (#has_bd_7 ** (#seg_7_end_raw {= #pt_0_position)) + (#has_bd_8 ** (#seg_8_end_raw {= #pt_0_position)))"/>
+  <Var name="bd_leq_pt_1" type="number" expression="((#has_bd_0 ** (#seg_0_end_raw {= #pt_1_position)) + (#has_bd_1 ** (#seg_1_end_raw {= #pt_1_position)) + (#has_bd_2 ** (#seg_2_end_raw {= #pt_1_position)) + (#has_bd_3 ** (#seg_3_end_raw {= #pt_1_position)) + (#has_bd_4 ** (#seg_4_end_raw {= #pt_1_position)) + (#has_bd_5 ** (#seg_5_end_raw {= #pt_1_position)) + (#has_bd_6 ** (#seg_6_end_raw {= #pt_1_position)) + (#has_bd_7 ** (#seg_7_end_raw {= #pt_1_position)) + (#has_bd_8 ** (#seg_8_end_raw {= #pt_1_position)))"/>
+  <Var name="bd_leq_pt_2" type="number" expression="((#has_bd_0 ** (#seg_0_end_raw {= #pt_2_position)) + (#has_bd_1 ** (#seg_1_end_raw {= #pt_2_position)) + (#has_bd_2 ** (#seg_2_end_raw {= #pt_2_position)) + (#has_bd_3 ** (#seg_3_end_raw {= #pt_2_position)) + (#has_bd_4 ** (#seg_4_end_raw {= #pt_2_position)) + (#has_bd_5 ** (#seg_5_end_raw {= #pt_2_position)) + (#has_bd_6 ** (#seg_6_end_raw {= #pt_2_position)) + (#has_bd_7 ** (#seg_7_end_raw {= #pt_2_position)) + (#has_bd_8 ** (#seg_8_end_raw {= #pt_2_position)))"/>
+  <Var name="bd_leq_pt_3" type="number" expression="((#has_bd_0 ** (#seg_0_end_raw {= #pt_3_position)) + (#has_bd_1 ** (#seg_1_end_raw {= #pt_3_position)) + (#has_bd_2 ** (#seg_2_end_raw {= #pt_3_position)) + (#has_bd_3 ** (#seg_3_end_raw {= #pt_3_position)) + (#has_bd_4 ** (#seg_4_end_raw {= #pt_3_position)) + (#has_bd_5 ** (#seg_5_end_raw {= #pt_3_position)) + (#has_bd_6 ** (#seg_6_end_raw {= #pt_3_position)) + (#has_bd_7 ** (#seg_7_end_raw {= #pt_3_position)) + (#has_bd_8 ** (#seg_8_end_raw {= #pt_3_position)))"/>
+
+  <Var name="pt_leq_pt_0" type="number" expression="((#pt_0_in ** (#pt_0_position {= #pt_0_position)) + (#pt_1_in ** (#pt_1_position {= #pt_0_position)) + (#pt_2_in ** (#pt_2_position {= #pt_0_position)) + (#pt_3_in ** (#pt_3_position {= #pt_0_position)))"/>
+  <Var name="pt_leq_pt_1" type="number" expression="((#pt_0_in ** (#pt_0_position {= #pt_1_position)) + (#pt_1_in ** (#pt_1_position {= #pt_1_position)) + (#pt_2_in ** (#pt_2_position {= #pt_1_position)) + (#pt_3_in ** (#pt_3_position {= #pt_1_position)))"/>
+  <Var name="pt_leq_pt_2" type="number" expression="((#pt_0_in ** (#pt_0_position {= #pt_2_position)) + (#pt_1_in ** (#pt_1_position {= #pt_2_position)) + (#pt_2_in ** (#pt_2_position {= #pt_2_position)) + (#pt_3_in ** (#pt_3_position {= #pt_2_position)))"/>
+  <Var name="pt_leq_pt_3" type="number" expression="((#pt_0_in ** (#pt_0_position {= #pt_3_position)) + (#pt_1_in ** (#pt_1_position {= #pt_3_position)) + (#pt_2_in ** (#pt_2_position {= #pt_3_position)) + (#pt_3_in ** (#pt_3_position {= #pt_3_position)))"/>
+
+  <Var name="pt_slot_half" type="number" expression="(#pt_slot / 2)"/>
+
+  <Var name="pt_0_cx" type="number" expression="(#bar_start_x + (#content_w * #pt_0_position / max(1, #lu_progress_max)) + (#bd_leq_pt_0 * #seg_gap) + (#pt_leq_pt_0 * #pt_extra) - #pt_slot_half)"/>
+  <Var name="pt_1_cx" type="number" expression="(#bar_start_x + (#content_w * #pt_1_position / max(1, #lu_progress_max)) + (#bd_leq_pt_1 * #seg_gap) + (#pt_leq_pt_1 * #pt_extra) - #pt_slot_half)"/>
+  <Var name="pt_2_cx" type="number" expression="(#bar_start_x + (#content_w * #pt_2_position / max(1, #lu_progress_max)) + (#bd_leq_pt_2 * #seg_gap) + (#pt_leq_pt_2 * #pt_extra) - #pt_slot_half)"/>
+  <Var name="pt_3_cx" type="number" expression="(#bar_start_x + (#content_w * #pt_3_position / max(1, #lu_progress_max)) + (#bd_leq_pt_3 * #seg_gap) + (#pt_leq_pt_3 * #pt_extra) - #pt_slot_half)"/>
+
+  <Rectangle visibility="(#show_progress ** (#lu_progress_points_count } 0))" x="(#pt_0_cx - (#pt_size / 2))" y="((#bar_y + (#bar_h / 2)) - (#pt_size / 2))" w="#pt_size" h="#pt_size" cornerRadiusExp="(2 * #scale)" fillColor="@pt_0_color_hex"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_points_count } 1))" x="(#pt_1_cx - (#pt_size / 2))" y="((#bar_y + (#bar_h / 2)) - (#pt_size / 2))" w="#pt_size" h="#pt_size" cornerRadiusExp="(2 * #scale)" fillColor="@pt_1_color_hex"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_points_count } 2))" x="(#pt_2_cx - (#pt_size / 2))" y="((#bar_y + (#bar_h / 2)) - (#pt_size / 2))" w="#pt_size" h="#pt_size" cornerRadiusExp="(2 * #scale)" fillColor="@pt_2_color_hex"/>
+  <Rectangle visibility="(#show_progress ** (#lu_progress_points_count } 3))" x="(#pt_3_cx - (#pt_size / 2))" y="((#bar_y + (#bar_h / 2)) - (#pt_size / 2))" w="#pt_size" h="#pt_size" cornerRadiusExp="(2 * #scale)" fillColor="@pt_3_color_hex"/>
+
+  <!-- P5 追踪图标 -->
+  <Var name="tracker_size" type="number" expression="(#bar_h * 2.5)"/>
+  <Image visibility="(#show_progress ** #has_tracker_icon)" x="(#bar_start_x + (#bar_w * #progress_percent) - (#tracker_size / 2))" y="(#bar_y + (#bar_h / 2) - (#tracker_size / 2))" w="#tracker_size" h="#tracker_size" srcExp="@pic_key_tracker_icon" srcType="BitmapVar"/>
+
+  <!-- 无障碍（拼入进度百分比） -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" contentDescriptionExp="(@lu_title + ' ' + @lu_text + ' ' + @lu_sub_text + ifelse(#show_progress, (' ' + floor((#progress_percent * 100)) + '%'), ''))" alpha="0"/>
+
+  <!-- ==================== Folme 动画配置 ==================== -->
+  <Group>
+    <FolmeState name="folme_aod" alpha="(255 * 0.4)"/>
+    <FolmeConfig name="folme_aod_config" ease="-2,1,0.72"/>
+    <FolmeState name="folme_desk" alpha="0"/>
+    <FolmeConfig name="folme_desk_config" ease="-2,1,0.5"/>
+  </Group>
+
+  <!-- ==================== 数据绑定 ==================== -->
+  <VariableBinders>
+    <MiPaletteBinder name="getIconColor" actionType="get_palette_color_string" queryAtStart="false" imageName="'app_icon'" scheme="'primary'" toneIndex="10" columns="mainColor,mainColorHex,paletteColor,paletteColorHex">
+      <Variable name="mainColor" column="mainColor" type="number"/>
+      <Variable name="mainColorHex" column="mainColorHex" type="string"/>
+      <Variable name="paletteColor" column="paletteColor" type="number"/>
+      <Variable name="paletteColorHex" column="paletteColorHex" type="string"/>
+      <Trigger>
+        <ExternCommand command="FLLogD" strPara="('getIconColor | pkg=' + @package_name + ' paletteColorHex=' + @paletteColorHex + ' mainColorHex=' + @mainColorHex)"/>
+        <FunctionCommand target="updateFrameRate"/>
+      </Trigger>
+    </MiPaletteBinder>
+  </VariableBinders>
+
+  <!-- ==================== 生命周期 ==================== -->
+  <ExternalCommands>
+    <Trigger action="init">
+      <FunctionCommand target="initData"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="notification_received">
+      <FunctionCommand target="initData"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="enterAod">
+      <FunctionCommand target="goAodState"/>
+    </Trigger>
+    <Trigger action="exitAod">
+      <FunctionCommand target="goDeskState"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="pause">
+      <VariableCommand name="is_pause" expression="1" type="number"/>
+      <VariableCommand name="frame_ref" expression="0" type="number"/>
+      <FrameRateCommand rate="0"/>
+    </Trigger>
+    <Trigger action="resume">
+      <VariableCommand name="is_pause" expression="0" type="number"/>
+      <FunctionCommand target="updateFrameRate"/>
+      <MultiCommand condition="(len(@paletteColorHex) == 0)">
+        <ExternCommand command="FLLogD" strPara="('resume_retry_color | pkg=' + @package_name)"/>
+        <FunctionCommand target="refreshIconColor" delay="500"/>
+      </MultiCommand>
+    </Trigger>
+  </ExternalCommands>
+</Widget>

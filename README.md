@@ -1,203 +1,121 @@
-# Operit Android 项目
+# RearProgress — Operit 工具调用 → 小米背屏进度卡
 
-这是一个基于 **Jetpack Compose** 的现代化 Android 应用开发模板。
+把 Operit 的每次工具调用实时投到小米 17 Pro Max 的背屏上（HyperOS 4.0 / Android 17）。
 
-## 🚀 项目特性
-
-✅ **Jetpack Compose** - 现代化声明式 UI 框架  
-✅ **Material Design 3** - 最新设计规范  
-✅ **Kotlin** - 100% Kotlin 编写  
-✅ **Gradle Version Catalog** - 统一依赖管理  
-✅ **开箱即用** - 包含完整项目结构  
-
-## 📁 项目结构
+## 效果
 
 ```
-android-project/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/java/myapplication/
-│   │   │   │   ├── MainActivity.kt          # 主Activity
-│   │   │   │   └── ui/theme/
-│   │   │   │       ├── Color.kt             # 颜色定义
-│   │   │   │       ├── Theme.kt             # 主题配置
-│   │   │   │       └── Type.kt              # 字体配置
-│   │   │   ├── res/                         # 资源文件
-│   │   │   └── AndroidManifest.xml          # 应用清单
-│   │   ├── androidTest/                     # Android测试
-│   │   └── test/                            # 单元测试
-│   ├── build.gradle.kts                     # App模块配置
-│   └── proguard-rules.pro                   # 混淆规则
-├── gradle/
-│   ├── libs.versions.toml                   # 依赖版本管理
-│   └── wrapper/                             # Gradle Wrapper
-├── build.gradle.kts                         # 项目级配置
-├── settings.gradle.kts                      # 项目设置
-├── gradle.properties                        # Gradle属性
-├── gradlew / gradlew.bat                    # Gradle命令
-└── .gitignore                               # Git忽略
+┌──────────────────────────────────┐
+│ 任务进行中                    ●   │  18px semibold 白   ← 状态 / AI 进度
+│ super_admin:shell                 │  20px semibold 纯白 ← 工具名（主体）
+│ rm -f /data/local/tmp/agent_...   │  14px regular #99   ← 参数（弱化）
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░  92%            │  8px 进度条
+└──────────────────────────────────┘
 ```
 
-## 🛠️ 快速开始
+状态机：`已就绪` →（有工具调用）`任务进行中` →（收到回复完成）`已完成`
+AI 可主动写 `/data/local/tmp/agent_progress.txt` 上传进度，优先显示在主标题，5 分钟过期。
 
-### 1. 环境要求
-- ✅ **JDK 17+**（必需）
-- ✅ **Gradle** (已包含 Wrapper)
-- ✅ **Android SDK** (可选，用于完整编译)
+## 完整链路
 
-### 2. 构建项目
-
-#### 使用 Operit 内置命令按钮
-- 🔧 **初始化 Gradle Wrapper** - 首次使用
-- 🔨 **构建项目** - 编译整个项目
-- 🧹 **清理构建** - 清理构建缓存
-- 📋 **查看所有任务** - 列出可用任务
-
-#### 命令行方式
-```bash
-# Linux/Mac
-./gradlew build              # 构建项目
-./gradlew assembleDebug      # 打包Debug APK
-./gradlew installDebug       # 安装到设备
-./gradlew clean              # 清理构建
-
-# Windows
-gradlew.bat build
-gradlew.bat assembleDebug
+```
+Operit 进程                       副屏中心进程                背屏
+─────────────────────────────────────────────────────────────────────
+AIToolHandler.executeTool  ─┐
+  （Hook：工具名+参数）      │
+notifyReplyCompleted       ─┤
+  （Hook：标记已完成）       │
+                            ▼
+                  NotificationManager.notify（固定 ID 0x4147454E）
+                  Style = ProgressStyle + FLAG_ONGOING_EVENT
+                  title / subText / text / progress
+                            │
+                            ▼
+                  SmartAssistantNotificationListenerService
+                    a() 无 miui.focus.param → 放行
+                    b() flags & 0x2 → Hook 强制 isPromotedOngoing=true
+                    m2.b.b() 类名比对 Style → business=live_update_progress
+                    把 extras 里所有 lu_* 打包进 miui.liveupdate.param
+                            │
+                            ▼
+                  m2.d.i(business, pkg) → 模板路径
+                    ★ Hook 重定向到 /data/local/tmp/rp_tpl/<name>
+                            │
+                            ▼
+                  MamlWidget 渲染 MAML 模板 → 背屏卡片
 ```
 
-### 3. 生成的APK位置
+## 三个关键 Hook（副屏中心侧）
+
+| 目标 | 作用 | 必须性 |
+|---|---|---|
+| `k2.I.i()` | 实时更新总开关，恒返回 true | 开关关了直接丢弃 |
+| `SmartAssistantNLS.b()` | 强制 `isPromotedOngoing()` = true | 反射拿不到系统内部标志 |
+| `m2.d.i(String,String)` | 模板路径重定向到 `/data/local/tmp/rp_tpl/` | **改模板的核心** |
+
+## 为什么改模板要 Hook
+
+`/data/system/theme_magic/users/<uid>/subscreencenter/smart_assistant/<name>`
+里的模板每次副屏中心启动都会被从 APK 重新释放（实测 md5 回滚、`Clear cache`）。
+
+所以模板必须放在 `/data/local/tmp/rp_tpl/`，由 `m2.d.i()` 的 Hook 重定向过去。
+
+已试过但**不是**实际调用点的（不要重复踩）：
+`ZipResourceLoader` 构造器、`j2.a.f()`、`m2.a.a()` —— 都没被调用。
+
+注意 `m2/a.c` 静态表里的值是字面量 `.../users/$user_id/...`，需要展开。
+
+## 目录
+
 ```
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-## 📦 依赖管理
-
-项目使用 **Gradle Version Catalog** 统一管理依赖版本。
-
-### 查看当前依赖
-在 `gradle/libs.versions.toml` 中定义：
-
-```toml
-[versions]
-agp = "9.0.0"
-kotlin = "2.3.10"
-composeBom = "2026.01.01"
-
-[libraries]
-androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
-```
-
-### 添加新依赖
-1. 在 `gradle/libs.versions.toml` 中添加版本和库定义
-2. 在 `app/build.gradle.kts` 中引用：
-   ```kotlin
-   dependencies {
-       implementation(libs.your.library.name)
-   }
-   ```
-
-## 🎨 自定义应用
-
-### 修改应用名称
-编辑 `app/src/main/res/values/strings.xml`：
-```xml
-<string name="app_name">你的应用名</string>
+app/src/main/java/com/operit/rearprogress/
+  MainHook.java      副屏中心侧 Hook（含模板路径重定向）+ 轮询
+  OperitHook.java    Operit 侧 Hook（工具调用 / 回复完成 / 进度文件）
+  AgentProgress.java 状态机 + 三段内容组装
+  FocusNotify.java   通知构造（ProgressStyle + 固定 ID + 进度条 extras）
+  LogX.java          日志（logcat tag=RearProgress）
+tpl/
+  live_update_progress/manifest.xml   自定义 MAML 模板（源码）
+  lup_ui.zip                          打包产物
+  pack.py                             打包脚本
+  deploy.sh                           部署到 /data/local/tmp/rp_tpl
+  learn/                              学习用模板样本（gitignore）
 ```
 
-### 修改包名
-1. 更新 `app/build.gradle.kts` 中的 `namespace` 和 `applicationId`
-2. 重命名 `java/com/java/myapplication` 目录结构
-3. 更新 `AndroidManifest.xml` 中的包名引用
-
-### 修改主题颜色
-编辑 `app/src/main/java/.../ui/theme/Color.kt`：
-```kotlin
-val Purple80 = Color(0xFFD0BCFF)  // 修改为你的颜色
-```
-
-## 📱 Compose 示例
-
-当前 `MainActivity.kt` 包含一个简单的 Greeting 示例：
-
-```kotlin
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-```
-
-你可以：
-- 添加更多 Composable 函数
-- 使用 Material3 组件
-- 实现导航（推荐使用 Navigation Compose）
-- 集成 ViewModel、Repository 等架构组件
-
-## 🔧 常用 Gradle 任务
+## 构建与部署
 
 ```bash
-./gradlew tasks              # 查看所有可用任务
-./gradlew clean              # 清理构建
-./gradlew build              # 完整构建
-./gradlew assembleDebug      # 构建Debug APK
-./gradlew assembleRelease    # 构建Release APK
-./gradlew installDebug       # 安装Debug到设备
-./gradlew test               # 运行单元测试
-./gradlew connectedAndroidTest # 运行Android测试
+./gradlew :app:assembleDebug --offline
+cp app/build/outputs/apk/debug/app-debug.apk /data/local/tmp/RearProgress.apk
+pm install -r /data/local/tmp/RearProgress.apk
+am force-stop com.xiaomi.subscreencenter        # 副屏中心重载 Hook
+sh tpl/deploy.sh                                # 部署模板（改了模板才需要）
+# Operit 进程需手动重启才会加载新的 OperitHook
 ```
 
-## 📝 注意事项
+## 环境
 
-⚠️ **关于 Android SDK**  
-- 此模板可以在 Operit 的 Ubuntu 环境中构建
-- 完整编译需要安装 Android SDK
-- 推荐使用 Android Studio 进行完整开发
+- 小米 17 Pro Max，HyperOS OS4.0.0.39.XPBCNXM，Android 17，背屏 displayId=1
+- KernelSU + LSPosed 2.2.1 (API 102)，模块用 libxposed API 102
+- 作用域：`com.xiaomi.subscreencenter` + `com.ai.assistance.operit`
+- 副屏中心必须在通知监听白名单：
+  `cmd notification allow_listener com.xiaomi.subscreencenter/com.xiaomi.subscreencenter.smartassistant.SmartAssistantNotificationListenerService`
 
-### ⚠️ ARM64 环境 AAPT2 替换（模板已内置）
+## 已知风险
 
-Gradle 会自动从 Google Maven 下载 AAPT2，但官方分发在 ARM64 Linux 环境下不可直接使用。
-此模板已经内置 ARM64 `aapt2`，`setup_android_env.sh` 会自动把它替换到 SDK build-tools 和 Gradle 缓存里。
+- 依赖混淆类名（`k2.I`、`m2.b`、`m2.d.i`、`AIToolHandler`），系统或应用升级可能静默失效
+- 通知**不能带** `miui.focus.param`，否则 `a()` 直接 return（焦点通知是排除标志，不是背屏通道）
+- Style 必须是 `ProgressStyle` / `BigTextStyle` / `CallStyle` 之一，其余被 `m2.b.b()` 丢弃
 
-**模板内置来源**：
-- Release: https://github.com/ReVanced/aapt2/releases/tag/v1.0.0
-- ARM64 aapt2: https://github.com/ReVanced/aapt2/releases/download/v1.0.0/aapt2-arm64-v8a
-- SHA-256: `e5b5ff7f0d4f6ecd7fa5d05d77fed3f09f6f1bf80f078b8aada82bc578848561`
+## 构建环境（ARM64）
 
-**你只需要执行**
+Gradle 官方 AAPT2 在 ARM64 Linux 不可用，仓库内置了替换版：
+
 ```bash
 chmod +x ./setup_android_env.sh
 ./setup_android_env.sh
 ```
 
-脚本会自动完成：
-- 替换 `$ANDROID_SDK/build-tools/35.0.0/aapt2`
-- 替换 `~/.gradle/caches/modules-2/files-2.1/com.android.tools.build/aapt2` 下的 jar 内二进制
-- 替换 `~/.gradle/caches/transforms-*` 中已经解压出来的 `aapt2`
+- 来源：https://github.com/ReVanced/aapt2/releases/tag/v1.0.0
+- SHA-256: `e5b5ff7f0d4f6ecd7fa5d05d77fed3f09f6f1bf80f078b8aada82bc578848561`
 
-⚠️ **关于包名**  
-- 默认包名为 `com.java.myapplication`
-- 发布前请修改为你的唯一包名
-
-⚠️ **关于签名**  
-- Debug 版本自动使用调试签名
-- Release 版本需要配置签名密钥
-
-## 🌐 相关资源
-
-- [Jetpack Compose 官方文档](https://developer.android.com/jetpack/compose)
-- [Material Design 3](https://m3.material.io/)
-- [Android 开发者指南](https://developer.android.com/)
-- [Kotlin 官方文档](https://kotlinlang.org/)
-
-## 💡 提示
-
-- 使用 `./gradlew --scan` 可以查看详细的构建分析
-- 使用 `./gradlew build --info` 查看详细构建日志
-- 修改 `gradle.properties` 可以调整构建性能
-
-Happy Coding! 🤖✨

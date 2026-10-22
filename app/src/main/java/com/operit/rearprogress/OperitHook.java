@@ -67,7 +67,7 @@ final class OperitHook {
                     throw e;
                 } finally {
                     AgentProgress.recordTool(name, detail, success);
-                    FocusNotify.pushRaw(AgentProgress.title(), AgentProgress.body(),
+                    FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
                             AgentProgress.percent());
                     LogX.i(TAG, "tool " + (success ? "ok" : "fail") + " -> " + name
                             + " (" + AgentProgress.toolCount() + ")");
@@ -106,7 +106,7 @@ final class OperitHook {
             xposed.hook(t).intercept(chain -> {
                 try {
                     AgentProgress.markDone();
-                    FocusNotify.pushRaw(AgentProgress.title(), AgentProgress.body(),
+                    FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
                             AgentProgress.percent());
                     LogX.i(TAG, "reply completed -> 已完成");
                 } catch (Throwable e) {
@@ -126,7 +126,7 @@ final class OperitHook {
             try {
                 Thread.sleep(2000L);
                 AgentProgress.markReady();
-                FocusNotify.pushRaw(AgentProgress.title(), AgentProgress.body(),
+                FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
                         AgentProgress.percent());
                 LogX.i(TAG, "initial state pushed -> " + AgentProgress.title());
             } catch (Throwable e) {
