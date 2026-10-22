@@ -1,0 +1,455 @@
+<Widget frameRate="0" useVariableUpdater="" scaleByDensity="false" screenWidth="1080" version="2" transparentSurface="true">
+  <!-- ==================== 缩放与布局常量 ==================== -->
+  <Var name="scale" type="number" expression="(#view_height / 213)"/>
+  <Var name="content_x" type="number" expression="(103 * #scale)"/>
+  <Var name="content_pad" type="number" expression="(20 * #scale)"/>
+  <Var name="content_pad_right" type="number" expression="(20 * #scale)"/>
+  <Var name="text_x" type="number" expression="(#content_x + #content_pad)"/>
+  <Var name="text_w" type="number" expression="(#view_width - #content_x - #content_pad - #content_pad_right)"/>
+  <Var name="icon_size" type="number" expression="(40 * #scale)"/>
+  <Var name="icon_x" type="number" expression="#text_x"/>
+  <Var name="icon_y" type="number" expression="(18 * #scale)"/>
+  <Var name="icon_corner" type="number" expression="(120 * #scale)"/>
+
+  <!-- 文字参数 -->
+  <Var name="app_name_size" type="number" expression="(10 * #scale)"/>
+  <Var name="title_size" type="number" expression="(16 * #scale)"/>
+  <Var name="text_size" type="number" expression="(14 * #scale)"/>
+  <Var name="text_area_y" type="number" expression="(68 * #scale)"/>
+
+  <!-- 按钮区域参数 -->
+  <Var name="btn_area_y" type="number" expression="ifelse(#lu_actions_count == 3, (137 * #scale), (141 * #scale))"/>
+  <Var name="round_btn_size" type="number" expression="(56 * #scale)"/>
+  <Var name="round_btn_gap" type="number" expression="((#text_w - (#round_btn_size * 3)) / 2)"/>
+  <Var name="round_btn_corner" type="number" expression="(99 * #scale)"/>
+  <Var name="btn_text_size" type="number" expression="(10 * #scale)"/>
+  <Var name="long_btn_h" type="number" expression="(48 * #scale)"/>
+  <Var name="long_btn_corner" type="number" expression="(99 * #scale)"/>
+
+  <!-- AOD 隐私保护参数 -->
+  <Var name="aod_icon_size" type="number" expression="(50 * #scale)"/>
+  <Var name="aod_name_size" type="number" expression="(15 * #scale)"/>
+
+  <!-- ==================== 状态变量 ==================== -->
+  <Var name="is_pause" type="number" expression="0" const="true"/>
+  <Var name="frame_ref" type="number" expression="0" const="true"/>
+  <Var name="is_aod" type="number" expression="0" const="true"/>
+
+  <!-- ==================== 数据变量 ==================== -->
+  <Var name="data" type="jsonO" expression="newJsonObject()" const="true"/>
+  <Var name="lu_package_name" type="string" expression="''" const="true"/>
+  <Var name="lu_app_name" type="string" expression="''" const="true"/>
+  <Var name="lu_text" type="string" expression="''" const="true"/>
+  <Var name="lu_call_person_name" type="string" expression="''" const="true"/>
+  <Var name="lu_when" type="string" expression="''" const="true"/>
+  <Var name="lu_show_when" type="number" expression="0" const="true"/>
+  <Var name="lu_show_chronometer" type="number" expression="0" const="true"/>
+  <Var name="lu_chronometer_count_down" type="number" expression="0" const="true"/>
+  <Var name="pic_key_call_person_icon" type="string" expression="'lu_call_person_icon'" const="true"/>
+  <Var name="pic_key_actions_0_icon" type="string" expression="'lu_actions_0_icon'" const="true"/>
+  <Var name="pic_key_actions_1_icon" type="string" expression="'lu_actions_1_icon'" const="true"/>
+  <Var name="pic_key_actions_2_icon" type="string" expression="'lu_actions_2_icon'" const="true"/>
+  <Var name="lu_actions_count" type="number" expression="0" const="true"/>
+  <Var name="is_incoming" type="number" expression="0" const="true"/>
+  <Var name="lu_actions_0_title" type="string" expression="''" const="true"/>
+  <Var name="lu_actions_1_title" type="string" expression="''" const="true"/>
+  <Var name="lu_actions_2_title" type="string" expression="''" const="true"/>
+  <Var name="lu_pic_keys" type="string" expression="''" const="true"/>
+  <Var name="lu_action_keys" type="string" expression="''" const="true"/>
+  <Var name="lu_actions_0_system_type" type="string" expression="''" const="true"/>
+  <Var name="lu_actions_1_system_type" type="string" expression="''" const="true"/>
+  <Var name="lu_actions_2_system_type" type="string" expression="''" const="true"/>
+
+  <!-- 系统下发的按钮颜色（Java int 字符串） -->
+  <Var name="lu_decline_color" type="string" expression="''" const="true"/>
+  <Var name="lu_answer_color" type="string" expression="''" const="true"/>
+  <!-- 转换后的 hex 色值（默认 fallback 到写死值） -->
+  <Var name="lu_decline_color_hex" type="string" expression="'#FF0000'" const="true"/>
+  <Var name="lu_answer_color_hex" type="string" expression="'#008E0D'" const="true"/>
+
+  <!-- Intent key（固定字符串，用于 sa_get_action / sa_execute_action） -->
+  <Var name="action_key_actions_0_intent" type="string" expression="'lu_actions_0_intent'" const="true"/>
+  <Var name="action_key_actions_1_intent" type="string" expression="'lu_actions_1_intent'" const="true"/>
+  <Var name="action_key_actions_2_intent" type="string" expression="'lu_actions_2_intent'" const="true"/>
+
+  <!-- 计时器计算 -->
+  <!-- 正计时：已过秒数 = (当前时间 - lu_when) / 1000 -->
+  <!-- 倒计时：剩余秒数 = (lu_when - 当前时间) / 1000 -->
+  <Var name="raw_sec" type="number" expression="ifelse(#lu_chronometer_count_down, int((num(@lu_when) - #time_sys) / 1000), int((#time_sys - num(@lu_when)) / 1000))"/>
+  <Var name="elapsed_sec" type="number" expression="max(0, #raw_sec)"/>
+  <Var name="elapsed_min" type="number" expression="int(#elapsed_sec / 60)"/>
+  <Var name="elapsed_sec_mod" type="number" expression="(#elapsed_sec - (#elapsed_min * 60))"/>
+  <Var name="timer_text" type="string" expression="(ifelse((#elapsed_min { 10), '0', '') + #elapsed_min + ':' + ifelse((#elapsed_sec_mod { 10), '0', '') + #elapsed_sec_mod)"/>
+  <!-- 第一行显示文案：应用名 · 计时器 -->
+  <Var name="time_display" type="string" expression="ifelse(#lu_show_chronometer, (@lu_app_name + ' · ' + @timer_text), ifelse((len(@lu_app_name) } 0), @lu_app_name, ''))"/>
+
+  <!-- 调色板 -->
+  <Var name="paletteColorHex" type="string" expression="''" const="true"/>
+  <Var name="mainColor" type="number" expression="0" const="true"/>
+  <Var name="mainColorHex" type="string" expression="''" const="true"/>
+  <Var name="paletteColor" type="number" expression="0" const="true"/>
+
+  <!-- ==================== 帧率管理 ==================== -->
+  <Function name="acquireFrameRate">
+    <VariableCommand name="frame_ref" expression="(#frame_ref + 1)" type="number"/>
+    <FrameRateCommand rate="60"/>
+  </Function>
+  <Function name="releaseFrameRate">
+    <VariableCommand name="frame_ref" expression="(#frame_ref - 1)" type="number"/>
+    <MultiCommand condition="(#frame_ref {= 0)">
+      <VariableCommand name="frame_ref" expression="0" type="number"/>
+      <IfCommand ifCondition="(#lu_show_chronometer ** (! eqs(@aod_desk_state,'1')) ** (! #is_pause))">
+        <Consequent>
+          <FrameRateCommand rate="60"/>
+        </Consequent>
+        <Alternate>
+          <FrameRateCommand rate="0"/>
+        </Alternate>
+      </IfCommand>
+    </MultiCommand>
+  </Function>
+  <Function name="updateFrameRate">
+    <FunctionCommand target="acquireFrameRate"/>
+    <FunctionCommand target="releaseFrameRate" delay="1000"/>
+  </Function>
+
+  <!-- ==================== AOD 动画 ==================== -->
+  <Function name="goAodState">
+    <VariableCommand name="is_aod" expression="1" type="number"/>
+    <FunctionCommand target="updateFrameRate"/>
+    <FolmeCommand target="aod_mask" config="'folme_aod_config'" states="'folme_aod'" command="to"/>
+  </Function>
+  <Function name="goDeskState">
+    <VariableCommand name="is_aod" expression="0" type="number"/>
+    <FunctionCommand target="updateFrameRate"/>
+    <FolmeCommand target="aod_mask" config="'folme_desk_config'" states="'folme_desk'" command="to"/>
+  </Function>
+
+  <!-- ==================== 数据解析 ==================== -->
+  <Function name="remove_rich_text">
+    <VariableCommand name="lu_call_person_name" expression="strReplaceAll(@lu_call_person_name,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_text" expression="strReplaceAll(@lu_text,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_actions_0_title" expression="strReplaceAll(@lu_actions_0_title,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_actions_1_title" expression="strReplaceAll(@lu_actions_1_title,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_actions_2_title" expression="strReplaceAll(@lu_actions_2_title,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <!-- 清理换行符（\n / \r 替换为空格，避免被 lineClamp 误判截断） -->
+    <VariableCommand name="lu_call_person_name" expression="strReplaceAll(@lu_call_person_name,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_text" expression="strReplaceAll(@lu_text,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_actions_0_title" expression="strReplaceAll(@lu_actions_0_title,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_actions_1_title" expression="strReplaceAll(@lu_actions_1_title,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_actions_2_title" expression="strReplaceAll(@lu_actions_2_title,'[\r\n]+',' ')" type="string"/>
+  </Function>
+
+  <Function name="parseData">
+    <VariableCommand name="lu_package_name" expression="jsonGetString($data, 'lu_package_name')" type="string"/>
+    <VariableCommand name="lu_app_name" expression="jsonGetString($data, 'lu_app_name')" type="string"/>
+    <VariableCommand name="lu_text" expression="jsonGetString($data, 'lu_text')" type="string"/>
+    <VariableCommand name="lu_call_person_name" expression="jsonGetString($data, 'lu_call_person_name')" type="string"/>
+    <VariableCommand name="lu_when" expression="jsonGetString($data, 'lu_when')" type="string"/>
+    <VariableCommand name="lu_show_when" expression="jsonGetBoolean($data, 'lu_show_when')" type="number"/>
+    <VariableCommand name="lu_show_chronometer" expression="jsonGetBoolean($data, 'lu_show_chronometer')" type="number"/>
+    <VariableCommand name="lu_chronometer_count_down" expression="jsonGetBoolean($data, 'lu_chronometer_count_down')" type="number"/>
+    <VariableCommand name="lu_actions_count" expression="jsonGetInt($data, 'lu_actions_count')" type="number"/>
+    <VariableCommand name="is_incoming" expression="(#lu_actions_count }= 2)" type="number"/>
+    <!-- 按钮文字 -->
+    <VariableCommand name="lu_actions_0_title" expression="jsonGetString($data, 'lu_actions_0_title')" type="string"/>
+    <VariableCommand name="lu_actions_1_title" expression="jsonGetString($data, 'lu_actions_1_title')" type="string"/>
+    <VariableCommand name="lu_actions_2_title" expression="jsonGetString($data, 'lu_actions_2_title')" type="string"/>
+    <VariableCommand name="lu_pic_keys" expression="jsonGetString($data, 'lu_pic_keys')" type="string"/>
+    <VariableCommand name="lu_action_keys" expression="jsonGetString($data, 'lu_action_keys')" type="string"/>
+    <VariableCommand name="lu_actions_0_system_type" expression="jsonGetString($data, 'lu_actions_0_system_type')" type="string"/>
+    <VariableCommand name="lu_actions_1_system_type" expression="jsonGetString($data, 'lu_actions_1_system_type')" type="string"/>
+    <VariableCommand name="lu_actions_2_system_type" expression="jsonGetString($data, 'lu_actions_2_system_type')" type="string"/>
+    <!-- 解析按钮颜色 -->
+    <VariableCommand name="lu_decline_color" expression="jsonGetString($data, 'lu_decline_color')" type="string"/>
+    <VariableCommand name="lu_answer_color" expression="jsonGetString($data, 'lu_answer_color')" type="string"/>
+    <MultiCommand condition="(len(@lu_decline_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@lu_decline_color)" paramTypes="int" return="lu_decline_color_hex" returnType="string"/>
+    </MultiCommand>
+    <MultiCommand condition="(len(@lu_answer_color) } 0)">
+      <MethodCommand class="com.miui.maml.util.ColorUtils" method="ColorToHex" params="eval(@lu_answer_color)" paramTypes="int" return="lu_answer_color_hex" returnType="string"/>
+    </MultiCommand>
+    <FunctionCommand target="remove_rich_text"/>
+  </Function>
+
+  <Function name="logData">
+    <ExternCommand command="FLLogD" strPara="('liveupdate_layout3 | pkg=' + @lu_package_name + ' person=' + @lu_call_person_name + ' text=' + @lu_text + ' actions=' + #lu_actions_count + ' incoming=' + #is_incoming + ' chron=' + #lu_show_chronometer)"/>
+  </Function>
+
+  <Function name="refreshIconColor">
+    <BinderCommand name="getIconColor" command="refresh"/>
+  </Function>
+
+  <!-- ==================== 按钮点击 ==================== -->
+  <Function name="onAction0Click">
+    <ExternCommand command="FLLogD" strPara="('handleAction0Click | pkg=' + @lu_package_name + ' title=' + @lu_actions_0_title + ' system_type=' + @lu_actions_0_system_type)"/>
+    <ExternCommand command="sa_execute_action" strPara="@action_key_actions_0_intent"/>
+  </Function>
+  <Function name="onAction1Click">
+    <ExternCommand command="FLLogD" strPara="('handleAction1Click | pkg=' + @lu_package_name + ' title=' + @lu_actions_1_title + ' system_type=' + @lu_actions_1_system_type)"/>
+    <ExternCommand command="sa_execute_action" strPara="@action_key_actions_1_intent"/>
+  </Function>
+  <Function name="onAction2Click">
+    <ExternCommand command="FLLogD" strPara="('handleAction2Click | pkg=' + @lu_package_name + ' title=' + @lu_actions_2_title + ' system_type=' + @lu_actions_2_system_type)"/>
+    <ExternCommand command="sa_execute_action" strPara="@action_key_actions_2_intent"/>
+  </Function>
+
+  <!-- ==================== 数据初始化 ==================== -->
+  <Function name="initData">
+    <MultiCommand condition="(len(@miui.liveupdate.param) } 0)">
+      <VariableCommand name="data" expression="strToJson(@miui.liveupdate.param)" type="jsonO"/>
+      <FunctionCommand target="parseData"/>
+      <FunctionCommand target="logData"/>
+      <!-- 加载图片 -->
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_call_person_icon"/>
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_actions_0_icon"/>
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_actions_1_icon"/>
+      <ExternCommand command="sa_get_pic" strPara="@pic_key_actions_2_icon"/>
+      <!-- 预加载 Intent -->
+      <ExternCommand command="sa_get_action" strPara="@action_key_actions_0_intent"/>
+      <ExternCommand command="sa_get_action" strPara="@action_key_actions_1_intent"/>
+      <ExternCommand command="sa_get_action" strPara="@action_key_actions_2_intent"/>
+    </MultiCommand>
+    <FunctionCommand target="refreshIconColor" delay="500"/>
+  </Function>
+
+  <!-- ==================== UI 渲染 ==================== -->
+  <!-- 背景 -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" fillColor="@paletteColorHex"/>
+  <Image x="0" y="0" w="#view_width" h="#view_height" src="assets/bg.png"/>
+
+  <!-- ==================== 按钮区域（AOD 时隐藏） ==================== -->
+  <Group visibility="(! eqs(@aod_desk_state,'1'))">
+  <Var name="long_btn_gap" type="number" expression="(8 * #scale)"/>
+  <Var name="long_btn_y" type="number" expression="(#btn_area_y + ((#round_btn_size - #long_btn_h) / 2))"/>
+
+  <!-- 按钮图标尺寸 -->
+  <Var name="btn_icon_size" type="number" expression="(26 * #scale)"/>
+  <!-- 按钮内文案尺寸 -->
+  <Var name="round_btn_text_size" type="number" expression="(10 * #scale)"/>
+  <!-- 各按钮图标是否存在 -->
+  <Var name="has_icon_0" type="number" expression="strContains(@lu_pic_keys, 'lu_actions_0_icon')"/>
+  <Var name="has_icon_1" type="number" expression="strContains(@lu_pic_keys, 'lu_actions_1_icon')"/>
+  <Var name="has_icon_2" type="number" expression="strContains(@lu_pic_keys, 'lu_actions_2_icon')"/>
+  <!-- 来电人头像是否存在（用于兜底默认头像） -->
+  <Var name="has_person_icon" type="number" expression="strContains(@lu_pic_keys, 'lu_call_person_icon')"/>
+  <!-- 3个按钮时：有图只显示图标，无图只显示文案 -->
+  <!-- 1-2个按钮时：有图都显示，无图只显示文案 -->
+  <!-- 图标 visibility：有图就显示 -->
+  <!-- 文案 visibility：按钮数<3 || 无图 -->
+
+  <!-- === 3个圆按钮（actionCount>=3） === -->
+  <Var name="video_btn_x" type="number" expression="(#text_x + #round_btn_size + #round_btn_gap)"/>
+  <Var name="answer_btn_x_3" type="number" expression="(#video_btn_x + #round_btn_size + #round_btn_gap)"/>
+  <!-- 按钮颜色：decline / hang_up = 动态红色，answer = 动态绿色，其他 = 蓝色 -->
+  <Var name="btn_color_default" type="string" expression="'#0074FA'"/>
+  <Var name="btn_color_0" type="string" expression="ifelse((eqs(@lu_actions_0_system_type,'decline') || eqs(@lu_actions_0_system_type,'hang_up')),@lu_decline_color_hex,ifelse(eqs(@lu_actions_0_system_type,'answer'),@lu_answer_color_hex,@btn_color_default))"/>
+  <Var name="btn_color_1" type="string" expression="ifelse((eqs(@lu_actions_1_system_type,'decline') || eqs(@lu_actions_1_system_type,'hang_up')),@lu_decline_color_hex,ifelse(eqs(@lu_actions_1_system_type,'answer'),@lu_answer_color_hex,@btn_color_default))"/>
+  <Var name="btn_color_2" type="string" expression="ifelse((eqs(@lu_actions_2_system_type,'decline') || eqs(@lu_actions_2_system_type,'hang_up')),@lu_decline_color_hex,ifelse(eqs(@lu_actions_2_system_type,'answer'),@lu_answer_color_hex,@btn_color_default))"/>
+  <!-- btn0（3个按钮） -->
+  <Rectangle visibility="(#is_incoming ** (#lu_actions_count }= 3))" x="#text_x" y="#btn_area_y" w="#round_btn_size" h="#round_btn_size" cornerRadiusExp="#round_btn_corner" fillColor="@btn_color_0"/>
+  <!-- 图标：有图才显示 -->
+  <Image visibility="(#is_incoming ** (#lu_actions_count }= 3) ** #has_icon_0)" x="(#text_x + ((#round_btn_size - #btn_icon_size) / 2))" y="(#btn_area_y + ((#round_btn_size - #btn_icon_size) / 2))" w="#btn_icon_size" h="#btn_icon_size" srcExp="@pic_key_actions_0_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <!-- 文案：无图才显示（3个按钮时） -->
+  <Text visibility="(#is_incoming ** (#lu_actions_count }= 3) ** (! #has_icon_0))" x="(#text_x + (#round_btn_size / 2))" y="(#btn_area_y + (#round_btn_size / 2))" w="(#round_btn_size - (8 * #scale))" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_0_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <Button visibility="(#is_incoming ** (#lu_actions_count }= 3))" x="#text_x" y="#btn_area_y" w="#round_btn_size" h="#round_btn_size">
+    <Triggers>
+      <Trigger action="up">
+        <FunctionCommand target="onAction0Click"/>
+      </Trigger>
+    </Triggers>
+  </Button>
+  <!-- btn1（3个按钮） -->
+  <Rectangle visibility="(#is_incoming ** (#lu_actions_count }= 3))" x="#video_btn_x" y="#btn_area_y" w="#round_btn_size" h="#round_btn_size" cornerRadiusExp="#round_btn_corner" fillColor="@btn_color_1"/>
+  <!-- 图标：有图才显示 -->
+  <Image visibility="(#is_incoming ** (#lu_actions_count }= 3) ** #has_icon_1)" x="(#video_btn_x + ((#round_btn_size - #btn_icon_size) / 2))" y="(#btn_area_y + ((#round_btn_size - #btn_icon_size) / 2))" w="#btn_icon_size" h="#btn_icon_size" srcExp="@pic_key_actions_1_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <!-- 文案：无图才显示（3个按钮时） -->
+  <Text visibility="(#is_incoming ** (#lu_actions_count }= 3) ** (! #has_icon_1))" x="(#video_btn_x + (#round_btn_size / 2))" y="(#btn_area_y + (#round_btn_size / 2))" w="(#round_btn_size - (8 * #scale))" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_1_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <Button visibility="(#is_incoming ** (#lu_actions_count }= 3))" x="#video_btn_x" y="#btn_area_y" w="#round_btn_size" h="#round_btn_size">
+    <Triggers>
+      <Trigger action="up">
+        <FunctionCommand target="onAction1Click"/>
+      </Trigger>
+    </Triggers>
+  </Button>
+  <!-- btn2（3个按钮） -->
+  <Rectangle visibility="(#is_incoming ** (#lu_actions_count }= 3))" x="#answer_btn_x_3" y="#btn_area_y" w="#round_btn_size" h="#round_btn_size" cornerRadiusExp="#round_btn_corner" fillColor="@btn_color_2"/>
+  <!-- 图标：有图才显示 -->
+  <Image visibility="(#is_incoming ** (#lu_actions_count }= 3) ** #has_icon_2)" x="(#answer_btn_x_3 + ((#round_btn_size - #btn_icon_size) / 2))" y="(#btn_area_y + ((#round_btn_size - #btn_icon_size) / 2))" w="#btn_icon_size" h="#btn_icon_size" srcExp="@pic_key_actions_2_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <!-- 文案：无图才显示（3个按钮时） -->
+  <Text visibility="(#is_incoming ** (#lu_actions_count }= 3) ** (! #has_icon_2))" x="(#answer_btn_x_3 + (#round_btn_size / 2))" y="(#btn_area_y + (#round_btn_size / 2))" w="(#round_btn_size - (8 * #scale))" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_2_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <Button visibility="(#is_incoming ** (#lu_actions_count }= 3))" x="#answer_btn_x_3" y="#btn_area_y" w="#round_btn_size" h="#round_btn_size">
+    <Triggers>
+      <Trigger action="up">
+        <FunctionCommand target="onAction2Click"/>
+      </Trigger>
+    </Triggers>
+  </Button>
+
+  <!-- === 长按钮公共参数 === -->
+  <Var name="long_btn_w" type="number" expression="((#text_w - #long_btn_gap) / 2)"/>
+  <Var name="answer_long_x" type="number" expression="(#text_x + #long_btn_w + #long_btn_gap)"/>
+  <!-- 长按钮内图标+文案参数 -->
+  <Var name="long_btn_icon_size" type="number" expression="(22 * #scale)"/>
+  <Var name="long_btn_icon_text_gap" type="number" expression="(5 * #scale)"/>
+  <Var name="long_btn_pad_x" type="number" expression="(12 * #scale)"/>
+  <!-- icon 固定左侧 padding 处，文案在 icon 右边剩余空间内居中 -->
+  <Var name="text_area_x_offset_2" type="number" expression="(#long_btn_pad_x + #long_btn_icon_size + #long_btn_icon_text_gap)"/>
+  <Var name="text_area_w_2" type="number" expression="(#long_btn_w - #text_area_x_offset_2 - #long_btn_pad_x)"/>
+  <Var name="text_area_x_offset_1" type="number" expression="(#long_btn_pad_x + #long_btn_icon_size + #long_btn_icon_text_gap)"/>
+  <Var name="text_area_w_1" type="number" expression="(#text_w - #text_area_x_offset_1 - #long_btn_pad_x)"/>
+
+  <!-- === 2个长按钮（actionCount==2） === -->
+  <!-- btn0（2个按钮） -->
+  <Rectangle visibility="(#is_incoming ** (#lu_actions_count == 2))" x="#text_x" y="#long_btn_y" w="#long_btn_w" h="#long_btn_h" cornerRadiusExp="#long_btn_corner" fillColor="@btn_color_0"/>
+  <!-- 只有图标：图标居中 -->
+  <Image visibility="(#is_incoming ** (#lu_actions_count == 2) ** #has_icon_0 ** (len(@lu_actions_0_title) == 0))" x="(#text_x + ((#long_btn_w - #long_btn_icon_size) / 2))" y="(#long_btn_y + ((#long_btn_h - #long_btn_icon_size) / 2))" w="#long_btn_icon_size" h="#long_btn_icon_size" srcExp="@pic_key_actions_0_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <!-- 图标+文案：icon 固定左侧，文案在剩余空间居中 -->
+  <Image visibility="(#is_incoming ** (#lu_actions_count == 2) ** #has_icon_0 ** (len(@lu_actions_0_title) } 0))" x="(#text_x + #long_btn_pad_x)" y="(#long_btn_y + ((#long_btn_h - #long_btn_icon_size) / 2))" w="#long_btn_icon_size" h="#long_btn_icon_size" srcExp="@pic_key_actions_0_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <Text visibility="(#is_incoming ** (#lu_actions_count == 2) ** #has_icon_0 ** (len(@lu_actions_0_title) } 0))" x="(#text_x + #text_area_x_offset_2 + (#text_area_w_2 / 2))" y="(#long_btn_y + (#long_btn_h / 2))" w="#text_area_w_2" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_0_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <!-- 只有文案：文案居中 -->
+  <Text visibility="(#is_incoming ** (#lu_actions_count == 2) ** (! #has_icon_0))" x="(#text_x + (#long_btn_w / 2))" y="(#long_btn_y + (#long_btn_h / 2))" w="(#long_btn_w - (#long_btn_pad_x * 2))" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_0_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <Button visibility="(#is_incoming ** (#lu_actions_count == 2))" x="#text_x" y="#long_btn_y" w="#long_btn_w" h="#long_btn_h">
+    <Triggers>
+      <Trigger action="up">
+        <FunctionCommand target="onAction0Click"/>
+      </Trigger>
+    </Triggers>
+  </Button>
+  <!-- btn1（2个按钮） -->
+  <Rectangle visibility="(#is_incoming ** (#lu_actions_count == 2))" x="#answer_long_x" y="#long_btn_y" w="#long_btn_w" h="#long_btn_h" cornerRadiusExp="#long_btn_corner" fillColor="@btn_color_1"/>
+  <!-- 只有图标：图标居中 -->
+  <Image visibility="(#is_incoming ** (#lu_actions_count == 2) ** #has_icon_1 ** (len(@lu_actions_1_title) == 0))" x="(#answer_long_x + ((#long_btn_w - #long_btn_icon_size) / 2))" y="(#long_btn_y + ((#long_btn_h - #long_btn_icon_size) / 2))" w="#long_btn_icon_size" h="#long_btn_icon_size" srcExp="@pic_key_actions_1_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <!-- 图标+文案：icon 固定左侧，文案在剩余空间居中 -->
+  <Image visibility="(#is_incoming ** (#lu_actions_count == 2) ** #has_icon_1 ** (len(@lu_actions_1_title) } 0))" x="(#answer_long_x + #long_btn_pad_x)" y="(#long_btn_y + ((#long_btn_h - #long_btn_icon_size) / 2))" w="#long_btn_icon_size" h="#long_btn_icon_size" srcExp="@pic_key_actions_1_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <Text visibility="(#is_incoming ** (#lu_actions_count == 2) ** #has_icon_1 ** (len(@lu_actions_1_title) } 0))" x="(#answer_long_x + #text_area_x_offset_2 + (#text_area_w_2 / 2))" y="(#long_btn_y + (#long_btn_h / 2))" w="#text_area_w_2" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_1_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <!-- 只有文案：文案居中 -->
+  <Text visibility="(#is_incoming ** (#lu_actions_count == 2) ** (! #has_icon_1))" x="(#answer_long_x + (#long_btn_w / 2))" y="(#long_btn_y + (#long_btn_h / 2))" w="(#long_btn_w - (#long_btn_pad_x * 2))" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_1_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <Button visibility="(#is_incoming ** (#lu_actions_count == 2))" x="#answer_long_x" y="#long_btn_y" w="#long_btn_w" h="#long_btn_h">
+    <Triggers>
+      <Trigger action="up">
+        <FunctionCommand target="onAction1Click"/>
+      </Trigger>
+    </Triggers>
+  </Button>
+
+  <!-- === 1个全宽长按钮（actionCount==1） === -->
+  <!-- 1按钮居中布局：图标+5dp间距+文案整体居中 -->
+  <Text x="0" y="0" size="#round_btn_text_size" textExp="@lu_actions_0_title" name="btn0_text_measure" fontFamily="mipro-demibold" alpha="0"/>
+  <Var name="single_btn_gap" type="number" expression="(10 * #scale)"/>
+  <Var name="single_btn_content_w" type="number" expression="ifelse(#has_icon_0 ** (len(@lu_actions_0_title) } 0), (#long_btn_icon_size + #single_btn_gap + #btn0_text_measure.text_width), ifelse(#has_icon_0, #long_btn_icon_size, #btn0_text_measure.text_width))"/>
+  <Var name="single_btn_start_x" type="number" expression="(#text_x + ((#text_w - #single_btn_content_w) / 2))"/>
+  <Rectangle visibility="(! #is_incoming)" x="#text_x" y="#long_btn_y" w="#text_w" h="#long_btn_h" cornerRadiusExp="#long_btn_corner" fillColor="@btn_color_0"/>
+  <!-- 只有图标：图标居中 -->
+  <Image visibility="((! #is_incoming) ** #has_icon_0 ** (len(@lu_actions_0_title) == 0))" x="(#text_x + ((#text_w - #long_btn_icon_size) / 2))" y="(#long_btn_y + ((#long_btn_h - #long_btn_icon_size) / 2))" w="#long_btn_icon_size" h="#long_btn_icon_size" srcExp="@pic_key_actions_0_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <!-- 图标+文案：整体居中，间隔5dp -->
+  <Image visibility="((! #is_incoming) ** #has_icon_0 ** (len(@lu_actions_0_title) } 0))" x="#single_btn_start_x" y="(#long_btn_y + ((#long_btn_h - #long_btn_icon_size) / 2))" w="#long_btn_icon_size" h="#long_btn_icon_size" srcExp="@pic_key_actions_0_icon" tint="#FFFFFF" tintmode="5" srcType="BitmapVar"/>
+  <Text visibility="((! #is_incoming) ** #has_icon_0 ** (len(@lu_actions_0_title) } 0))" x="(#single_btn_start_x + #long_btn_icon_size + #single_btn_gap)" y="(#long_btn_y + (#long_btn_h / 2))" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_0_title" fontFamily="mipro-demibold" alignV="center"/>
+  <!-- 只有文案：文案居中 -->
+  <Text visibility="((! #is_incoming) ** (! #has_icon_0))" x="(#text_x + (#text_w / 2))" y="(#long_btn_y + (#long_btn_h / 2))" w="(#text_w - (#long_btn_pad_x * 2))" size="#round_btn_text_size" color="#FFFFFF" textExp="@lu_actions_0_title" fontFamily="mipro-demibold" align="center" alignV="center" multiLine="true" lineClamp="2" ellipsis="true"/>
+  <Button visibility="(! #is_incoming)" x="#text_x" y="#long_btn_y" w="#text_w" h="#long_btn_h">
+    <Triggers>
+      <Trigger action="up">
+        <FunctionCommand target="onAction0Click"/>
+      </Trigger>
+    </Triggers>
+  </Button>
+
+  </Group>
+
+  <!-- AOD 遮罩（盖背景，文案在遮罩上面） -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" alpha="((eqs(@aod_desk_state,'1') * 255) * 0.4)" folmeMode="true" name="aod_mask" fillColor="#000000"/>
+
+  <!-- ==================== 文案（在遮罩上面，不被遮住） ==================== -->
+  <!-- 隐藏的应用图标（用于吸色） -->
+  <Image x="0" y="0" w="(40 * #scale)" h="(40 * #scale)" srcExp="@lu_package_name" name="app_icon_hidden" srcType="ApplicationIcon" alpha="0"/>
+
+  <!-- 正常模式内容（AOD 时隐藏） -->
+  <Group visibility="(! eqs(@aod_desk_state,'1'))">
+    <!-- 来电人头像（通知有头像时） -->
+    <Image visibility="#has_person_icon" x="#icon_x" y="#icon_y" w="#icon_size" h="#icon_size" srcExp="@pic_key_call_person_icon" cornerRadiusExp="#icon_corner" name="person_icon" srcType="BitmapVar"/>
+    <!-- 兜底默认头像（通知无头像时） -->
+    <Image visibility="(! #has_person_icon)" x="#icon_x" y="#icon_y" w="#icon_size" h="#icon_size" src="assets/default_avatar.png" cornerRadiusExp="#icon_corner" name="person_icon_default"/>
+    <!-- 右下角应用小图标 -->
+    <Var name="small_icon_size" type="number" expression="(18 * #scale)"/>
+    <Var name="small_icon_x" type="number" expression="(#icon_x + (26 * #scale))"/>
+    <Var name="small_icon_y" type="number" expression="(#icon_y + (24 * #scale))"/>
+    <Image x="#small_icon_x" y="#small_icon_y" w="#small_icon_size" h="#small_icon_size" srcExp="@lu_package_name" cornerRadiusExp="(39 * #scale)" name="small_icon" srcType="ApplicationIcon"/>
+    <!-- 第一行：计时器/时间 -->
+    <Text x="#text_x" y="#text_area_y" size="#app_name_size" color="#66FFFFFF" textExp="@time_display" width="#text_w" name="app_line" fontFamily="mipro-medium" ellipsis="true"/>
+    <!-- 第二行：来电人姓名 -->
+    <Var name="title_y" type="number" expression="(#text_area_y + (13 * #scale))"/>
+    <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@lu_call_person_name" width="#text_w" name="title" fontFamily="mipro-semibold" ellipsis="true"/>
+    <!-- 第三行：来电状态 -->
+    <Var name="text_y" type="number" expression="(#title_y + (21 * #scale))"/>
+    <Text x="#text_x" y="#text_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_text" width="#text_w" name="content_text" fontFamily="mipro-medium" ellipsis="true"/>
+  </Group>
+
+  <!-- ==================== AOD 隐私保护（仅 AOD 时显示） ==================== -->
+  <Group visibility="eqs(@aod_desk_state,'1')">
+    <!-- 内容区域中心点 -->
+    <Var name="aod_center_x" type="number" expression="((#content_x + (#text_w / 2)) + #content_pad)"/>
+    <Var name="aod_center_y" type="number" expression="(#view_height / 2)"/>
+    <!-- 应用图标 50×50 -->
+    <Image x="#aod_center_x" y="(#aod_center_y - (15 * #scale))" w="#aod_icon_size" h="#aod_icon_size" srcExp="@lu_package_name" cornerRadiusExp="(120 * #scale)" srcType="ApplicationIcon" align="center" alignV="center"/>
+    <!-- 应用名（显示来电状态） -->
+    <Text x="#aod_center_x" y="(#aod_center_y + (20 * #scale))" size="#aod_name_size" color="#B3FFFFFF" textExp="@lu_text" width="#text_w" fontFamily="mipro-medium" align="center" alignV="top" multiLine="true" lineClamp="2" ellipsis="true"/>
+  </Group>
+
+  <!-- 无障碍 -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" contentDescriptionExp="@lu_call_person_name" alpha="0"/>
+
+  <!-- ==================== Folme 动画配置 ==================== -->
+  <Group>
+    <FolmeState name="folme_aod" alpha="(255 * 0.4)"/>
+    <FolmeConfig name="folme_aod_config" ease="-2,1,0.72"/>
+    <FolmeState name="folme_desk" alpha="0"/>
+    <FolmeConfig name="folme_desk_config" ease="-2,1,0.5"/>
+  </Group>
+
+  <!-- ==================== 数据绑定 ==================== -->
+  <VariableBinders>
+    <MiPaletteBinder name="getIconColor" actionType="get_palette_color_string" queryAtStart="false" imageName="'app_icon_hidden'" scheme="'primary'" toneIndex="10" columns="mainColor,mainColorHex,paletteColor,paletteColorHex">
+      <Variable name="mainColor" column="mainColor" type="number"/>
+      <Variable name="mainColorHex" column="mainColorHex" type="string"/>
+      <Variable name="paletteColor" column="paletteColor" type="number"/>
+      <Variable name="paletteColorHex" column="paletteColorHex" type="string"/>
+      <Trigger>
+        <ExternCommand command="FLLogD" strPara="('getIconColor | pkg=' + @package_name + ' paletteColorHex=' + @paletteColorHex + ' mainColorHex=' + @mainColorHex)"/>
+        <FunctionCommand target="updateFrameRate"/>
+      </Trigger>
+    </MiPaletteBinder>
+  </VariableBinders>
+
+  <!-- ==================== 生命周期 ==================== -->
+  <ExternalCommands>
+    <Trigger action="init">
+      <FunctionCommand target="initData"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="notification_received">
+      <FunctionCommand target="initData"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="enterAod">
+      <FunctionCommand target="goAodState"/>
+    </Trigger>
+    <Trigger action="exitAod">
+      <FunctionCommand target="goDeskState"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="pause">
+      <VariableCommand name="is_pause" expression="1" type="number"/>
+      <VariableCommand name="frame_ref" expression="0" type="number"/>
+      <FrameRateCommand rate="0"/>
+    </Trigger>
+    <Trigger action="resume">
+      <VariableCommand name="is_pause" expression="0" type="number"/>
+      <FunctionCommand target="updateFrameRate"/>
+      <MultiCommand condition="(len(@paletteColorHex) == 0)">
+        <ExternCommand command="FLLogD" strPara="('resume_retry_color | pkg=' + @package_name)"/>
+        <FunctionCommand target="refreshIconColor" delay="500"/>
+      </MultiCommand>
+    </Trigger>
+  </ExternalCommands>
+</Widget>
