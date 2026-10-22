@@ -1,0 +1,651 @@
+package com.operit.rearprogress;
+
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+
+import io.github.libxposed.api.XposedInterface;
+import io.github.libxposed.api.XposedModule;
+import io.github.libxposed.api.XposedModuleInterface;
+
+/**
+ * RearProgress v0.4 —— 背屏进度卡「原地改字」模块
+ * 基于新版 libxposed API 102（LSPosed 2.2.1）
+ *
+ * 反编译依据（com.xiaomi.subscreencenter）：
+ *   i2.D.a            = PinManager 唯一实例（i2.E）
+ *   i2.E.e            = ArrayList<Lj2/a> 所有 pin 条目（内存态）
+ *   Lj2/a.extra       = Bundle，文字在 "__PIN_CONTENT_TEXT__"
+ *   U1.c0.a           = PersistenceManager 单例（U1.d0）
+ *   U1.d0 内有 U1.r0 字段 = SmartAssistantManager（widget 渲染源）
+ *   U1.r0.a           = ArrayList<U1/q0> widget 列表
+ *   U1/q0.l           = Bundle
+ *   U1.r0.o(q0)       = 单条更新；读 "force_popup"/"enableFloat" 决定是否弹出
+ *
+ * 策略：改内存 Bundle → force_popup=false → 单条 o(q0) 静默刷新。
+ * 不新增、不删除、id 不变。
+ */
+public class MainHook extends XposedModule {
+
+    private static final String TAG = "RearProgress";
+    private static final String PKG_SCREEN = "com.xiaomi.subscreencenter";
+    private static final String PKG_OPERIT = "com.ai.assistance.operit";
+
+    private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
+    private static final String MARKER = "[AGENT]";
+    private static final long POLL_MS = 1200L;
+
+    private ClassLoader mCl;
+
+    // 反射句柄
+    private volatile Object sPinManager;       // i2.E
+    private volatile Field sPinListField;      // i2.E.e
+    private volatile Object sAssistant;        // U1.r0
+    private volatile Field sWidgetListField;   // U1.r0.a
+    private volatile Method sUpdateWidget;     // U1.r0.o(q0)
+    private volatile Object sPersistence;      // U1.c0.a (= U1.d0)
+    private volatile Method sPersistMethod;    // U1.d0.i(ArrayList)
+    private volatile Method sRefreshMethod;    // U1.r0.I() —— 触发背屏重绘
+    private volatile Object sScreenManager;    // D.c.f —— SubScreenWidgetManager 单例
+    private volatile Method sPublishMethod;    // D.c.Q(List,int,int) —— 最终推屏
+    private volatile android.content.Context sAppContext;
+
+    private volatile String sLastRead;
+    private long sLastMtime = -1L;
+    private volatile String sLastApplied;
+    private volatile boolean sStarted;
+
+    public MainHook() {
+        super();
+    }
+
+    @Override
+    public void onPackageReady(XposedModuleInterface.PackageReadyParam param) {
+        try {
+            String pkg = param.getPackageName();
+            if (PKG_OPERIT.equals(pkg)) {
+                // Operit 侧：只挂工具调用 Hook，负责自动上报进度
+                mCl = param.getClassLoader();
+                log(android.util.Log.INFO, TAG, "operit ready: " + pkg);
+                OperitHook.install(this, param.getClassLoader());
+                return;
+            }
+            if (!PKG_SCREEN.equals(pkg)) return;
+
+            mCl = param.getClassLoader();
+            log(android.util.Log.INFO, TAG, "package ready: " + pkg);
+
+            resolveHandles();
+            installLiveUpdateSwitchHook();
+            installNlsTraceHook();
+            installNlsGateTraceHook();
+            installWidgetParseTraceHook();
+            installRenderHook();
+            resolveAppContext();
+            startPoller();
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "onPackageReady failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ 句柄
+
+    private volatile Class<?> sPinManagerCls;
+
+    private Class<?> pinManagerClsCached() throws ClassNotFoundException {
+        if (sPinManagerCls == null) sPinManagerCls = Class.forName("i2.E", true, mCl);
+        return sPinManagerCls;
+    }
+
+    private void resolveHandles() {
+        try {
+            sPinListField = pinManagerClsCached().getDeclaredField("e");
+            sPinListField.setAccessible(true);
+            log(android.util.Log.INFO, TAG, "i2.E.e resolved");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "resolve i2.E.e failed", t);
+        }
+    }
+
+    private boolean ensureSingletons() {
+        try {
+            if (sPinManager == null) {
+                Class<?> dCls = Class.forName("i2.D", true, mCl);
+                Object v = dCls.getDeclaredField("a").get(null);
+                if (v == null) return false;
+                sPinManager = v;
+                log(android.util.Log.INFO, TAG, "PinManager = i2.D.a");
+            }
+            if (sAssistant == null) {
+                // U1.p0.a = static final U1.r0（SmartAssistantManager 单例）
+                Object v = null;
+                try {
+                    Class<?> p0 = Class.forName("U1.p0", true, mCl);
+                    v = p0.getDeclaredField("a").get(null);
+                } catch (Throwable t) {
+                    log(android.util.Log.WARN, TAG, "U1.p0.a failed, try i2.E.i", t);
+                }
+                if (v == null) {
+                    try {
+                        v = pinManagerClsCached().getDeclaredField("i").get(sPinManager);
+                    } catch (Throwable t) {
+                        log(android.util.Log.WARN, TAG, "i2.E.i failed", t);
+                    }
+                }
+                if (v == null) return false;
+
+                sAssistant = v;
+                Field wf = v.getClass().getDeclaredField("a");
+                wf.setAccessible(true);
+                sWidgetListField = wf;
+
+                for (Method m : v.getClass().getDeclaredMethods()) {
+                    if (!"o".equals(m.getName())) continue;
+                    if (m.getParameterCount() != 1) continue;
+                    if (!"U1.q0".equals(m.getParameterTypes()[0].getName())) continue;
+                    m.setAccessible(true);
+                    sUpdateWidget = m;
+                    break;
+                }
+                log(android.util.Log.INFO, TAG, "SmartAssistantManager resolved from "
+                        + v.getClass().getName() + ", updateWidget=" + sUpdateWidget);
+            }
+            return sPinManager != null && sAssistant != null
+                    && sWidgetListField != null && sUpdateWidget != null;
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "ensureSingletons failed", t);
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------ 渲染 Hook
+
+    /**
+     * 诊断用：观察 a()/b() 的判定结果，定位通知在哪一步被拦。
+     */
+    private void installNlsGateTraceHook() {
+        try {
+            Class<?> cls = Class.forName(
+                    "com.xiaomi.subscreencenter.smartassistant.SmartAssistantNotificationListenerService",
+                    true, mCl);
+            for (String name : new String[]{"a", "b"}) {
+                for (Method m : cls.getDeclaredMethods()) {
+                    if (!name.equals(m.getName())) continue;
+                    if (m.getParameterCount() != 1) continue;
+                    if (m.getReturnType() != boolean.class && m.getReturnType() != Boolean.class) continue;
+                    final String tag2 = name;
+                    hook(m).intercept(chain -> {
+                        Object r = chain.proceed();
+                        try {
+                            Object sbn = chain.getArg(0);
+                            Object pkg = sbn.getClass().getMethod("getPackageName").invoke(sbn);
+                            if ("com.xiaomi.subscreencenter".equals(pkg)) {
+                                log(android.util.Log.INFO, TAG, "GATE " + tag2 + "() -> " + r
+                                        + (("b".equals(tag2) && !Boolean.TRUE.equals(r)) ? " (FORCED TRUE)" : ""));
+                            }
+                        } catch (Throwable ignored) {}
+                        // b() 额外要求 isPromotedOngoing()==true，
+                        // 那是系统内部标志，普通 App 无法设置。这里直接放行，
+                        // 后续 m2.b.b() 仍会做真实的 Style 解析。
+                        if ("b".equals(tag2) && !Boolean.TRUE.equals(r)) {
+                            return Boolean.TRUE;
+                        }
+                        return r;
+                    });
+                    log(android.util.Log.INFO, TAG, "HOOKED GATE " + name + "()");
+                }
+            }
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installNlsGateTraceHook failed", t);
+        }
+    }
+
+    /**
+     * 诊断用：观察 m2.b.b(Context, StatusBarNotification) -> Bundle 的返回值。
+     * 返回 null 表示副屏中心认为该通知无法转成 widget，会被直接丢弃。
+     */
+    private void installWidgetParseTraceHook() {
+        try {
+            Class<?> cls = Class.forName("m2.b", true, mCl);
+            Method target = null;
+            for (Method m : cls.getDeclaredMethods()) {
+                if (!"b".equals(m.getName())) continue;
+                if (m.getParameterCount() != 2) continue;
+                if (m.getReturnType() != Bundle.class) continue;
+                target = m;
+                break;
+            }
+            if (target == null) {
+                log(android.util.Log.ERROR, TAG, "m2.b.b not found");
+                return;
+            }
+            hook(target).intercept(chain -> {
+                Object result = null;
+                try {
+                    Object sbn = chain.getArg(1);
+                    String pkg = "?";
+                    try {
+                        pkg = String.valueOf(sbn.getClass().getMethod("getPackageName").invoke(sbn));
+                    } catch (Throwable ignored) {}
+                    result = chain.proceed();
+                    if ("com.xiaomi.subscreencenter".equals(pkg)) {
+                        if (result instanceof Bundle) {
+                            Bundle b = (Bundle) result;
+                            StringBuilder sb = new StringBuilder();
+                            for (String k : b.keySet()) {
+                                Object v = b.get(k);
+                                String sv = String.valueOf(v);
+                                if (sv.length() > 80) sv = sv.substring(0, 80) + "...";
+                                sb.append(k).append("=").append(sv).append(" | ");
+                            }
+                            log(android.util.Log.INFO, TAG, "PARSE_OK " + sb);
+                        } else {
+                            log(android.util.Log.WARN, TAG, "PARSE_NULL -> 通知被丢弃");
+                        }
+                    }
+                } catch (Throwable t) {
+                    log(android.util.Log.WARN, TAG, "parse trace failed", t);
+                }
+                return result;
+            });
+            log(android.util.Log.INFO, TAG, "HOOKED m2.b.b -> widget parse trace active");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installWidgetParseTraceHook failed", t);
+        }
+    }
+
+    /**
+     * 诊断用：记录 NLS.onNotificationPosted 是否被调用，以及通知的关键 extras。
+     * 只观察、不修改行为。
+     */
+    private void installNlsTraceHook() {
+        try {
+            Class<?> cls = Class.forName(
+                    "com.xiaomi.subscreencenter.smartassistant.SmartAssistantNotificationListenerService",
+                    true, mCl);
+            Method target = null;
+            for (Method m : cls.getDeclaredMethods()) {
+                if (!"onNotificationPosted".equals(m.getName())) continue;
+                if (m.getParameterCount() != 1 && m.getParameterCount() != 2) continue;
+                target = m;
+                break;
+            }
+            if (target == null) {
+                log(android.util.Log.ERROR, TAG, "NLS.onNotificationPosted not found");
+                return;
+            }
+            final int argc = target.getParameterCount();
+            hook(target).intercept(chain -> {
+                try {
+                    Object sbn = argc == 1 ? chain.getArg(0) : chain.getArg(0);
+                    if (sbn != null) {
+                        Class<?> c = sbn.getClass();
+                        Object pkg = c.getMethod("getPackageName").invoke(sbn);
+                        Object id = c.getMethod("getId").invoke(sbn);
+                        Object notif = c.getMethod("getNotification").invoke(sbn);
+                        String extraKeys = "";
+                        String focusParam = "";
+                        if (notif != null) {
+                            Object ex = notif.getClass().getField("extras").get(notif);
+                            if (ex instanceof Bundle) {
+                                Bundle b = (Bundle) ex;
+                                extraKeys = b.keySet().toString();
+                                Object fp = b.get("miui.focus.param");
+                                if (fp != null) focusParam = String.valueOf(fp);
+                            }
+                        }
+                        log(android.util.Log.INFO, TAG, "NLS_RECV pkg=" + pkg + " id=" + id
+                                + " keys=" + extraKeys
+                                + (focusParam.isEmpty() ? "" : " FOCUS=" + focusParam));
+                    }
+                } catch (Throwable t) {
+                    log(android.util.Log.WARN, TAG, "NLS trace failed", t);
+                }
+                return chain.proceed();
+            });
+            log(android.util.Log.INFO, TAG, "HOOKED NLS.onNotificationPosted -> trace active");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installNlsTraceHook failed", t);
+        }
+    }
+
+    /**
+     * Hook k2.I.i()Z —— 副屏中心的「实时更新总开关」。
+     * NLS.onNotificationPosted 里 d() 调用它，返回 false 时直接 SWITCH_OFF，
+     * 任何焦点通知都会被丢弃。开关存在 personalassistant 的 provider 里，
+     * 我们直接让它恒为 true，绕过设置层。
+     */
+    private void installLiveUpdateSwitchHook() {
+        try {
+            Class<?> cls = Class.forName("k2.I", true, mCl);
+            Method target = null;
+            for (Method m : cls.getDeclaredMethods()) {
+                if (!"i".equals(m.getName())) continue;
+                if (m.getParameterCount() != 0) continue;
+                if (m.getReturnType() != boolean.class && m.getReturnType() != Boolean.class) continue;
+                target = m;
+                break;
+            }
+            if (target == null) {
+                log(android.util.Log.ERROR, TAG, "k2.I.i() not found");
+                return;
+            }
+            final Method t = target;
+            hook(t).intercept(chain -> {
+                Object result = chain.proceed();
+                try {
+                    boolean orig = Boolean.TRUE.equals(result);
+                    if (!orig) {
+                        log(android.util.Log.INFO, TAG, "live update switch was OFF, forced ON");
+                    }
+                } catch (Throwable ignored) {}
+                return Boolean.TRUE;
+            });
+            log(android.util.Log.INFO, TAG, "HOOKED k2.I.i -> live update switch forced ON");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installLiveUpdateSwitchHook failed", t);
+        }
+    }
+
+    /**
+     * Hook m2.d.v(Lj2/a, Z) -> Bundle
+     * 这是 j2/a 转 U1/q0.l 的唯一转换点，每次渲染都会经过。
+     * 在返回值里替换 pin_message，保证背屏永远拿到最新文字。
+     */
+    private void installRenderHook() {
+        try {
+            Class<?> md = Class.forName("m2.d", true, mCl);
+            Method target = null;
+            for (Method m : md.getDeclaredMethods()) {
+                if (!"v".equals(m.getName())) continue;
+                if (m.getParameterCount() != 2) continue;
+                if (!"j2.a".equals(m.getParameterTypes()[0].getName())) continue;
+                if (m.getParameterTypes()[1] != boolean.class) continue;
+                target = m;
+                break;
+            }
+            if (target == null) {
+                log(android.util.Log.ERROR, TAG, "m2.d.v not found");
+                return;
+            }
+            final Method t = target;
+            hook(t).intercept(chain -> {
+                Object result = chain.proceed();
+                try {
+                    String text = sLastRead;
+                    if (text != null && !text.isEmpty() && result instanceof Bundle) {
+                        Bundle b = (Bundle) result;
+                        Object cur = b.get("pin_message");
+                        if (cur instanceof String && ((String) cur).startsWith(MARKER)) {
+                            b.putString("pin_message", MARKER + " " + text);
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+                return result;
+            });
+            log(android.util.Log.INFO, TAG, "HOOKED m2.d.v -> render intercept active");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installRenderHook failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ Context
+
+    /**
+     * 取副屏中心 Application Context：
+     * 1) AndroidApp / Application 静态实例
+     * 2) U1.r0.u 字段
+     * 3) 当前活动线程的 mInitialApplication
+     */
+    private void resolveAppContext() {
+        try {
+            try {
+                Class<?> appCls = Class.forName("android.app.ActivityThread", true, mCl);
+                Method cur = appCls.getDeclaredMethod("currentActivityThread");
+                cur.setAccessible(true);
+                Object at = cur.invoke(null);
+                if (at != null) {
+                    Method ga = appCls.getDeclaredMethod("getApplication");
+                    ga.setAccessible(true);
+                    Object app = ga.invoke(at);
+                    if (app instanceof android.content.Context) {
+                        sAppContext = (android.content.Context) app;
+                        log(android.util.Log.INFO, TAG, "context from ActivityThread: "
+                                + ((android.content.Context) app).getPackageName());
+                        return;
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            if (sAssistant != null) {
+                try {
+                    Field uf = sAssistant.getClass().getDeclaredField("u");
+                    uf.setAccessible(true);
+                    Object c = uf.get(sAssistant);
+                    if (c instanceof android.content.Context) {
+                        sAppContext = (android.content.Context) c;
+                        log(android.util.Log.INFO, TAG, "context from U1.r0.u");
+                    }
+                } catch (Throwable ignored) {}
+            } else {
+                // 直接从 U1.p0.a 取单例，不经 ensureSingletons 的全链路校验
+                try {
+                    Class<?> p0 = Class.forName("U1.p0", true, mCl);
+                    Object v = p0.getDeclaredField("a").get(null);
+                    if (v != null) {
+                        sAssistant = v;
+                        Field uf = v.getClass().getDeclaredField("u");
+                        uf.setAccessible(true);
+                        Object c = uf.get(v);
+                        if (c instanceof android.content.Context) {
+                            sAppContext = (android.content.Context) c;
+                            log(android.util.Log.INFO, TAG, "context from U1.p0.a.u");
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "resolveAppContext failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ 轮询
+
+    private void startPoller() {
+        // 新版：进度文件由 Operit 进程的 OperitHook 监听，副屏中心不再轮询
+        if (true) return;
+        if (sStarted) return;
+        sStarted = true;
+
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final Handler main = new Handler(Looper.getMainLooper());
+                while (true) {
+                    try {
+                        Thread.sleep(POLL_MS);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    try {
+                        final String text = readProgress();
+                        if (text == null || text.isEmpty()) continue;
+                        if (text.equals(sLastApplied)) continue;
+                        main.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                applyProgress(text);
+                            }
+                        });
+                    } catch (Throwable e) {
+                        log(android.util.Log.ERROR, TAG, "poll error", e);
+                    }
+                }
+            }
+        }, "RearProgressPoller");
+        t.setDaemon(true);
+        t.start();
+        log(android.util.Log.INFO, TAG, "poller started (" + POLL_MS + "ms)");
+    }
+
+    // ------------------------------------------------------------ 应用进度
+
+    private void pushFocusNotify(String text) {
+        try {
+            if (sAppContext == null) resolveAppContext();
+            if (sAppContext == null) {
+                log(android.util.Log.WARN, TAG, "no context, skip focus notify");
+                return;
+            }
+            FocusNotify.init(sAppContext);
+            FocusNotify.push(text, -1);
+            log(android.util.Log.INFO, TAG, "focus notify pushed -> " + text);
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "pushFocusNotify failed", t);
+        }
+    }
+
+    private void applyProgress(String text) {
+        try {
+            // 焦点通知通道不依赖副屏内部结构，先独立推一次
+            pushFocusNotify(text);
+
+            if (!ensureSingletons()) {
+                log(android.util.Log.WARN, TAG, "singletons not ready");
+                return;
+            }
+
+            boolean changed = false;
+
+            // 1) PinManager 内存列表：j2.a.d 是 Bundle（文字在 __PIN_CONTENT_TEXT__）
+            try {
+                Object pinListObj = sPinListField.get(sPinManager);
+                if (pinListObj instanceof List) {
+                    for (Object item : (List<?>) pinListObj) {
+                        if (item == null) continue;
+                        Field df = item.getClass().getDeclaredField("d");
+                        df.setAccessible(true);
+                        Object bundleObj = df.get(item);
+                        if (bundleObj instanceof Bundle && applyToBundle((Bundle) bundleObj, text)) {
+                            changed = true;
+                            log(android.util.Log.INFO, TAG, "pin item rewritten");
+                            break;
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                log(android.util.Log.WARN, TAG, "pin list rewrite failed", t);
+            }
+// 2) 触发重绘：I() -> g0.a() -> r0.f() -> m2/d 转换(pin_message) -> D/c.P() 推屏
+            //    前提：第 1 步已改好 j2.a.d["__PIN_CONTENT_TEXT__"]，f() 会重新读它
+            if (changed) {
+                try {
+                    if (sRefreshMethod == null) {
+                        sRefreshMethod = sAssistant.getClass().getDeclaredMethod("I");
+                        sRefreshMethod.setAccessible(true);
+                    }
+                    sRefreshMethod.invoke(sAssistant);
+                    log(android.util.Log.INFO, TAG, "I() refresh invoked");
+                } catch (Throwable t) {
+                    log(android.util.Log.WARN, TAG, "I() refresh failed", t);
+                }
+            }
+
+            // 3) 【已禁用】落盘逻辑有问题：当 pin 列表为空时会把 [] 写进磁盘，导致数据丢失。
+            //    在彻底搞清 U1.d0 与 i2.E.e 的同步关系前，不允许调用 persist。
+            if (false) {
+                try {
+                    Object pinListObj = sPinListField.get(sPinManager);
+                    if (changed && pinListObj instanceof ArrayList
+                            && !((ArrayList<?>) pinListObj).isEmpty()) {
+                        if (sPersistence == null) {
+                            Class<?> c0 = Class.forName("U1.c0", true, mCl);
+                            sPersistence = c0.getDeclaredField("a").get(null);
+                            if (sPersistence != null) {
+                                sPersistMethod = sPersistence.getClass()
+                                        .getDeclaredMethod("i", ArrayList.class);
+                                sPersistMethod.setAccessible(true);
+                            }
+                        }
+                        if (sPersistMethod != null && sPersistence != null) {
+                            sPersistMethod.invoke(sPersistence, pinListObj);
+                            log(android.util.Log.INFO, TAG, "persisted to pin_info.json");
+                        }
+                    }
+                } catch (Throwable t) {
+                    log(android.util.Log.WARN, TAG, "persist failed", t);
+                }
+            }
+
+            if (changed) {
+                sLastApplied = text;
+                log(android.util.Log.INFO, TAG, "progress applied -> " + text);
+                // 走焦点通知通道：系统原生同 ID 静默更新，不依赖副屏内部 UI 刷新
+                try {
+                    if (sAppContext != null) {
+                        FocusNotify.init(sAppContext);
+                        FocusNotify.push(text, -1);
+                        log(android.util.Log.INFO, TAG, "focus notify pushed");
+                    }
+                } catch (Throwable t) {
+                    log(android.util.Log.WARN, TAG, "focus notify failed", t);
+                }
+            }
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "applyProgress failed", t);
+        }
+    }
+
+    private boolean applyToBundle(Bundle b, String text) {
+        Object cur = b.get("__PIN_CONTENT_TEXT__");
+        if (!(cur instanceof String)) return false;
+        String curText = (String) cur;
+        if (!curText.startsWith(MARKER)) return false;
+
+        String newText = MARKER + " " + text;
+        if (newText.equals(curText)) return false;
+        b.putString("__PIN_CONTENT_TEXT__", newText);
+        return true;
+    }
+
+    // ------------------------------------------------------------ 读文件
+
+    private String readProgress() {
+        try {
+            File f = new File(PROGRESS_FILE);
+            if (!f.exists()) return null;
+
+            long mtime = f.lastModified();
+            if (mtime == sLastMtime) return sLastRead;
+
+            StringBuilder sb = new StringBuilder();
+            BufferedReader br = null;
+            try {
+                br = new BufferedReader(new InputStreamReader(new FileInputStream(f), "UTF-8"));
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (sb.length() > 0) sb.append('\n');
+                    sb.append(line);
+                }
+            } finally {
+                if (br != null) try { br.close(); } catch (Throwable ignored) {}
+            }
+            sLastMtime = mtime;
+            sLastRead = sb.toString().trim();
+            return sLastRead;
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "readProgress failed", t);
+            return sLastRead;
+        }
+    }
+}
