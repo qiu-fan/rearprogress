@@ -34,6 +34,10 @@ final class AgentProgress {
     private static volatile int sAiPercent = -1;
     /** AI 上传的时间戳，用于过期判断 */
     private static volatile long sAiAt = 0L;
+    /** 最后一次工具调用时间戳，用于任务结束判断 */
+    private static volatile long sLastToolAt = 0L;
+    /** 任务结束后通知自动消失的延迟（10分钟） */
+    private static final long AUTO_HIDE_DELAY = 10 * 60 * 1000L;
 
     /** 最近几条工具行（最新在末尾） */
     private static final List<String[]> sRecent = new ArrayList<>();
@@ -132,6 +136,7 @@ final class AgentProgress {
         sState = State.DONE;
         sAiTitle = "";
         sAiPercent = -1;
+        sLastToolAt = System.currentTimeMillis();  // 任务结束时间
     }
 
     /** 新任务开始：AI 主动上传失效时的重置 */
@@ -144,6 +149,21 @@ final class AgentProgress {
 
     static State state() {
         return sState;
+    }
+
+    /**
+     * 判断是否应该自动隐藏通知（任务结束后 10 分钟）
+     * 条件：状态为 DONE 且距离最后工具调用超过 10 分钟
+     */
+    static boolean shouldAutoHide() {
+        if (sState != State.DONE) return false;
+        if (sLastToolAt == 0L) return false;
+        return System.currentTimeMillis() - sLastToolAt > AUTO_HIDE_DELAY;
+    }
+
+    /** 获取最后工具调用时间戳 */
+    static long getLastToolAt() {
+        return sLastToolAt;
     }
 
     // ---------------------------------------------------------------- AI 上传
@@ -220,6 +240,7 @@ final class AgentProgress {
     static synchronized void recordTool(String toolName, String detail, boolean success) {
         markRunning();
         sToolCount++;
+        sLastToolAt = System.currentTimeMillis();  // 更新最后工具调用时间
 
         String name = (toolName == null || toolName.isEmpty()) ? "tool" : toolName;
         // 内部执行命令不记录（由外层工具触发，如 code_runner → execute_hidden_terminal_command）
