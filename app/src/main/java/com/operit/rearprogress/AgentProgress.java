@@ -334,7 +334,7 @@ final class AgentProgress {
             }
         }
 
-        // 3. 否则用状态文字
+        // 3. 否则用状态文字（标题固定 Agent，内容在 body 里给状态）
         switch (sState) {
             case RUNNING:
                 return "任务进行中";
@@ -342,7 +342,7 @@ final class AgentProgress {
                 return "已完成";
             case READY:
             default:
-                return "已就绪";
+                return "Agent";  // 初始标题固定 Agent
         }
     }
 
