@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ScreenVersion version="2" frameRate="60">
+    <Root width="976" height="596" background="#00000000">
+        <Var name="title" type="string" defaultValue="Operit Terminal"/>
+        <Var name="command" type="string" defaultValue=""/>
+        <Var name="output" type="string" defaultValue=""/>
+        <Var name="status" type="string" defaultValue="idle"/>
+        <Var name="tool_name" type="string" defaultValue=""/>
+        <Var name="tool_detail" type="string" defaultValue=""/>
+
+        <Image src="assets/bg.png" x="0" y="0" w="976" h="596"/>
+
+        <!-- 标题栏 - 红色调 -->
+        <Rectangle x="0" y="0" w="976" h="48" fillColor="#FF0000" cornerRadius="0,0,12,12">
+            <Text x="20" y="12" text="${title}" textSize="20" textColor="#FFFFFF" textStyle="bold"/>
+        </Rectangle>
+
+        <!-- 左侧：终端输出区 -->
+        <Rectangle x="10" y="58" w="680" h="520" fillColor="#0A0A0A" strokeColor="#00FF00" strokeWidth="2" cornerRadius="8">
+            <!-- 状态栏 -->
+            <Text x="20" y="10" text="● ${status}" textSize="14" textColor="#00FF00"/>
+
+            <!-- 终端命令 -->
+            <Text x="20" y="40" text="$ ${command}" textSize="16" textColor="#00FF00" maxLines="2"/>
+
+            <!-- 终端输出 -->
+            <Text x="20" y="80" text="${output}" textSize="13" textColor="#00CC00" maxLines="18" width="640"/>
+        </Rectangle>
+
+        <!-- 右侧：工具信息面板 -->
+        <Rectangle x="700" y="58" w="266" h="520" fillColor="#0A0A0A" strokeColor="#FF0000" strokeWidth="2" cornerRadius="8">
+            <!-- 工具名 -->
+            <Text x="20" y="20" text="TOOL" textSize="12" textColor="#FF0000"/>
+            <Text x="20" y="45" text="${tool_name}" textSize="18" textColor="#FFFFFF" textStyle="bold"/>
+
+            <!-- 工具参数 -->
+            <Text x="20" y="100" text="PARAMS" textSize="12" textColor="#FF0000"/>
+            <Text x="20" y="125" text="${tool_detail}" textSize="14" textColor="#CCCCCC" maxLines="6" width="226"/>
+
+            <!-- 分割线 -->
+            <Rectangle x="20" y="320" w="226" h="2" fillColor="#333333"/>
+
+            <!-- 进度区域 -->
+            <Text x="20" y="340" text="PROGRESS" textSize="12" textColor="#FF0000"/>
+            <Text x="20" y="370" text="工具执行中..." textSize="16" textColor="#00FF00"/>
+        </Rectangle>
+    </Root>
+</ScreenVersion>

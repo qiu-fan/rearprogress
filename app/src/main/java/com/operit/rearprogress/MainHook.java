@@ -584,6 +584,40 @@ public class MainHook extends XposedModule {
         }
     }
 
+    /**
+     * Hook m2.d.i() —— 模板路径解析出口，同时在这里注入终端历史到模板变量
+     */
+    private void installTemplateVarHook() {
+        try {
+            Class<?> cls = Class.forName("m2.d", true, mCl);
+            Method target = null;
+            for (Method m : cls.getDeclaredMethods()) {
+                if (!"i".equals(m.getName())) continue;
+                if (m.getParameterCount() != 2) continue;
+                if (m.getReturnType() != String.class) continue;
+                target = m;
+                break;
+            }
+            if (target == null) {
+                log(android.util.Log.ERROR, TAG, "m2.d.i not found");
+                return;
+            }
+
+            final Method t = target;
+            hook(t).intercept(chain -> {
+                Object r = chain.proceed();
+                try {
+                    // 这里可以注入终端历史到模板变量
+                    // 但 MAML 模板变量是通过 Bundle 传递的，需要在其他地方注入
+                } catch (Throwable ignored) {}
+                return r;
+            });
+            log(android.util.Log.INFO, TAG, "HOOKED m2.d.i -> template var hook");
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installTemplateVarHook failed", t);
+        }
+    }
+
     // ------------------------------------------------------------ Context
 
     /**

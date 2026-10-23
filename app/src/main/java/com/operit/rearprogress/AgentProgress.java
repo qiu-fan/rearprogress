@@ -36,6 +36,13 @@ final class AgentProgress {
     /** 本任务工具调用计数 */
     private static volatile int sToolCount = 0;
 
+    /** 终端命令历史（最近 N 条） */
+    private static final List<String> sCommandHistory = new ArrayList<>();
+    /** 终端输出历史 */
+    private static final List<String> sOutputHistory = new ArrayList<>();
+    /** 最大历史记录数 */
+    private static final int MAX_HISTORY = 10;
+
     /** 工具名映射表：原始名 -> 显示名（缩短） */
     private static final java.util.Map<String, String> TOOL_NAME_MAP = new java.util.HashMap<>();
     static {
@@ -272,5 +279,51 @@ final class AgentProgress {
 
     static int toolCount() {
         return sToolCount;
+    }
+
+    // ---------------------------------------------------------------- 终端历史
+
+    /** 记录终端命令 */
+    static synchronized void recordCommand(String command) {
+        if (command == null || command.isEmpty()) return;
+        sCommandHistory.add(command);
+        while (sCommandHistory.size() > MAX_HISTORY) {
+            sCommandHistory.remove(0);
+        }
+    }
+
+    /** 记录终端输出 */
+    static synchronized void recordOutput(String output) {
+        if (output == null || output.isEmpty()) return;
+        // 截断过长的输出
+        if (output.length() > 200) {
+            output = output.substring(0, 200) + "...";
+        }
+        sOutputHistory.add(output);
+        while (sOutputHistory.size() > MAX_HISTORY) {
+            sOutputHistory.remove(0);
+        }
+    }
+
+    /** 获取终端历史（用于通知显示） */
+    static synchronized String getTerminalHistory() {
+        if (sCommandHistory.isEmpty()) return "";
+
+        StringBuilder sb = new StringBuilder();
+        int start = Math.max(0, sCommandHistory.size() - 3); // 只显示最近3条
+        for (int i = start; i < sCommandHistory.size(); i++) {
+            sb.append("$ ").append(sCommandHistory.get(i)).append("\n");
+            // 如果有对应的输出
+            if (i < sOutputHistory.size()) {
+                String output = sOutputHistory.get(i);
+                if (output != null && !output.isEmpty()) {
+                    // 取第一行
+                    String firstLine = output.split("\n")[0];
+                    if (firstLine.length() > 40) firstLine = firstLine.substring(0, 40) + "...";
+                    sb.append("  ").append(firstLine).append("\n");
+                }
+            }
+        }
+        return sb.toString().trim();
     }
 }

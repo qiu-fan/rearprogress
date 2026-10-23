@@ -55,12 +55,17 @@ final class OperitHook {
                 try {
                     name = str(field(aiToolCls, tool, "name"));
                     detail = summarizeParameters(field(aiToolCls, tool, "parameters"));
+
+                    // 记录终端命令（如果是终端相关工具）
+                    if (name != null && (name.contains("shell") || name.contains("terminal") || name.contains("command"))) {
+                        AgentProgress.recordCommand(detail);
+                    }
                 } catch (Throwable ignored) {}
 
                 // 工具开始时立即推送（让灵动岛实时显示当前调用的工具）
                 AgentProgress.recordTool(name, detail, true);
                 FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
-                        AgentProgress.percent());
+                        AgentProgress.percent(), AgentProgress.getTerminalHistory());
                 LogX.i(TAG, "tool start -> " + name + " (" + AgentProgress.toolCount() + ")");
 
                 Object result = null;
@@ -70,6 +75,14 @@ final class OperitHook {
                     try {
                         Object ok = field(result.getClass(), result, "success");
                         success = !(ok instanceof Boolean) || (Boolean) ok;
+
+                        // 记录输出结果（如果是终端相关工具）
+                        if (name != null && (name.contains("shell") || name.contains("terminal") || name.contains("command"))) {
+                            String output = str(field(result.getClass(), result, "output"));
+                            if (output != null) {
+                                AgentProgress.recordOutput(output);
+                            }
+                        }
                     } catch (Throwable ignored) {}
                 } catch (Throwable e) {
                     success = false;
