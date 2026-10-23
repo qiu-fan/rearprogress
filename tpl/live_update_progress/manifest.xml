@@ -5,18 +5,18 @@
   <Var name="content_pad" type="number" expression="(20 * #scale)"/>
   <Var name="content_pad_right" type="number" expression="(20 * #scale)"/>
   <Var name="text_x" type="number" expression="(#content_x + #content_pad)"/>
-  <Var name="text_w" type="number" expression="(#view_width - #content_x - #content_pad - #content_pad_right)"/>
-  <Var name="icon_size" type="number" expression="(40 * #scale)"/>
-  <Var name="icon_x" type="number" expression="#text_x"/>
-  <Var name="icon_y" type="number" expression="(18 * #scale)"/>
+  <Var name="text_w" type="number" expression="(#view_width - #content_x - #content_pad - #content_pad_right - #icon_size - (12 * #scale))"/>
+  <Var name="icon_size" type="number" expression="(34 * #scale)"/>
+  <Var name="icon_x" type="number" expression="(#view_width - #content_pad_right - #icon_size)"/>
+  <Var name="icon_y" type="number" expression="(14 * #scale)"/>
   <Var name="icon_corner" type="number" expression="(120 * #scale)"/>
 
   <!-- 文字区域参数 -->
-  <Var name="title_size" type="number" expression="(18 * #scale)"/>
-  <Var name="text_size" type="number" expression="(14 * #scale)"/><Var name="subtext_size" type="number" expression="(20 * #scale)"/>
-  <Var name="text_area_y" type="number" expression="(68 * #scale)"/>
-  <Var name="title_gap" type="number" expression="(2 * #scale)"/>
-  <Var name="text_gap" type="number" expression="(0 * #scale)"/>
+  <Var name="title_size" type="number" expression="(16 * #scale)"/>
+  <Var name="text_size" type="number" expression="(13 * #scale)"/><Var name="subtext_size" type="number" expression="(24 * #scale)"/>
+  <Var name="text_area_y" type="number" expression="(26 * #scale)"/>
+  <Var name="title_gap" type="number" expression="(6 * #scale)"/>
+  <Var name="text_gap" type="number" expression="(3 * #scale)"/>
 
   <!-- ==================== 状态变量 ==================== -->
   <Var name="is_pause" type="number" expression="0" const="true"/>
@@ -335,11 +335,11 @@
   <Var name="large_icon_w" type="number" expression="(28 * #scale)"/>
   <Var name="large_icon_h" type="number" expression="(28 * #scale)"/>
   <Var name="large_icon_x" type="number" expression="(#text_x + #text_w - #large_icon_w)"/>
-  <Var name="large_icon_y" type="number" expression="(142 * #scale)"/>
+  <Var name="large_icon_y" type="number" expression="(150 * #scale)"/>
   <Image visibility="#has_large_icon" x="#large_icon_x" y="#large_icon_y" w="#large_icon_w" h="#large_icon_h" srcExp="@pic_key_large_icon" srcType="BitmapVar"/>
 
   <!-- Title -->
-  <Text x="#text_x" y="#text_area_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
+  <Text x="#text_x" y="#text_area_y" size="#title_size" color="#B3FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-medium" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
 
   <!-- Subtext（第二行，紧跟 Title） -->
   <Var name="subtext_y" type="number" expression="(#text_area_y + #title_measure.text_height + #title_gap)"/>
@@ -350,7 +350,7 @@
   <Text visibility="#has_text" x="#text_x" y="#text_y" size="#text_size" color="#99FFFFFF" textExp="@lu_text" width="#text_w" name="content_text" fontFamily="mipro-regular" multiLine="true" lineClamp="#text_max_lines" ellipsis="true"/>
 
   <!-- ==================== 进度条（P1 基础进度，P2 不确定时隐藏） ==================== -->
-  <Var name="bar_y" type="number" expression="(178 * #scale)"/>
+  <Var name="bar_y" type="number" expression="(168 * #scale)"/>
   <Var name="bar_h" type="number" expression="(8 * #scale)"/>
   <Var name="bar_corner" type="number" expression="(99 * #scale)"/>
   <Var name="bar_bg_h" type="number" expression="(2 * #scale)"/>

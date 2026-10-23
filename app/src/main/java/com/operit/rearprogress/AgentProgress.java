@@ -120,10 +120,18 @@ final class AgentProgress {
 
     /**
      * 标题：主标题行。
+     *   有工具调用 → 显示工具名（灵动岛/背屏都用这个）
      *   AI 上传进度 → 显示 AI 文字（置顶优先）
      *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
     static String title() {
+        // 有工具调用时，标题直接用工具名（灵动岛显示工具名）
+        synchronized (AgentProgress.class) {
+            if (!sRecent.isEmpty()) {
+                String[] last = sRecent.get(sRecent.size() - 1);
+                return last[0];  // 只返回工具名，不带成功/失败标记
+            }
+        }
         if (hasAiTitle()) return sAiTitle;
         switch (sState) {
             case RUNNING:

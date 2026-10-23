@@ -1,0 +1,18 @@
+W, H = 976, 596
+s = H / 213
+print("scale =", round(s, 3))
+print()
+print("当前布局（在 976x596 下）:")
+print("  content_x    =", round(103 * s, 1), "  <- 左侧 cutout 区宽 296，这里只让出", round(103 * s, 1))
+print("  text_x       =", round(123 * s, 1))
+print("  text_w       =", round(W - 103 * s - 20 * s - 20 * s, 1))
+print("  icon         =", round(40 * s, 1), "px  位于 x=", round(123 * s, 1), " y=", round(18 * s, 1))
+print("  title 区域 y =", round(68 * s, 1), " 字号", round(18 * s, 1))
+print("  bar_y        =", round(178 * s, 1))
+print()
+print("注意: cutout insets=Rect(296, 0 - 0, 0) -> 左 296px 是挖孔，")
+print("      但 content_x 只有", round(103 * s, 1), "px，说明卡片本身不占满 976 宽，")
+print("      或者卡片被系统放在 cutout 之后的位置。")
+print()
+print("右边缘留白 =", round(20 * s, 1), "px")
+print("图标右移后 x = ", round(W - 20 * s - 40 * s, 1), "（贴右）")

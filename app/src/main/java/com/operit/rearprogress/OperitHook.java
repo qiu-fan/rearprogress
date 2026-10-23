@@ -54,6 +54,12 @@ final class OperitHook {
                     detail = summarizeParameters(field(aiToolCls, tool, "parameters"));
                 } catch (Throwable ignored) {}
 
+                // 工具开始时立即推送（让灵动岛实时显示当前调用的工具）
+                AgentProgress.recordTool(name, detail, true);
+                FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
+                        AgentProgress.percent());
+                LogX.i(TAG, "tool start -> " + name + " (" + AgentProgress.toolCount() + ")");
+
                 Object result = null;
                 boolean success = true;
                 try {
@@ -67,8 +73,6 @@ final class OperitHook {
                     throw e;
                 } finally {
                     AgentProgress.recordTool(name, detail, success);
-                    FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
-                            AgentProgress.percent());
                     LogX.i(TAG, "tool " + (success ? "ok" : "fail") + " -> " + name
                             + " (" + AgentProgress.toolCount() + ")");
                 }

@@ -75,7 +75,7 @@ final class FocusNotify {
         if (sNm == null) return;
         try {
             NotificationChannel ch = new NotificationChannel(
-                    CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW);
+                    CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
             ch.setShowBadge(false);
             ch.enableLights(false);
             ch.enableVibration(false);
