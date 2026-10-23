@@ -220,6 +220,16 @@ final class OperitHook {
                         continue;
                     }
 
+                    // 过期检查：AI 上传内容超过 5 分钟未更新 → 自动删除文件
+                    long age = System.currentTimeMillis() - m;
+                    if (age > 5 * 60 * 1000L) {
+                        f.delete();
+                        AgentProgress.clearAiProgress();
+                        pushState("ai expired");
+                        LogX.i(TAG, "ai progress expired (age=" + age + "ms), file deleted");
+                        continue;
+                    }
+
                     String[] lines = content.split("\n", 2);
                     String title = lines[0].trim();
                     int pct = -1;
