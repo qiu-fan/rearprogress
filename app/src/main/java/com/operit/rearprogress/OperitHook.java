@@ -20,6 +20,8 @@ final class OperitHook {
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
     /** 开关文件：存在=显示通知，不存在=隐藏通知 */
     private static final String ENABLED_FILE = "/data/local/tmp/agent_progress.enabled";
+    /** Operit 数据库路径 */
+    private static final String DB_PATH = "/data/data/com.ai.assistance.operit/databases/app_database";
 
     private OperitHook() {}
 
@@ -94,6 +96,13 @@ final class OperitHook {
                                     LogX.i(TAG, "diff stats for " + name + ": " + diffStats);
                                 }
                             }
+                        }
+
+                        // 读取 token 数据（每次工具调用都更新）
+                        String tokenUsage = readTokenUsage();
+                        if (tokenUsage != null && !tokenUsage.isEmpty()) {
+                            AgentProgress.setLastTokenUsage(tokenUsage);
+                            LogX.i(TAG, "token usage: " + tokenUsage);
                         }
                     } catch (Throwable ignored) {}
                 } catch (Throwable e) {
@@ -367,6 +376,47 @@ final class OperitHook {
         }
         
         return null;
+    }
+
+    /**
+     * 从 Operit 数据库读取当前对话的 token 数据
+     * 返回格式："↑89743 ↓366" 或 null
+     */
+    private static String readTokenUsage() {
+        android.database.sqlite.SQLiteDatabase db = null;
+        try {
+            db = android.database.sqlite.SQLiteDatabase.openDatabase(
+                    DB_PATH, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY);
+            
+            // 查询最近一条 assistant 消息的 token 数据
+            android.database.Cursor c = db.rawQuery(
+                    "SELECT inputTokens, outputTokens, cachedInputTokens FROM messages " +
+                    "WHERE sender = 'assistant' ORDER BY timestamp DESC LIMIT 1", null);
+            
+            if (c != null && c.moveToFirst()) {
+                int inputTokens = c.getInt(0);
+                int outputTokens = c.getInt(1);
+                int cachedInputTokens = c.getInt(2);
+                c.close();
+                
+                // 格式化：↑输入 ↓输出 (cache:缓存)
+                if (cachedInputTokens > 0) {
+                    return String.format("↑%d ↓%d (cache:%d)", inputTokens, outputTokens, cachedInputTokens);
+                } else {
+                    return String.format("↑%d ↓%d", inputTokens, outputTokens);
+                }
+            }
+            
+            if (c != null) c.close();
+            return null;
+        } catch (Throwable t) {
+            LogX.w(TAG, "readTokenUsage failed: " + t);
+            return null;
+        } finally {
+            if (db != null) {
+                try { db.close(); } catch (Throwable ignored) {}
+            }
+        }
     }
 
     private static String str(Object o) {
