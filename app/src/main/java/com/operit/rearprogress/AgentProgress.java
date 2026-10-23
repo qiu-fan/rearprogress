@@ -336,16 +336,20 @@ final class AgentProgress {
     }
 
     /**
-     * 副标题：当前工具名（模板里放大加粗，作为视觉主体）。
+     * 副标题（subText）：token 用量。
      *   AI 上传工具名 → 优先显示
-     *   否则 → 最近工具名
-     *   没有工具调用时留空，模板会隐藏这一行。
+     *   否则 → token 数量
      */
     static String toolName() {
         // 1. AI 上传的工具名优先
         if (hasAiTool()) return sAiTool;
-        
-        // 2. 最近工具名
+
+        // 2. token 数量（副标题显示 token）
+        if (sLastTokenUsage != null && !sLastTokenUsage.isEmpty()) {
+            return sLastTokenUsage;
+        }
+
+        // 3. 兜底：最近工具名（token 还没拿到时）
         synchronized (AgentProgress.class) {
             if (sRecent.isEmpty()) return "";
             String[] last = sRecent.get(sRecent.size() - 1);
@@ -354,26 +358,29 @@ final class AgentProgress {
     }
 
     /**
-     * 内容：只显示 token 用量。
+     * 内容（body）：工具参数摘要（最新在上，最多 3 行）。
      *   AI 上传内容 → 优先显示
-     *   否则 → token 数量
+     *   否则 → 工具参数摘要
      */
     static String body() {
         // 1. AI 上传的内容优先
         if (hasAiBody()) return sAiBody;
 
-        // 2. token 数量
-        if (sLastTokenUsage != null && !sLastTokenUsage.isEmpty()) {
-            return sLastTokenUsage;
+        // 2. 工具参数摘要
+        synchronized (AgentProgress.class) {
+            if (!sRecent.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = sRecent.size() - 1; i >= 0; i--) {
+                    String[] r = sRecent.get(i);
+                    if (sb.length() > 0) sb.append('\n');
+                    String d = (r[1] == null || r[1].isEmpty()) ? "—" : r[1];
+                    sb.append(d);
+                }
+                return sb.toString();
+            }
         }
 
         // 3. 兜底状态
-        synchronized (AgentProgress.class) {
-            if (!sRecent.isEmpty()) {
-                String[] r = sRecent.get(sRecent.size() - 1);
-                return (r[1] == null || r[1].isEmpty()) ? "—" : r[1];
-            }
-        }
         switch (sState) {
             case RUNNING:
                 return "正在准备…";
