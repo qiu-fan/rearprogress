@@ -391,7 +391,7 @@ final class AgentProgress {
                 return "任务已结束";
             case READY:
             default:
-                return "等待任务开始";
+                return "已就绪";  // 与初始状态一致
         }
     }
 

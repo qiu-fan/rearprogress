@@ -166,15 +166,15 @@ final class OperitHook {
         }
     }
 
-    /** 启动后先把「已就绪」状态推到背屏 */
+    /** 启动后先推「Agent / 已就绪」初始状态到背屏 */
     private static void pushInitialStateLater() {
         Thread t = new Thread(() -> {
             try {
                 Thread.sleep(2000L);
                 AgentProgress.markReady();
-                FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
-                        AgentProgress.percent());
-                LogX.i(TAG, "initial state pushed -> " + AgentProgress.title());
+                // 初始状态：标题固定 Agent，内容固定 已就绪
+                FocusNotify.pushState("Agent", "", "已就绪", -1);
+                LogX.i(TAG, "initial state pushed -> Agent / 已就绪");
             } catch (Throwable e) {
                 LogX.e(TAG, "pushInitialState failed", e);
             }
