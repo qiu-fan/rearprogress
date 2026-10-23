@@ -83,6 +83,18 @@ final class OperitHook {
                                 AgentProgress.recordOutput(output);
                             }
                         }
+
+                        // 提取 diff 统计（edit_file/create_file 等文件操作工具）
+                        if (name != null && (name.equals("edit_file") || name.equals("create_file") || name.equals("delete_file"))) {
+                            String output = str(field(result.getClass(), result, "output"));
+                            if (output != null) {
+                                String diffStats = extractDiffStats(output);
+                                if (diffStats != null && !diffStats.isEmpty()) {
+                                    AgentProgress.setLastDiffStats(diffStats);
+                                    LogX.i(TAG, "diff stats for " + name + ": " + diffStats);
+                                }
+                            }
+                        }
                     } catch (Throwable ignored) {}
                 } catch (Throwable e) {
                     success = false;
@@ -332,6 +344,29 @@ final class OperitHook {
         Field f = cls.getDeclaredField(name);
         f.setAccessible(true);
         return f.get(obj);
+    }
+
+    /**
+     * 从工具输出中提取 diff 统计信息
+     * 例如："Successfully applied AI code to file: ...\nChanges: +36 -1 lines\n@@ ..."
+     * 提取 "Changes: +36 -1 lines" 或 "36 insertions(+), 1 deletions(-)"
+     */
+    private static String extractDiffStats(String output) {
+        if (output == null || output.isEmpty()) return null;
+        
+        // 格式1：Changes: +36 -1 lines
+        java.util.regex.Matcher m1 = java.util.regex.Pattern.compile("Changes: \\+(\\d+) -(\\d+) lines?").matcher(output);
+        if (m1.find()) {
+            return "+" + m1.group(1) + " -" + m1.group(2);
+        }
+        
+        // 格式2：36 insertions(+), 1 deletions(-)
+        java.util.regex.Matcher m2 = java.util.regex.Pattern.compile("(\\d+) insertions?\\(\\+\\).*?(\\d+) deletions?\\(-\\)").matcher(output);
+        if (m2.find()) {
+            return "+" + m2.group(1) + " -" + m2.group(2);
+        }
+        
+        return null;
     }
 
     private static String str(Object o) {

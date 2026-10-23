@@ -43,6 +43,8 @@ final class AgentProgress {
     private static final List<String[]> sRecent = new ArrayList<>();
     /** 本任务工具调用计数 */
     private static volatile int sToolCount = 0;
+    /** 最近一次文件操作的 diff 统计 */
+    private static volatile String sLastDiffStats = "";
 
     /** 终端命令历史（最近 N 条） */
     private static final List<String> sCommandHistory = new ArrayList<>();
@@ -125,6 +127,7 @@ final class AgentProgress {
             sAiTitle = "";
             sAiPercent = -1;
             sToolCount = 0;
+            sLastDiffStats = "";  // 清空 diff 统计
             // 工具行保留，让背屏滚动显示最近动作，不突兀清空
         }
         sState = State.RUNNING;
@@ -149,6 +152,21 @@ final class AgentProgress {
 
     static State state() {
         return sState;
+    }
+
+    /** 设置最近一次文件操作的 diff 统计 */
+    static synchronized void setLastDiffStats(String stats) {
+        sLastDiffStats = (stats == null) ? "" : stats.trim();
+    }
+
+    /** 获取最近一次文件操作的 diff 统计 */
+    static String getLastDiffStats() {
+        return sLastDiffStats;
+    }
+
+    /** 清空 diff 统计（新任务开始时） */
+    static synchronized void clearDiffStats() {
+        sLastDiffStats = "";
     }
 
     /**
@@ -260,7 +278,7 @@ final class AgentProgress {
     /**
      * 标题：主标题行。
      *   AI 上传进度 → 显示 AI 文字（置顶优先）
-     *   有工具调用 → 显示工具名
+     *   有工具调用 → 显示工具名 + diff 统计
      *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
     static String title() {
@@ -271,7 +289,16 @@ final class AgentProgress {
         synchronized (AgentProgress.class) {
             if (!sRecent.isEmpty()) {
                 String[] last = sRecent.get(sRecent.size() - 1);
-                return last[0];  // 只返回工具名，不带成功/失败标记
+                String toolName = last[0];  // 只返回工具名，不带成功/失败标记
+                
+                // 如果是文件操作工具且有 diff 统计，追加显示
+                if (sLastDiffStats != null && !sLastDiffStats.isEmpty()) {
+                    // 只在最近一次工具调用是文件操作时显示 diff
+                    if (last[0].equals("Edit") || last[0].equals("Create") || last[0].equals("Delete")) {
+                        return toolName + " " + sLastDiffStats;
+                    }
+                }
+                return toolName;
             }
         }
         
