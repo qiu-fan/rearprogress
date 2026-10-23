@@ -40,11 +40,11 @@ final class AgentProgress {
     private static final java.util.Map<String, String> TOOL_NAME_MAP = new java.util.HashMap<>();
     static {
         // super_admin 包
-        TOOL_NAME_MAP.put("super_admin:shell", "Shell");
-        TOOL_NAME_MAP.put("super_admin:terminal", "Term");
-        TOOL_NAME_MAP.put("super_admin:terminal_wait", "TermWait");
-        TOOL_NAME_MAP.put("super_admin:terminal_getscreen", "TermScr");
-        TOOL_NAME_MAP.put("super_admin:terminal_input", "TermIn");
+        TOOL_NAME_MAP.put("super_admin:shell", "Shell(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal", "Term(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal_wait", "TermWait(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal_getscreen", "TermScr(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal_input", "TermIn(root)");
 
         // 文件操作
         TOOL_NAME_MAP.put("read_file", "Read");
