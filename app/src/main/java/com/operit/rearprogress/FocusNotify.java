@@ -115,6 +115,17 @@ final class FocusNotify {
      */
     static void pushState(String title, String toolName, String body, int percent) {
         try {
+            // 检查开关文件：不存在则不推送通知
+            if (!isEnabled()) {
+                // 开关关闭时，撤掉可能存在的通知
+                if (sNm != null) {
+                    sNm.cancel(NOTIF_ID);
+                    sLastTitle = null;
+                    sLastBody = null;
+                }
+                return;
+            }
+
             if (sNm == null || sCtx == null) {
                 // 在 Operit 进程里调用时还没 init，这里自愈
                 initFromActivityThread();
@@ -140,6 +151,16 @@ final class FocusNotify {
             sSeq++;
         } catch (Throwable t) {
             android.util.Log.w(TAG, "pushState failed", t);
+        }
+    }
+
+    /** 检查开关文件是否存在 */
+    private static boolean isEnabled() {
+        try {
+            java.io.File f = new java.io.File("/data/local/tmp/agent_progress.enabled");
+            return f.exists();
+        } catch (Throwable t) {
+            return false;
         }
     }
 

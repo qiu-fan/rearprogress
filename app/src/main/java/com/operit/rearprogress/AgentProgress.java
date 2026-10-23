@@ -36,6 +36,54 @@ final class AgentProgress {
     /** 本任务工具调用计数 */
     private static volatile int sToolCount = 0;
 
+    /** 工具名映射表：原始名 -> 显示名（缩短） */
+    private static final java.util.Map<String, String> TOOL_NAME_MAP = new java.util.HashMap<>();
+    static {
+        // super_admin 包
+        TOOL_NAME_MAP.put("super_admin:shell", "Shell");
+        TOOL_NAME_MAP.put("super_admin:terminal", "Term");
+        TOOL_NAME_MAP.put("super_admin:terminal_wait", "TermWait");
+        TOOL_NAME_MAP.put("super_admin:terminal_getscreen", "TermScr");
+        TOOL_NAME_MAP.put("super_admin:terminal_input", "TermIn");
+
+        // 文件操作
+        TOOL_NAME_MAP.put("read_file", "Read");
+        TOOL_NAME_MAP.put("read_file_part", "ReadPart");
+        TOOL_NAME_MAP.put("create_file", "Create");
+        TOOL_NAME_MAP.put("edit_file", "Edit");
+        TOOL_NAME_MAP.put("delete_file", "Delete");
+        TOOL_NAME_MAP.put("list_files", "List");
+        TOOL_NAME_MAP.put("find_files", "Find");
+        TOOL_NAME_MAP.put("make_directory", "Mkdir");
+        TOOL_NAME_MAP.put("grep_code", "Grep");
+        TOOL_NAME_MAP.put("grep_context", "GrepCtx");
+
+        // 网络/搜索
+        TOOL_NAME_MAP.put("visit_web", "Web");
+        TOOL_NAME_MAP.put("download_file", "Download");
+        TOOL_NAME_MAP.put("package_proxy", "Proxy");
+
+        // 记忆
+        TOOL_NAME_MAP.put("query_memory", "Memory");
+        TOOL_NAME_MAP.put("get_memory_by_title", "MemTitle");
+
+        // 代码执行
+        TOOL_NAME_MAP.put("code_runner:run_javascript_node", "JS");
+        TOOL_NAME_MAP.put("code_runner:run_python", "Python");
+        TOOL_NAME_MAP.put("code_runner:run_ruby", "Ruby");
+        TOOL_NAME_MAP.put("code_runner:run_go", "Go");
+        TOOL_NAME_MAP.put("code_runner:run_rust", "Rust");
+        TOOL_NAME_MAP.put("code_runner:run_c", "C");
+        TOOL_NAME_MAP.put("code_runner:run_cpp", "C++");
+
+        // APK 逆向
+        TOOL_NAME_MAP.put("apk_reverse:apk_reverse_decode", "APKDecode");
+        TOOL_NAME_MAP.put("apk_reverse:apk_reverse_jadx", "JADX");
+        TOOL_NAME_MAP.put("apk_reverse:apk_reverse_search_text", "APKSearch");
+        TOOL_NAME_MAP.put("apk_reverse:apk_reverse_build", "APKBuild");
+        TOOL_NAME_MAP.put("apk_reverse:apk_reverse_sign", "APKSign");
+    }
+
     private AgentProgress() {}
 
     // ---------------------------------------------------------------- 状态
@@ -109,6 +157,8 @@ final class AgentProgress {
         sToolCount++;
 
         String name = (toolName == null || toolName.isEmpty()) ? "tool" : toolName;
+        // 映射到短名
+        name = TOOL_NAME_MAP.getOrDefault(name, name);
         String d = detail == null ? "" : detail.trim().replaceAll("\\s+", " ");
         if (d.length() > 64) d = d.substring(0, 64) + "…";
 

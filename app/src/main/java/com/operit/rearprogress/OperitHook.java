@@ -18,13 +18,16 @@ final class OperitHook {
     private static final String TAG = "RearProgress";
     /** AI 主动上传进度的文件（可选，第一行=标题，第二行=百分比） */
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
+    /** 开关文件：存在=显示通知，不存在=隐藏通知 */
+    private static final String ENABLED_FILE = "/data/local/tmp/agent_progress.enabled";
 
     private OperitHook() {}
 
     static void install(final XposedInterface xposed, ClassLoader cl) {
         try {
-            LogX.i(TAG, "OperitHook.install enter v0.8");
+            LogX.i(TAG, "OperitHook.install enter v0.23");
             AgentProgress.markReady();
+            startEnabledWatcher();
             Class<?> handlerCls = Class.forName(
                     "com.ai.assistance.operit.core.tools.AIToolHandler", true, cl);
             LogX.i(TAG, "AIToolHandler loaded");
@@ -194,6 +197,38 @@ final class OperitHook {
                 } catch (Throwable ignored) {}
             }
         }, "RearProgressFileWatcher");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * 监控开关文件：存在=显示，不存在=隐藏并撤掉通知
+     */
+    private static void startEnabledWatcher() {
+        Thread t = new Thread(() -> {
+            boolean lastEnabled = false;
+            while (true) {
+                try {
+                    Thread.sleep(1000L);
+                    java.io.File f = new java.io.File(ENABLED_FILE);
+                    boolean enabled = f.exists();
+
+                    // 状态变化时触发
+                    if (enabled != lastEnabled) {
+                        lastEnabled = enabled;
+                        if (!enabled) {
+                            // 关闭时撤掉通知
+                            FocusNotify.stop();
+                            LogX.i(TAG, "enabled file removed -> notification stopped");
+                        } else {
+                            // 打开时推送当前状态
+                            pushState("enabled");
+                            LogX.i(TAG, "enabled file created -> notification started");
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }, "RearProgressEnabledWatcher");
         t.setDaemon(true);
         t.start();
     }
