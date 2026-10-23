@@ -269,7 +269,7 @@ final class FocusNotify {
         b.setOngoing(true);
         b.setOnlyAlertOnce(true);
         b.setShowWhen(false);
-        b.setPriority(Notification.PRIORITY_LOW);
+        b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
 
         // 真实进度条：系统通知自带的 progress（背屏 ProgressStyle 会渲染它）
         if (hasBar) {
