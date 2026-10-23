@@ -349,43 +349,34 @@ final class AgentProgress {
     }
 
     /**
-     * 内容：token 用量置顶，其后是工具参数（最新在上），小字弱化显示。
+     * 内容：只显示 token 用量。
      *   AI 上传内容 → 优先显示
-     *   否则 → token 行 + 工具参数摘要
+     *   否则 → token 数量
      */
     static String body() {
         // 1. AI 上传的内容优先
         if (hasAiBody()) return sAiBody;
 
-        // 2. token 行 + 工具参数摘要
+        // 2. token 数量
+        if (sLastTokenUsage != null && !sLastTokenUsage.isEmpty()) {
+            return sLastTokenUsage;
+        }
+
+        // 3. 兜底状态
         synchronized (AgentProgress.class) {
-            StringBuilder sb = new StringBuilder();
-
-            // token 用量放第一行
-            if (sLastTokenUsage != null && !sLastTokenUsage.isEmpty()) {
-                sb.append(sLastTokenUsage);
+            if (!sRecent.isEmpty()) {
+                String[] r = sRecent.get(sRecent.size() - 1);
+                return (r[1] == null || r[1].isEmpty()) ? "—" : r[1];
             }
-
-            if (sRecent.isEmpty()) {
-                if (sb.length() > 0) return sb.toString();
-                switch (sState) {
-                    case RUNNING:
-                        return "正在准备…";
-                    case DONE:
-                        return "任务已结束";
-                    case READY:
-                    default:
-                        return "等待任务开始";
-                }
-            }
-
-            for (int i = sRecent.size() - 1; i >= 0; i--) {
-                String[] r = sRecent.get(i);
-                if (sb.length() > 0) sb.append('\n');
-                String d = (r[1] == null || r[1].isEmpty()) ? "—" : r[1];
-                sb.append(d);
-            }
-            return sb.toString();
+        }
+        switch (sState) {
+            case RUNNING:
+                return "正在准备…";
+            case DONE:
+                return "任务已结束";
+            case READY:
+            default:
+                return "等待任务开始";
         }
     }
 
