@@ -75,6 +75,7 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("super_admin:terminal_wait", "TermWait(root)");
         TOOL_NAME_MAP.put("super_admin:terminal_getscreen", "TermScr(root)");
         TOOL_NAME_MAP.put("super_admin:terminal_input", "TermIn(root)");
+        TOOL_NAME_MAP.put("execute_in_terminal_session", "TermExec");
 
         // 文件操作
         TOOL_NAME_MAP.put("read_file", "Read");

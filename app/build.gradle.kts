@@ -10,8 +10,8 @@ android {
         applicationId = "com.operit.rearprogress"
         minSdk = 30
         targetSdk = 36
-        versionCode = 46
-        versionName = "0.45"
+        versionCode = 48
+        versionName = "0.47"
     }
 
     buildTypes {

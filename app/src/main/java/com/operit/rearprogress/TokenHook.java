@@ -346,7 +346,6 @@ final class TokenHook {
         StringBuilder sb = new StringBuilder();
         sb.append('↑').append(fmt(in));
         sb.append(' ').append('↓').append(fmt(out));
-        if (streaming) sb.append('…');
         return sb.toString();
     }
 
