@@ -137,6 +137,7 @@ final class FocusNotify {
             title = title.trim();
             toolName = toolName.trim();
             body = body.trim();
+            body = shortenPaths(body);  // 替换长路径为简短别名
             if (title.isEmpty() && body.isEmpty()) return;
 
             String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
@@ -162,6 +163,40 @@ final class FocusNotify {
         } catch (Throwable t) {
             return false;
         }
+    }
+
+    /**
+     * 替换 body 里的长路径为简短别名（灵动岛显示空间有限）
+     * 例如：
+     *   /data/user/0/com.ai.assistance.operit/files/workspace/xxx/... → 工作区/...
+     *   /storage/emulated/0/Android/code/... → 代码/...
+     *   /storage/emulated/0/AOperit/skills/... → skills/...
+     */
+    private static String shortenPaths(String text) {
+        if (text == null || text.isEmpty()) return text;
+        try {
+            // 工作区路径：/data/user/0/com.ai.assistance.operit/files/workspace/<uuid>/...
+            text = text.replaceAll(
+                "/data/user/0/com\\.ai\\.assistance\\.operit/files/workspace/[0-9a-f-]+/",
+                "工作区/"
+            );
+            // 代码目录：/storage/emulated/0/Android/code/...
+            text = text.replaceAll(
+                "/storage/emulated/0/Android/code/",
+                "代码/"
+            );
+            // Skills 目录
+            text = text.replaceAll(
+                "/storage/emulated/0/AOperit/skills/",
+                "skills/"
+            );
+            // 下载目录
+            text = text.replaceAll(
+                "/storage/emulated/0/Download/",
+                "Download/"
+            );
+        } catch (Throwable ignored) {}
+        return text;
     }
 
     /** 兼容旧调用：没有单独的工具名 */
