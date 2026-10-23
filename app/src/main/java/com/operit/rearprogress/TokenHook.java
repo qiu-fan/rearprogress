@@ -50,6 +50,13 @@ final class TokenHook {
     private static volatile boolean sHasLive = false;
     /** 流式更新最短推送间隔 */
     private static final long THROTTLE_MS = 300L;
+    /** token 停止增长多久判定为「输出完成」（转成总 token 显示） */
+    private static final long FINALIZE_DELAY_MS = 3000L;
+    /** 是否已落地为最终值（… 已去掉） */
+    private static volatile boolean sFinalized = false;
+    /** 延迟落地的调度器 */
+    private static volatile java.util.concurrent.ScheduledFuture<?> sFinalizeTask;
+    private static java.util.concurrent.ScheduledExecutorService sScheduler;
 
     private TokenHook() {}
 
@@ -273,18 +280,58 @@ final class TokenHook {
         sLastCached = cached;
         sLastPushAt = now;
         sHasLive = true;
+        sFinalized = false;  // 新数据到来，回到流式状态
 
-        String text = format(in, out, cached, streaming);
+        String text = format(in, out, cached, true);  // 流式中带 …
         AgentProgress.setLastTokenUsage(text);
         LogX.i(TAG, "token live: " + text + " (raw in=" + in + " out=" + out
-                + " cached=" + cached + " streaming=" + streaming + ")");
+                + " cached=" + cached + ")");
 
-        // 立刻把新标题推上岛
+        // 重置「输出完成」计时器：3 秒无更新 → 落地为总 token
+        scheduleFinalize(in, out, cached);
+
+        // 立刻把新内容推上岛
         try {
             FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
                     AgentProgress.body(), AgentProgress.percent());
         } catch (Throwable t) {
             LogX.w(TAG, "token push failed: " + t);
+        }
+    }
+
+    /**
+     * 安排一次「落地」：FINALIZE_DELAY_MS 后若 token 仍无更新，
+     * 则把显示从「流式 …」切换为「总 token」。
+     */
+    private static void scheduleFinalize(final long in, final long out, final long cached) {
+        try {
+            if (sScheduler == null) {
+                sScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "TokenFinalize");
+                    t.setDaemon(true);
+                    return t;
+                });
+            }
+            // 取消上一次未执行的落地任务
+            if (sFinalizeTask != null) sFinalizeTask.cancel(false);
+
+            sFinalizeTask = sScheduler.schedule(() -> {
+                try {
+                    // 期间没有新数据（值未变）才算完成
+                    if (sLastIn == in && sLastOut == out && sLastCached == cached && !sFinalized) {
+                        sFinalized = true;
+                        String total = format(in, out, cached, false);  // 不带 … = 总 token
+                        AgentProgress.setLastTokenUsage(total);
+                        LogX.i(TAG, "token finalized (总): " + total);
+                        FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                                AgentProgress.body(), AgentProgress.percent());
+                    }
+                } catch (Throwable t) {
+                    LogX.w(TAG, "finalize failed: " + t);
+                }
+            }, FINALIZE_DELAY_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (Throwable t) {
+            LogX.w(TAG, "scheduleFinalize failed: " + t);
         }
     }
 

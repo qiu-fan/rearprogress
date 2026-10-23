@@ -301,7 +301,10 @@ final class AgentProgress {
      */
     static String title() {
         // 1. AI 上传进度优先级最高
-        if (hasAiTitle()) return sAiTitle;
+        if (hasAiTitle()) {
+            LogX.i("RearProgress", "title() -> AI title: [" + sAiTitle + "]");
+            return sAiTitle;
+        }
 
         // 2. 有工具调用时，标题用工具名
         synchronized (AgentProgress.class) {
@@ -312,8 +315,10 @@ final class AgentProgress {
                 // 文件操作追加 diff 统计
                 if (sLastDiffStats != null && !sLastDiffStats.isEmpty()
                         && (toolName.equals("Edit") || toolName.equals("Create") || toolName.equals("Delete"))) {
+                    LogX.i("RearProgress", "title() -> tool+diff: [" + toolName + " " + sLastDiffStats + "]");
                     return toolName + " " + sLastDiffStats;
                 }
+                LogX.i("RearProgress", "title() -> tool only: [" + toolName + "]");
                 return toolName;
             }
         }

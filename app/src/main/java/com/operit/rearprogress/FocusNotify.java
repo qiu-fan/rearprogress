@@ -143,6 +143,8 @@ final class FocusNotify {
             String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
             if (key.equals(sLastTitle)) return;   // 完全没变就不发
             sLastTitle = key;
+            LogX.i(TAG, "pushState title=[" + title + "] tool=[" + toolName + "] body=["
+                    + (body.length() > 40 ? body.substring(0, 40) + "…" : body) + "]");
 
             int pct = (percent < 0) ? 0 : Math.min(100, percent);
             boolean hasBar = percent >= 0;
