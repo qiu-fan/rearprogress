@@ -99,10 +99,13 @@ final class OperitHook {
                         }
 
                         // 读取 token 数据（每次工具调用都更新）
-                        String tokenUsage = readTokenUsage();
-                        if (tokenUsage != null && !tokenUsage.isEmpty()) {
-                            AgentProgress.setLastTokenUsage(tokenUsage);
-                            LogX.i(TAG, "token usage: " + tokenUsage);
+                        // 若 TokenHook 已提供实时数据，则不用数据库旧值覆盖
+                        if (!TokenHook.hasLiveData()) {
+                            String tokenUsage = readTokenUsage();
+                            if (tokenUsage != null && !tokenUsage.isEmpty()) {
+                                AgentProgress.setLastTokenUsage(tokenUsage);
+                                LogX.i(TAG, "token usage (db fallback): " + tokenUsage);
+                            }
                         }
                     } catch (Throwable ignored) {}
                 } catch (Throwable e) {
@@ -117,6 +120,8 @@ final class OperitHook {
             });
             LogX.i(TAG, "HOOKED Operit AIToolHandler.executeTool -> auto progress");
             installReplyCompletedHook(xposed, cl);
+            // 实时 token 捕获（方案 B）
+            TokenHook.install(xposed, cl);
             pushInitialStateLater();
             startFileWatcher();
         } catch (Throwable e) {

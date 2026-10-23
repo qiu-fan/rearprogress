@@ -294,40 +294,30 @@ final class AgentProgress {
     // ---------------------------------------------------------------- 输出
 
     /**
-     * 标题：主标题行。
+     * 标题：主标题行（只放工具名 / AI 步骤名）。
      *   AI 上传进度 → 显示 AI 文字（置顶优先）
-     *   有工具调用 → 显示工具名 + diff 统计 + token 数据
+     *   有工具调用 → 显示工具名 + diff 统计
      *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
     static String title() {
         // 1. AI 上传进度优先级最高
         if (hasAiTitle()) return sAiTitle;
-        
+
         // 2. 有工具调用时，标题用工具名
         synchronized (AgentProgress.class) {
             if (!sRecent.isEmpty()) {
                 String[] last = sRecent.get(sRecent.size() - 1);
-                String toolName = last[0];  // 只返回工具名，不带成功/失败标记
-                
-                StringBuilder sb = new StringBuilder(toolName);
-                
-                // 如果是文件操作工具且有 diff 统计，追加显示
-                if (sLastDiffStats != null && !sLastDiffStats.isEmpty()) {
-                    // 只在最近一次工具调用是文件操作时显示 diff
-                    if (last[0].equals("Edit") || last[0].equals("Create") || last[0].equals("Delete")) {
-                        sb.append(" ").append(sLastDiffStats);
-                    }
+                String toolName = last[0];
+
+                // 文件操作追加 diff 统计
+                if (sLastDiffStats != null && !sLastDiffStats.isEmpty()
+                        && (toolName.equals("Edit") || toolName.equals("Create") || toolName.equals("Delete"))) {
+                    return toolName + " " + sLastDiffStats;
                 }
-                
-                // 如果有 token 数据，追加显示
-                if (sLastTokenUsage != null && !sLastTokenUsage.isEmpty()) {
-                    sb.append(" ").append(sLastTokenUsage);
-                }
-                
-                return sb.toString();
+                return toolName;
             }
         }
-        
+
         // 3. 否则用状态文字
         switch (sState) {
             case RUNNING:
@@ -359,17 +349,25 @@ final class AgentProgress {
     }
 
     /**
-     * 内容：调用的参数，一行一条（最新在上），小字弱化显示。
+     * 内容：token 用量置顶，其后是工具参数（最新在上），小字弱化显示。
      *   AI 上传内容 → 优先显示
-     *   否则 → 工具参数摘要
+     *   否则 → token 行 + 工具参数摘要
      */
     static String body() {
         // 1. AI 上传的内容优先
         if (hasAiBody()) return sAiBody;
-        
-        // 2. 工具参数摘要
+
+        // 2. token 行 + 工具参数摘要
         synchronized (AgentProgress.class) {
+            StringBuilder sb = new StringBuilder();
+
+            // token 用量放第一行
+            if (sLastTokenUsage != null && !sLastTokenUsage.isEmpty()) {
+                sb.append(sLastTokenUsage);
+            }
+
             if (sRecent.isEmpty()) {
+                if (sb.length() > 0) return sb.toString();
                 switch (sState) {
                     case RUNNING:
                         return "正在准备…";
@@ -380,7 +378,7 @@ final class AgentProgress {
                         return "等待任务开始";
                 }
             }
-            StringBuilder sb = new StringBuilder();
+
             for (int i = sRecent.size() - 1; i >= 0; i--) {
                 String[] r = sRecent.get(i);
                 if (sb.length() > 0) sb.append('\n');
