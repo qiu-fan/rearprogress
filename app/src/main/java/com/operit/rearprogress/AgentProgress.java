@@ -26,6 +26,10 @@ final class AgentProgress {
 
     /** AI 主动上传的标题，空串表示没上传 */
     private static volatile String sAiTitle = "";
+    /** AI 主动上传的工具名，空串表示没上传 */
+    private static volatile String sAiTool = "";
+    /** AI 主动上传的内容，空串表示没上传 */
+    private static volatile String sAiBody = "";
     /** AI 上传的百分比，<0 表示未知 */
     private static volatile int sAiPercent = -1;
     /** AI 上传的时间戳，用于过期判断 */
@@ -146,12 +150,31 @@ final class AgentProgress {
 
     static synchronized void setAiProgress(String title, int percent) {
         sAiTitle = title == null ? "" : title.trim();
+        sAiTool = "";
+        sAiBody = "";
         sAiPercent = percent;
         sAiAt = System.currentTimeMillis();
     }
 
+    /** 解析 JSON 设置 AI 状态（title/tool/body/percent） */
+    static synchronized void setAiState(String json) {
+        try {
+            org.json.JSONObject obj = new org.json.JSONObject(json);
+            sAiTitle = obj.optString("title", "").trim();
+            sAiTool = obj.optString("tool", "").trim();
+            sAiBody = obj.optString("body", "").trim();
+            sAiPercent = obj.has("percent") ? obj.optInt("percent", -1) : -1;
+            sAiAt = System.currentTimeMillis();
+        } catch (Throwable t) {
+            // JSON 解析失败，当作纯文字处理
+            setAiProgress(json, -1);
+        }
+    }
+
     static synchronized void clearAiProgress() {
         sAiTitle = "";
+        sAiTool = "";
+        sAiBody = "";
         sAiPercent = -1;
         sAiAt = 0L;
     }
@@ -159,6 +182,22 @@ final class AgentProgress {
     /** AI 上传只在 5 分钟内有效，避免残留把标题卡死 */
     static boolean hasAiTitle() {
         String t = sAiTitle;
+        if (t == null || t.isEmpty()) return false;
+        if (sAiAt == 0L) return false;
+        return System.currentTimeMillis() - sAiAt < 5 * 60_000L;
+    }
+
+    /** AI 上传的工具名是否有效 */
+    static boolean hasAiTool() {
+        String t = sAiTool;
+        if (t == null || t.isEmpty()) return false;
+        if (sAiAt == 0L) return false;
+        return System.currentTimeMillis() - sAiAt < 5 * 60_000L;
+    }
+
+    /** AI 上传的内容是否有效 */
+    static boolean hasAiBody() {
+        String t = sAiBody;
         if (t == null || t.isEmpty()) return false;
         if (sAiAt == 0L) return false;
         return System.currentTimeMillis() - sAiAt < 5 * 60_000L;
@@ -230,9 +269,15 @@ final class AgentProgress {
 
     /**
      * 副标题：当前工具名（模板里放大加粗，作为视觉主体）。
-     * 没有工具调用时留空，模板会隐藏这一行。
+     *   AI 上传工具名 → 优先显示
+     *   否则 → 最近工具名
+     *   没有工具调用时留空，模板会隐藏这一行。
      */
     static String toolName() {
+        // 1. AI 上传的工具名优先
+        if (hasAiTool()) return sAiTool;
+        
+        // 2. 最近工具名
         synchronized (AgentProgress.class) {
             if (sRecent.isEmpty()) return "";
             String[] last = sRecent.get(sRecent.size() - 1);
@@ -242,8 +287,14 @@ final class AgentProgress {
 
     /**
      * 内容：调用的参数，一行一条（最新在上），小字弱化显示。
+     *   AI 上传内容 → 优先显示
+     *   否则 → 工具参数摘要
      */
     static String body() {
+        // 1. AI 上传的内容优先
+        if (hasAiBody()) return sAiBody;
+        
+        // 2. 工具参数摘要
         synchronized (AgentProgress.class) {
             if (sRecent.isEmpty()) {
                 switch (sState) {

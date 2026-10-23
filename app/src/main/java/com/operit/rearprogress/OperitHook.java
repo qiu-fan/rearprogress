@@ -205,7 +205,13 @@ final class OperitHook {
                     if (lines.length > 1) {
                         try { pct = Integer.parseInt(lines[1].trim()); } catch (Throwable ignored) {}
                     }
-                    AgentProgress.setAiProgress(title, pct);
+
+                    // 判断是否为 JSON 格式
+                    if (title.startsWith("{") || title.startsWith("[")) {
+                        AgentProgress.setAiState(content);
+                    } else {
+                        AgentProgress.setAiProgress(title, pct);
+                    }
                     pushState("ai upload");
                 } catch (Throwable ignored) {}
             }
