@@ -269,6 +269,13 @@ final class AgentProgress {
         HIDDEN_TOOLS.add("http_request");  // 内部网络请求，不显示
         HIDDEN_TOOLS.add("make_directory");  // 启动扫描，不显示
         HIDDEN_TOOLS.add("file_exists");     // 启动扫描，不显示
+        // 启动扫描 / 发消息时的上下文读取，不显示
+        HIDDEN_TOOLS.add("read_file_full");
+        HIDDEN_TOOLS.add("find_chat");
+        HIDDEN_TOOLS.add("get_chat_messages");
+        HIDDEN_TOOLS.add("list_character_cards");
+        HIDDEN_TOOLS.add("write_file");
+        HIDDEN_TOOLS.add("create_terminal_session");
     }
 
     /**
@@ -276,15 +283,16 @@ final class AgentProgress {
      * 存 [工具名, 参数摘要, 是否成功] 三段，UI 侧可以分别加粗/缩小。
      */
     static synchronized void recordTool(String toolName, String detail, boolean success) {
-        markRunning();
-        sToolCount++;
-        sLastToolAt = System.currentTimeMillis();  // 更新最后工具调用时间
-
         String name = (toolName == null || toolName.isEmpty()) ? "tool" : toolName;
-        // 内部执行命令不记录（由外层工具触发，如 code_runner → execute_hidden_terminal_command）
+        // 内部/启动扫描工具：完全不参与（不改状态、不计数、不显示）
         if (HIDDEN_TOOLS.contains(name)) {
             return;
         }
+
+        markRunning();
+        sToolCount++;
+        sLastToolAt = System.currentTimeMillis();
+
         // 映射到短名
         name = TOOL_NAME_MAP.getOrDefault(name, name);
         String d = detail == null ? "" : detail.trim().replaceAll("\\s+", " ");
