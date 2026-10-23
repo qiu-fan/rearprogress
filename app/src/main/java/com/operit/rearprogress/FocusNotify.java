@@ -205,50 +205,8 @@ final class FocusNotify {
     }
 
     /**
-     * 副屏中心 m2.b.b() 只认三种 Style（见反编译）：
-     *   CallStyle         -> live_update_call
-     *   ProgressStyle     -> live_update_progress   ← 我们用这个
-     *   BigTextStyle      -> live_update_big_text
-     * 普通通知 Style 为 null 会被直接丢弃。
+     * 构建通知（无进度条样式）
      */
-    private static Notification.Style buildProgressStyle(boolean hasProgress,
-                                                         int progress,
-                                                         String segment,
-                                                         String summary) {
-        try {
-            Class<?> psCls = Class.forName("android.app.Notification$ProgressStyle");
-            Object builder = psCls.getDeclaredConstructor().newInstance();
-            // ProgressStyle.Builder 风格：setProgress / addProgressSegment
-            if (hasProgress) {
-                try {
-                    psCls.getMethod("setProgress", int.class, int.class)
-                            .invoke(builder, Math.min(100, Math.max(0, progress)), 100);
-                } catch (Throwable ignored) {}
-            }
-            try {
-                psCls.getMethod("setStyledByProgress", boolean.class).invoke(builder, false);
-            } catch (Throwable ignored) {}
-            try {
-                psCls.getMethod("setProgressSegments", java.util.List.class)
-                        .invoke(builder, java.util.Collections.singletonList(
-                                psCls.getMethod("makeSegments", String[].class)
-                                        .invoke(null, (Object) new String[]{segment})));
-            } catch (Throwable ignored) {}
-            try {
-                psCls.getMethod("setProgressTrackerIcon", android.graphics.drawable.Icon.class)
-                        .invoke(builder, android.graphics.drawable.Icon.createWithResource(
-                                sCtx, android.R.drawable.stat_sys_download));
-            } catch (Throwable ignored) {}
-            try {
-                psCls.getMethod("setProgressPoints", java.util.List.class)
-                        .invoke(builder, new java.util.ArrayList<String>());
-            } catch (Throwable ignored) {}
-            return (Notification.Style) builder;
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
     @SuppressWarnings("deprecation")
     private static Notification buildNotification(Context ctx, String title, String toolName,
                                                   String body, int percent, boolean hasBar) {
@@ -271,37 +229,16 @@ final class FocusNotify {
         b.setShowWhen(false);
         b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
 
-        // 真实进度条：系统通知自带的 progress（背屏 ProgressStyle 会渲染它）
-        if (hasBar) {
-            b.setProgress(100, percent, false);
-        }
-
-        // 关键：副屏中心只认 ProgressStyle / BigTextStyle / CallStyle，
-        // 普通通知 Style=null 会被 m2.b.b() 丢弃
-        Notification.Style style = buildProgressStyle(hasBar, percent, title, body);
-        if (style == null) {
-            try {
-                style = new Notification.BigTextStyle().bigText(body);
-            } catch (Throwable ignored) {}
-        }
-        if (style != null) b.setStyle(style);
+        // 用 BigTextStyle 显示完整内容（无进度条）
+        try {
+            Notification.BigTextStyle bigText = new Notification.BigTextStyle()
+                    .bigText(body)
+                    .setBigContentTitle(title)
+                    .setSummaryText(toolName);
+            b.setStyle(bigText);
+        } catch (Throwable ignored) {}
 
         Notification n = b.build();
-        // 进度条：ProgressStyle 的反射未必成功，这里在 extras 里强制写死，
-        // 保证背屏/通知栏一定能看到进度值。
-        try {
-            if (n.extras == null) {
-                java.lang.reflect.Field f = Notification.class.getDeclaredField("extras");
-                f.setAccessible(true);
-                f.set(n, new Bundle());
-            }
-            if (hasBar && n.extras != null) {
-                n.extras.putInt("android.progress", percent);
-                n.extras.putInt("android.progressMax", 100);
-                n.extras.putBoolean("android.showProgress", true);
-                n.extras.putBoolean("android.progressIndeterminate", false);
-            }
-        } catch (Throwable ignored) {}
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
         n.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_ONLY_ALERT_ONCE;
