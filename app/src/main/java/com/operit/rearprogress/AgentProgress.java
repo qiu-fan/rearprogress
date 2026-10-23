@@ -159,6 +159,13 @@ final class AgentProgress {
 
     // ---------------------------------------------------------------- 工具行
 
+    /** 内部执行命令，不显示在灵动岛（由外层工具触发） */
+    private static final java.util.Set<String> HIDDEN_TOOLS = new java.util.HashSet<>();
+    static {
+        HIDDEN_TOOLS.add("execute_hidden_terminal_command");
+        HIDDEN_TOOLS.add("execute_shell");
+    }
+
     /**
      * 记录一次工具调用。
      * 存 [工具名, 参数摘要, 是否成功] 三段，UI 侧可以分别加粗/缩小。
@@ -168,6 +175,10 @@ final class AgentProgress {
         sToolCount++;
 
         String name = (toolName == null || toolName.isEmpty()) ? "tool" : toolName;
+        // 内部执行命令不记录（由外层工具触发，如 code_runner → execute_hidden_terminal_command）
+        if (HIDDEN_TOOLS.contains(name)) {
+            return;
+        }
         // 映射到短名
         name = TOOL_NAME_MAP.getOrDefault(name, name);
         String d = detail == null ? "" : detail.trim().replaceAll("\\s+", " ");
