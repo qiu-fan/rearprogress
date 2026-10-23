@@ -112,9 +112,8 @@ final class FocusNotify {
      *   toolName  → 副标题，模板里放大加粗
      *   body      → 参数，一行一条，模板里小字弱化
      *   percent   → 0-100 进度条，<0 表示不显示
-     *   terminalHistory → 终端命令历史（可选）
      */
-    static void pushState(String title, String toolName, String body, int percent, String terminalHistory) {
+    static void pushState(String title, String toolName, String body, int percent) {
         try {
             // 检查开关文件：不存在则不推送通知
             if (!isEnabled()) {
@@ -141,24 +140,19 @@ final class FocusNotify {
             body = shortenPaths(body);  // 替换长路径为简短别名
             if (title.isEmpty() && body.isEmpty()) return;
 
-            String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent + "\u0001" + terminalHistory;
+            String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
             if (key.equals(sLastTitle)) return;   // 完全没变就不发
             sLastTitle = key;
 
             int pct = (percent < 0) ? 0 : Math.min(100, percent);
             boolean hasBar = percent >= 0;
 
-            Notification n = buildNotification(sCtx, title, toolName, body, pct, hasBar, terminalHistory);
+            Notification n = buildNotification(sCtx, title, toolName, body, pct, hasBar);
             sNm.notify(NOTIF_ID, n);
             sSeq++;
         } catch (Throwable t) {
             android.util.Log.w(TAG, "pushState failed", t);
         }
-    }
-
-    /** 兼容旧调用（无终端历史） */
-    static void pushState(String title, String toolName, String body, int percent) {
-        pushState(title, toolName, body, percent, "");
     }
 
     /** 检查开关文件是否存在 */
@@ -215,7 +209,7 @@ final class FocusNotify {
      */
     @SuppressWarnings("deprecation")
     private static Notification buildNotification(Context ctx, String title, String toolName,
-                                                  String body, int percent, boolean hasBar, String terminalHistory) {
+                                                  String body, int percent, boolean hasBar) {
         Notification.Builder b;
         if (android.os.Build.VERSION.SDK_INT >= 26) {
             b = new Notification.Builder(ctx, CHANNEL_ID);
@@ -248,19 +242,6 @@ final class FocusNotify {
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
         n.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_ONLY_ALERT_ONCE;
-
-        // 将终端历史写入 extras，供模板使用
-        try {
-            if (n.extras == null) {
-                java.lang.reflect.Field f = Notification.class.getDeclaredField("extras");
-                f.setAccessible(true);
-                f.set(n, new Bundle());
-            }
-            if (n.extras != null && terminalHistory != null && !terminalHistory.isEmpty()) {
-                n.extras.putString("terminal_history", terminalHistory);
-            }
-        } catch (Throwable ignored) {}
-
         return n;
     }
 }

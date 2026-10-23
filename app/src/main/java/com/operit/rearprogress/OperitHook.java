@@ -65,7 +65,7 @@ final class OperitHook {
                 // 工具开始时立即推送（让灵动岛实时显示当前调用的工具）
                 AgentProgress.recordTool(name, detail, true);
                 FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
-                        AgentProgress.percent(), AgentProgress.getTerminalHistory());
+                        AgentProgress.percent());
                 LogX.i(TAG, "tool start -> " + name + " (" + AgentProgress.toolCount() + ")");
 
                 Object result = null;
