@@ -338,17 +338,14 @@ final class TokenHook {
     // ------------------------------------------------------------ 格式化
 
     /**
-     * 格式化为灵动岛用的紧凑字符串：
-     *   ↑12.4K ↓3.2K ⚡8.1K
-     * 流式中在末尾加 "…" 表示还在增长；cached 为 0 时省略 ⚡ 段。
+     * 格式化为灵动岛用的紧凑字符串（方案1：只保留输入/输出，去掉 cache 省空间）：
+     *   ↑1.05M ↓1.5K
+     * 流式中在末尾加 "…" 表示还在增长。
      */
     static String format(long in, long out, long cached, boolean streaming) {
         StringBuilder sb = new StringBuilder();
         sb.append('↑').append(fmt(in));
         sb.append(' ').append('↓').append(fmt(out));
-        if (cached > 0) {
-            sb.append(' ').append('⚡').append(fmt(cached));
-        }
         if (streaming) sb.append('…');
         return sb.toString();
     }
