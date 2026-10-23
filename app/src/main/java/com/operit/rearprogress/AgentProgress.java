@@ -152,11 +152,10 @@ final class AgentProgress {
     }
 
     /**
-     * 判断是否应该自动隐藏通知（任务结束后 10 分钟）
-     * 条件：状态为 DONE 且距离最后工具调用超过 10 分钟
+     * 判断是否应该自动隐藏通知（超过 N 秒无工具调用）
+     * 条件：状态为 DONE 或 RUNNING 且距离最后工具调用超过延迟时间
      */
     static boolean shouldAutoHide() {
-        if (sState != State.DONE) return false;
         if (sLastToolAt == 0L) return false;
         return System.currentTimeMillis() - sLastToolAt > AUTO_HIDE_DELAY;
     }
