@@ -39,6 +39,17 @@ final class AgentProgress {
     /** 工具名映射表：原始名 -> 显示名（缩短） */
     private static final java.util.Map<String, String> TOOL_NAME_MAP = new java.util.HashMap<>();
     static {
+        // 内部工具（Operit 内置）
+        TOOL_NAME_MAP.put("execute_hidden_terminal_command", "HiddenCmd");
+        TOOL_NAME_MAP.put("execute_shell", "Shell");
+        TOOL_NAME_MAP.put("file_exists", "Exist");
+        TOOL_NAME_MAP.put("find_chat", "FindChat");
+        TOOL_NAME_MAP.put("get_chat_messages", "Chat");
+        TOOL_NAME_MAP.put("http_request", "HTTP");
+        TOOL_NAME_MAP.put("list_character_cards", "Cards");
+        TOOL_NAME_MAP.put("read_file_full", "ReadFull");
+        TOOL_NAME_MAP.put("super_admin", "Root");
+
         // super_admin 包
         TOOL_NAME_MAP.put("super_admin:shell", "Shell(root)");
         TOOL_NAME_MAP.put("super_admin:terminal", "Term(root)");
