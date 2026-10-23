@@ -267,6 +267,8 @@ final class AgentProgress {
         HIDDEN_TOOLS.add("execute_hidden_terminal_command");
         HIDDEN_TOOLS.add("execute_shell");
         HIDDEN_TOOLS.add("http_request");  // 内部网络请求，不显示
+        HIDDEN_TOOLS.add("make_directory");  // 启动扫描，不显示
+        HIDDEN_TOOLS.add("file_exists");     // 启动扫描，不显示
     }
 
     /**
