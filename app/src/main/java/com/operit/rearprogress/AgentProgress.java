@@ -89,7 +89,7 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("find_files", "Find");
         TOOL_NAME_MAP.put("make_directory", "Mkdir");
         TOOL_NAME_MAP.put("file_exists", "Exist");
-        TOOL_NAME_MAP.put("grep_code", "Grep");
+        TOOL_NAME_MAP.put("grep_code", "Grep_code");
         TOOL_NAME_MAP.put("grep_context", "GrepCtx");
         TOOL_NAME_MAP.put("move_file", "Move");
         TOOL_NAME_MAP.put("copy_file", "Copy");
