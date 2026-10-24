@@ -63,7 +63,48 @@ final class TokenHook {
     private static final double PRICE_INPUT_PER_K = 1.0;     // 未缓存输入
     private static final double PRICE_OUTPUT_PER_K = 2.0;    // 输出
 
+    // ---- token 历史（环形缓冲，供展开态图表） ----
+    private static final int HISTORY_SIZE = 40;
+    private static final long[] sHistIn = new long[HISTORY_SIZE];
+    private static final long[] sHistOut = new long[HISTORY_SIZE];
+    private static volatile int sHistCount = 0;
+    private static volatile int sHistHead = 0;
+
     private TokenHook() {}
+
+    /** 记录一次 token 快照（环形缓冲） */
+    private static void recordHistory(long in, long out) {
+        sHistIn[sHistHead] = in;
+        sHistOut[sHistHead] = out;
+        sHistHead = (sHistHead + 1) % HISTORY_SIZE;
+        if (sHistCount < HISTORY_SIZE) sHistCount++;
+    }
+
+    /** 取 token 历史（时间顺序，旧→新），供图表用。返回 JSON 数组 [[in,out],...] */
+    static String getHistoryJson() {
+        int n = sHistCount;
+        if (n == 0) return "[]";
+        StringBuilder sb = new StringBuilder("[");
+        int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (i > 0) sb.append(',');
+            sb.append('[').append(sHistIn[idx]).append(',').append(sHistOut[idx]).append(']');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    /** 命中率 = cached / in（0-100），input 为 0 时返回 0 */
+    static int getHitRate() {
+        if (sLastIn <= 0) return 0;
+        return (int) Math.round(sLastCached * 100.0 / sLastIn);
+    }
+
+    /** 最近一次 input token */
+    static long getLastIn() { return Math.max(0, sLastIn); }
+    /** 最近一次 output token */
+    static long getLastOut() { return Math.max(0, sLastOut); }
 
     /** 是否已经拿到过实时数据（用于让数据库兜底让位） */
     static boolean hasLiveData() {
@@ -286,6 +327,7 @@ final class TokenHook {
         sLastPushAt = now;
         sHasLive = true;
         sFinalized = false;  // 新数据到来，回到流式状态
+        recordHistory(in, out);  // 记录历史（供图表）
 
         String text = format(in, out, cached, true);  // 流式中带 …
         AgentProgress.setLastTokenUsage(text);

@@ -241,6 +241,18 @@ final class FocusNotify {
         } catch (Throwable ignored) {}
 
         Notification n = b.build();
+        // 扩展 extras：供展开态 MAML 模板使用（副屏中心会映射成 lu_* 变量）
+        try {
+            // token 实时趋势（JSON 数组，供图表）
+            n.extras.putString("lu_token_history", TokenHook.getHistoryJson());
+            // 命中率（cached/input 百分比）
+            n.extras.putString("lu_hit_rate", TokenHook.getHitRate() + "%");
+            // 当前 token 明细
+            n.extras.putString("lu_token_in", TokenHook.fmt(TokenHook.getLastIn()));
+            n.extras.putString("lu_token_out", TokenHook.fmt(TokenHook.getLastOut()));
+            // 工具流动（最近工具名，逗号分隔）
+            n.extras.putString("lu_tool_flow", AgentProgress.getToolFlow());
+        } catch (Throwable ignored) {}
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
         n.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_ONLY_ALERT_ONCE;

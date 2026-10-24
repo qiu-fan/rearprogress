@@ -499,6 +499,19 @@ final class AgentProgress {
         return sToolCount;
     }
 
+    /** 最近工具名流动（逗号分隔，供展开态显示），如 "Edit,Grep,Shell(root)" */
+    static String getToolFlow() {
+        synchronized (AgentProgress.class) {
+            if (sRecent.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            for (int i = sRecent.size() - 1; i >= 0; i--) {
+                if (sb.length() > 0) sb.append(',');
+                sb.append(sRecent.get(i)[0]);
+            }
+            return sb.toString();
+        }
+    }
+
     // ---------------------------------------------------------------- 终端历史
 
     /** 记录终端命令 */
