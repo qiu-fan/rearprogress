@@ -124,10 +124,119 @@ final class OperitHook {
             TokenHook.install(xposed, cl);
             pushInitialStateLater();
             startFileWatcher();
-            // 独立 ToolExecutor 类（query_memory 等）
-            installToolExecutorHook(xposed, cl);
+            // 所有工具的统一出口（含 list_files 等匿名 ToolExecutor）
+            installGetToolExecutorHook(xposed, cl);
         } catch (Throwable e) {
             LogX.e(TAG, "installOperitToolHook failed", e);
+        }
+    }
+
+    /** 已 Hook 的 executor 类（避免重复 Hook） */
+    private static final java.util.Set<String> sHookedExecCls =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+    /**
+     * Hook AIToolHandler.getToolExecutor(String) —— 所有工具的统一出口。
+     * 返回 executor 时，反射 Hook 它的 invoke(AITool) 方法（每个类只 Hook 一次）。
+     * 这样 list_files/read_file 等匿名 ToolExecutor 也能覆盖。
+     */
+    private static void installGetToolExecutorHook(final XposedInterface xposed, ClassLoader cl) {
+        try {
+            Class<?> handlerCls = Class.forName(
+                    "com.ai.assistance.operit.core.tools.AIToolHandler", true, cl);
+            Class<?> toolCls = Class.forName(
+                    "com.ai.assistance.operit.data.model.AITool", true, cl);
+            Class<?> executorCls = Class.forName(
+                    "com.ai.assistance.operit.core.tools.ToolExecutor", true, cl);
+
+            Method target = null;
+            for (Method m : handlerCls.getDeclaredMethods()) {
+                if (!"getToolExecutor".equals(m.getName())) continue;
+                Class<?>[] ps = m.getParameterTypes();
+                if (ps.length == 1 && ps[0] == String.class) {
+                    target = m;
+                    break;
+                }
+            }
+            if (target == null) {
+                LogX.w(TAG, "getToolExecutor not found");
+                return;
+            }
+            final Method t = target;
+            final XposedInterface x = xposed;
+            final Class<?> tc = toolCls;
+            final Class<?> ec = executorCls;
+
+            xposed.hook(t).intercept(chain -> {
+                Object exec = chain.proceed();
+                try {
+                    if (exec != null && ec.isInstance(exec)) {
+                        maybeHookExecutorInvoke(x, exec.getClass(), tc);
+                    }
+                } catch (Throwable ignored) {}
+                return exec;
+            });
+            LogX.i(TAG, "HOOKED getToolExecutor -> dynamic executor invoke hook");
+        } catch (Throwable e) {
+            LogX.e(TAG, "installGetToolExecutorHook failed", e);
+        }
+    }
+
+    /** 反射 Hook 某个 executor 类的 invoke(AITool)（每个类只做一次） */
+    private static void maybeHookExecutorInvoke(final XposedInterface x,
+                                                Class<?> execCls, Class<?> toolCls) {
+        String key = execCls.getName();
+        if (!sHookedExecCls.add(key)) return;   // 已 Hook 过
+        try {
+            Method inv = null;
+            for (Method m : execCls.getDeclaredMethods()) {
+                if (!"invoke".equals(m.getName())) continue;
+                Class<?>[] ps = m.getParameterTypes();
+                if (ps.length == 1 && ps[0].isAssignableFrom(toolCls)) {
+                    inv = m;
+                    break;
+                }
+            }
+            if (inv == null) {
+                // invoke 可能在接口上，找同名即可
+                inv = findMethodByName(execCls, "invoke");
+            }
+            if (inv == null) {
+                sHookedExecCls.remove(key);
+                return;
+            }
+            inv.setAccessible(true);
+            final String toolKey = key;
+            x.hook(inv).intercept(chain -> {
+                // 工具名：从 invoke 参数的 AITool.name 提取
+                String name = null;
+                try {
+                    Object tool = chain.getArg(0);
+                    if (tool != null) {
+                        Method g = toolCls.getMethod("getName");
+                        name = (String) g.invoke(tool);
+                    }
+                } catch (Throwable ignored) {}
+                if (name == null || name.isEmpty()) name = toolKey;
+
+                AgentProgress.recordTool(name, "", true);
+                FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                        AgentProgress.body(), AgentProgress.percent());
+                LogX.i(TAG, "tool-exec start -> " + name);
+                boolean ok = true;
+                try {
+                    return chain.proceed();
+                } catch (Throwable e) {
+                    ok = false;
+                    throw e;
+                } finally {
+                    AgentProgress.recordTool(name, "", ok);
+                }
+            });
+            LogX.i(TAG, "tool-exec HOOKED invoke: " + key);
+        } catch (Throwable e) {
+            sHookedExecCls.remove(key);
+            LogX.w(TAG, "maybeHookExecutorInvoke " + key + " failed: " + e);
         }
     }
 
