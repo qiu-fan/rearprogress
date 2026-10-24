@@ -54,19 +54,30 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 去掉窗口标题栏（避免占用顶部空间遮挡按钮）
+        requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
 
+        // ===== 根布局：LinearLayout（固定头 + 日志占满剩余） =====
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(32, 48, 32, 32);
+        // top 加大，避开状态栏高度（NO_TITLE 后内容会顶到状态栏）
+        int statusBarH = 0;
+        try {
+            statusBarH = getResources().getDimensionPixelSize(
+                    getResources().getIdentifier("status_bar_height", "dimen", "android"));
+        } catch (Throwable ignored) {}
+        root.setPadding(20, statusBarH + 24, 20, 24);
+        setContentView(root);
 
         // 标题
         TextView tvTitle = new TextView(this);
         tvTitle.setText("RearProgress 控制面板");
-        tvTitle.setTextSize(20);
+        tvTitle.setTextSize(19);
         tvTitle.setPadding(0, 0, 0, 8);
         root.addView(tvTitle);
 
-        // ---- 操作按钮区（多行，紧凑） ----
+        // ===== 操作区（固定高度） =====
+        root.addView(sectionLabel("操作"));
         root.addView(btnRow(
                 makeButton("重启 Operit", v -> restartOperit()),
                 makeButton("强停", v -> execSu("am force-stop " + OPERIT_PKG, "已强停"))));
@@ -77,45 +88,30 @@ public class MainActivity extends Activity {
                 makeButton("清进度", v -> { execSu("rm -f " + PROGRESS_FILE, "已清"); refreshStatus(); }),
                 makeButton("清日志", v -> { execSuSilent("logcat -c"); tvLog.setText("（日志已清空）"); })));
 
-        // ---- 测试选项 ----
-        TextView tvTestLabel = new TextView(this);
-        tvTestLabel.setText("—— 测试 ——");
-        tvTestLabel.setTextSize(13);
-        tvTestLabel.setPadding(0, 12, 0, 4);
-        root.addView(tvTestLabel);
+        // ===== 测试区 =====
+        root.addView(sectionLabel("测试"));
         root.addView(btnRow(
                 makeButton("测进度(纯)", v -> testProgress(false)),
-                makeButton("测进度(JSON)", v -> testProgress(true))));
-        root.addView(btnRow(
-                makeButton("测重启广播", v -> {
-                    sendBroadcast(new Intent(ACTION_CMD).putExtra("cmd", "restart_operit")
-                            .setPackage(getPackageName()));
-                    Toast.makeText(this, "已发广播(需面板已注册)", Toast.LENGTH_SHORT).show();
-                }),
-                makeButton("测状态查询", v -> sendCmd("status"))));
+                makeButton("测进度(JSON)", v -> testProgress(true)),
+                makeButton("测重启广播", v -> sendCmd("restart_operit")),
+                makeButton("测状态", v -> sendCmd("status"))));
 
         // 注册 AI 远程命令接收器
         registerCmdReceiver();
 
-        // ---- 简要状态（一行） ----
+        // ===== 状态（一行） =====
         tvStatus = new TextView(this);
         tvStatus.setTextSize(12);
-        tvStatus.setPadding(0, 8, 0, 4);
+        tvStatus.setPadding(0, 8, 0, 2);
         root.addView(tvStatus);
 
-        // ===== 日志区（核心，占主体） =====
-        TextView tvLogLabel = new TextView(this);
-        tvLogLabel.setText("—— 日志（核心） ——");
-        tvLogLabel.setTextSize(14);
-        tvLogLabel.setPadding(0, 8, 0, 4);
-        root.addView(tvLogLabel);
-
-        // 日志控制行
+        // ===== 日志区（核心，weight=1 占满剩余 + 内部滚动） =====
+        root.addView(sectionLabel("日志（核心）"));
         root.addView(btnRow(
                 makeButton("全部", v -> { logFilter = 0; refreshLog(); }),
                 makeButton("仅工具", v -> { logFilter = 1; refreshLog(); }),
                 makeButton("仅错误", v -> { logFilter = 2; refreshLog(); }),
-                makeButton(autoScroll ? "滚动:开" : "滚动:关", v -> {
+                makeButton("滚动:开", v -> {
                     autoScroll = !autoScroll;
                     ((Button) v).setText(autoScroll ? "滚动:开" : "滚动:关");
                 })));
@@ -125,37 +121,42 @@ public class MainActivity extends Activity {
         tvLog.setLineSpacing(2, 1);
         tvLog.setText("（日志加载中…）");
 
-        // 日志区（固定高度，外层统一滚动，避免嵌套 ScrollView 冲突）
         logScroll = new ScrollView(this);
+        // weight=1：占满按钮区之外的全部剩余高度（日志能显示完整）
         LinearLayout.LayoutParams logLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 500);
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         logScroll.setLayoutParams(logLp);
         logScroll.addView(tvLog);
         root.addView(logScroll);
-
-        // 日志区放 ScrollView，整个页面可滚动（防止顶部按钮被顶出屏幕）
-        ScrollView contentScroll = new ScrollView(this);
-        contentScroll.addView(root);
-        setContentView(contentScroll);
 
         // 定时刷新（状态 + 日志）
         handler.post(refreshRunnable);
     }
 
+    /** 分区标题 */
+    private TextView sectionLabel(String text) {
+        TextView tv = new TextView(this);
+        tv.setText("—— " + text + " ——");
+        tv.setTextSize(14);
+        tv.setPadding(0, 16, 0, 6);
+        return tv;
+    }
+
+    /** 按钮：wrap_content 宽度（不依赖 weight，避免布局坑） */
     private Button makeButton(String text, View.OnClickListener l) {
         Button b = new Button(this);
         b.setText(text);
-        b.setTextSize(12);
+        b.setTextSize(13);
         b.setAllCaps(false);
         b.setOnClickListener(l);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        lp.setMargins(0, 0, 8, 0);
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 12, 8);
         b.setLayoutParams(lp);
         return b;
     }
 
-    /** 创建一行按钮（等分宽度） */
+    /** 一行按钮（水平） */
     private LinearLayout btnRow(Button... btns) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);

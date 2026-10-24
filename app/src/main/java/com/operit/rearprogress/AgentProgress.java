@@ -174,6 +174,8 @@ final class AgentProgress {
 
         // 其他内置
         TOOL_NAME_MAP.put("query_time", "Time");
+        TOOL_NAME_MAP.put("time:format_time", "Time");
+        TOOL_NAME_MAP.put("time:current_time", "Time");
         TOOL_NAME_MAP.put("get_weather", "Weather");
         TOOL_NAME_MAP.put("set_reminder", "Remind");
         TOOL_NAME_MAP.put("set_alarm", "Alarm");
