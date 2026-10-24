@@ -50,9 +50,9 @@ final class TokenHook {
     private static volatile boolean sHasLive = false;
     /** 流式更新最短推送间隔 */
     private static final long THROTTLE_MS = 300L;
-    /** token 停止增长多久判定为「输出完成」（转成总 token 显示） */
-    private static final long FINALIZE_DELAY_MS = 3000L;
-    /** 是否已落地为最终值（… 已去掉） */
+    /** token 停止增长多久判定为「输出完成」并计算费用 */
+    private static final long FINALIZE_DELAY_MS = 10_000L;
+    /** 是否已落地为最终值 */
     private static volatile boolean sFinalized = false;
     /** 延迟落地的调度器 */
     private static volatile java.util.concurrent.ScheduledFuture<?> sFinalizeTask;
@@ -320,7 +320,7 @@ final class TokenHook {
                     // 期间没有新数据（值未变）才算完成
                     if (sLastIn == in && sLastOut == out && sLastCached == cached && !sFinalized) {
                         sFinalized = true;
-                        String total = format(in, out, cached, false);  // 不带 … = 总 token
+                        String total = format(in, out, cached, false);
                         AgentProgress.setLastTokenUsage(total);
                         LogX.i(TAG, "token finalized (总): " + total);
                         FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),

@@ -80,39 +80,114 @@ final class AgentProgress {
         // 文件操作
         TOOL_NAME_MAP.put("read_file", "Read");
         TOOL_NAME_MAP.put("read_file_part", "ReadPart");
+        TOOL_NAME_MAP.put("read_file_full", "ReadFull");
+        TOOL_NAME_MAP.put("read_file_binary", "ReadBin");
         TOOL_NAME_MAP.put("create_file", "Create");
         TOOL_NAME_MAP.put("edit_file", "Edit");
         TOOL_NAME_MAP.put("delete_file", "Delete");
         TOOL_NAME_MAP.put("list_files", "List");
         TOOL_NAME_MAP.put("find_files", "Find");
         TOOL_NAME_MAP.put("make_directory", "Mkdir");
+        TOOL_NAME_MAP.put("file_exists", "Exist");
         TOOL_NAME_MAP.put("grep_code", "Grep");
         TOOL_NAME_MAP.put("grep_context", "GrepCtx");
+        TOOL_NAME_MAP.put("move_file", "Move");
+        TOOL_NAME_MAP.put("copy_file", "Copy");
+        TOOL_NAME_MAP.put("rename_file", "Rename");
+        TOOL_NAME_MAP.put("file_info", "FileInfo");
+        TOOL_NAME_MAP.put("apply_file", "Apply");
+        TOOL_NAME_MAP.put("read_file_full", "ReadFull");
 
         // 网络/搜索
         TOOL_NAME_MAP.put("visit_web", "Web");
         TOOL_NAME_MAP.put("download_file", "Download");
+        TOOL_NAME_MAP.put("upload_file", "Upload");
+        TOOL_NAME_MAP.put("http_request", "HTTP");
         TOOL_NAME_MAP.put("package_proxy", "Proxy");
+        TOOL_NAME_MAP.put("various_search", "Search");
 
         // 记忆
         TOOL_NAME_MAP.put("query_memory", "Memory");
         TOOL_NAME_MAP.put("get_memory_by_title", "MemTitle");
+        TOOL_NAME_MAP.put("create_memory", "MemCreate");
+        TOOL_NAME_MAP.put("update_memory", "MemUpdate");
+        TOOL_NAME_MAP.put("delete_memory", "MemDelete");
 
-        // 代码执行
-        TOOL_NAME_MAP.put("code_runner:run_javascript_node", "JS");
-        TOOL_NAME_MAP.put("code_runner:run_python", "Python");
-        TOOL_NAME_MAP.put("code_runner:run_ruby", "Ruby");
-        TOOL_NAME_MAP.put("code_runner:run_go", "Go");
-        TOOL_NAME_MAP.put("code_runner:run_rust", "Rust");
-        TOOL_NAME_MAP.put("code_runner:run_c", "C");
-        TOOL_NAME_MAP.put("code_runner:run_cpp", "C++");
+        // 代码执行（run + 语言）
+        TOOL_NAME_MAP.put("code_runner:run_javascript_node", "runJS");
+        TOOL_NAME_MAP.put("code_runner:run_python", "runPython");
+        TOOL_NAME_MAP.put("code_runner:run_ruby", "runRuby");
+        TOOL_NAME_MAP.put("code_runner:run_go", "runGo");
+        TOOL_NAME_MAP.put("code_runner:run_rust", "runRust");
+        TOOL_NAME_MAP.put("code_runner:run_c", "runC");
+        TOOL_NAME_MAP.put("code_runner:run_cpp", "runC++");
+        TOOL_NAME_MAP.put("code_runner:run_java", "runJava");
+        TOOL_NAME_MAP.put("code_runner:run_typescript", "runTS");
+        TOOL_NAME_MAP.put("code_runner:run_shell", "runShell");
+        TOOL_NAME_MAP.put("code_runner:run_php", "runPHP");
+
+        // 系统/设备
+        TOOL_NAME_MAP.put("get_device_info", "DeviceInfo");
+        TOOL_NAME_MAP.put("screen_control", "Screen");
+        TOOL_NAME_MAP.put("ui_automation", "UI");
+        TOOL_NAME_MAP.put("settings_put", "Setting");
+        TOOL_NAME_MAP.put("app_install", "Install");
+        TOOL_NAME_MAP.put("app_uninstall", "Uninstall");
+        TOOL_NAME_MAP.put("send_intent", "Intent");
+
+        // 通讯/社交
+        TOOL_NAME_MAP.put("send_sms", "SMS");
+        TOOL_NAME_MAP.put("make_phone_call", "Call");
+        TOOL_NAME_MAP.put("send_wechat", "WeChat");
+        TOOL_NAME_MAP.put("send_qq", "QQ");
+        TOOL_NAME_MAP.put("post_moments", "Moments");
+
+        // 媒体/文件转换
+        TOOL_NAME_MAP.put("file_converter", "Convert");
+        TOOL_NAME_MAP.put("ffmpeg", "FFmpeg");
+        TOOL_NAME_MAP.put("image_convert", "ImgConv");
+        TOOL_NAME_MAP.put("video_convert", "VidConv");
+
+        // 文档
+        TOOL_NAME_MAP.put("create_docx", "Docx");
+        TOOL_NAME_MAP.put("create_pdf", "PDF");
+        TOOL_NAME_MAP.put("create_xlsx", "Xlsx");
+        TOOL_NAME_MAP.put("create_pptx", "Pptx");
 
         // APK 逆向
+        TOOL_NAME_MAP.put("apk_reverse:apk_reverse_inspect", "APKInfo");
         TOOL_NAME_MAP.put("apk_reverse:apk_reverse_decode", "APKDecode");
         TOOL_NAME_MAP.put("apk_reverse:apk_reverse_jadx", "JADX");
         TOOL_NAME_MAP.put("apk_reverse:apk_reverse_search_text", "APKSearch");
+        TOOL_NAME_MAP.put("apk_reverse:apk_reverse_search_address", "APKAddr");
         TOOL_NAME_MAP.put("apk_reverse:apk_reverse_build", "APKBuild");
         TOOL_NAME_MAP.put("apk_reverse:apk_reverse_sign", "APKSign");
+
+        // 终端/工具包
+        TOOL_NAME_MAP.put("super_admin:shell", "Shell(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal", "Term(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal_wait", "TermWait(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal_getscreen", "TermScr(root)");
+        TOOL_NAME_MAP.put("super_admin:terminal_input", "TermIn(root)");
+        TOOL_NAME_MAP.put("execute_in_terminal_session", "TermExec");
+        TOOL_NAME_MAP.put("create_terminal_session", "TermNew");
+
+        // 其他内置
+        TOOL_NAME_MAP.put("query_time", "Time");
+        TOOL_NAME_MAP.put("get_weather", "Weather");
+        TOOL_NAME_MAP.put("set_reminder", "Remind");
+        TOOL_NAME_MAP.put("set_alarm", "Alarm");
+        TOOL_NAME_MAP.put("open_app", "OpenApp");
+        TOOL_NAME_MAP.put("take_screenshot", "Screenshot");
+        TOOL_NAME_MAP.put("get_location", "Location");
+        TOOL_NAME_MAP.put("read_notification", "ReadNotif");
+        TOOL_NAME_MAP.put("github", "GitHub");
+        TOOL_NAME_MAP.put("workflow", "Workflow");
+        TOOL_NAME_MAP.put("worldbook", "WorldBook");
+        TOOL_NAME_MAP.put("extended_file_tools", "FileTools");
+        TOOL_NAME_MAP.put("extended_memory_tools", "MemTools");
+        TOOL_NAME_MAP.put("browser", "Browser");
+        TOOL_NAME_MAP.put("crossref", "CrossRef");
     }
 
     private AgentProgress() {}

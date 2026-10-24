@@ -20,3 +20,6 @@ tpl/learn/
 .externalNativeBuild
 .cxx
 local.properties
+
+# Operit 源码参考（100MB，不入库）
+reference/
