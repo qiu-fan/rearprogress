@@ -124,7 +124,7 @@ final class OperitHook {
             TokenHook.install(xposed, cl);
             pushInitialStateLater();
             startFileWatcher();
-            // 内置工具（list_files/query_memory 等）走 ToolExecutor，单独 Hook
+            // 独立 ToolExecutor 类（query_memory 等）
             installToolExecutorHook(xposed, cl);
         } catch (Throwable e) {
             LogX.e(TAG, "installOperitToolHook failed", e);

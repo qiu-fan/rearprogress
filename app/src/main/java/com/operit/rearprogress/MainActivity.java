@@ -1,6 +1,10 @@
 package com.operit.rearprogress;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,10 +32,16 @@ public class MainActivity extends Activity {
     private static final String TAG = "RearProgress";
     private static final String ENABLED_FILE = "/data/local/tmp/agent_progress.enabled";
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
+    private static final String RESULT_FILE = "/data/local/tmp/rp_cmd_result.txt";
+    private static final String OPERIT_PKG = "com.ai.assistance.operit";
+
+    /** AI 远程命令广播 action */
+    private static final String ACTION_CMD = "com.operit.rearprogress.CMD";
 
     private TextView tvStatus;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean refreshing = true;
+    private boolean receiverRegistered = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,6 +79,15 @@ public class MainActivity extends Activity {
             refreshStatus();
         }));
         root.addView(btnRow2);
+
+        // 第三行：重启 Operit（强停 + 拉起）
+        LinearLayout btnRow3 = new LinearLayout(this);
+        btnRow3.setOrientation(LinearLayout.HORIZONTAL);
+        btnRow3.addView(makeButton("重启 Operit", v -> restartOperit()));
+        root.addView(btnRow3);
+
+        // 注册 AI 远程命令接收器
+        registerCmdReceiver();
 
         // 状态显示
         TextView tvLabel = new TextView(this);
@@ -162,6 +181,90 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> Toast.makeText(this, "执行失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }).start();
+    }
+
+    // ---------------------------------------------------------------- 重启 & 远程命令
+
+    /** 重启 Operit：强停 + 延迟拉起 */
+    private void restartOperit() {
+        Toast.makeText(this, "正在重启 Operit…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                execSuSilent("am force-stop " + OPERIT_PKG);
+                Thread.sleep(1500);
+                execSuSilent("monkey -p " + OPERIT_PKG + " -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1");
+                writeResult("restart_operit", "已重启 Operit");
+                runOnUiThread(() -> Toast.makeText(this, "Operit 已重启", Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                writeResult("restart_operit", "失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /** 注册 AI 远程命令接收器 */
+    private void registerCmdReceiver() {
+        if (receiverRegistered) return;
+        try {
+            BroadcastReceiver r = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context ctx, Intent intent) {
+                    String cmd = intent.getStringExtra("cmd");
+                    if (cmd == null) cmd = "";
+                    Log.i(TAG, "AI cmd received: " + cmd);
+                    switch (cmd) {
+                        case "restart_operit":
+                            restartOperit();
+                            break;
+                        case "kill_operit":
+                            execSuSilent("am force-stop " + OPERIT_PKG);
+                            writeResult("kill_operit", "已强停 Operit");
+                            break;
+                        case "status":
+                            writeResult("status", collectStatus());
+                            break;
+                        default:
+                            writeResult(cmd, "未知命令: " + cmd);
+                    }
+                }
+            };
+            IntentFilter f = new IntentFilter(ACTION_CMD);
+            registerReceiver(r, f, Context.RECEIVER_EXPORTED);
+            receiverRegistered = true;
+            Log.i(TAG, "AI cmd receiver registered");
+        } catch (Throwable t) {
+            Log.w(TAG, "registerCmdReceiver failed", t);
+        }
+    }
+
+    /** 收集简要状态（供 AI 查询） */
+    private String collectStatus() {
+        String enabled = exists(ENABLED_FILE) ? "enabled=yes" : "enabled=no";
+        String proc = execSuCapture("pidof " + OPERIT_PKG);
+        String pid = proc.isEmpty() ? "operit=stopped" : ("operit=running pid=" + proc.trim());
+        String title = execSuCapture("dumpsys notification --noredact 2>/dev/null "
+                + "| grep -A2 'id=1095189838' | grep 'android.title=' | head -1 | sed 's/.*title=String (//;s/)//'");
+        return enabled + " " + pid + " title=" + (title.isEmpty() ? "?" : title.trim());
+    }
+
+    /** 把命令结果写文件（供 AI 读取） */
+    private void writeResult(String cmd, String result) {
+        try {
+            String content = "cmd=" + cmd + "\nresult=" + result + "\ntime=" + System.currentTimeMillis();
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c",
+                    "echo " + android.util.Base64.encodeToString(content.getBytes(), android.util.Base64.NO_WRAP)
+                            + " | base64 -d > " + RESULT_FILE});
+            p.waitFor();
+        } catch (Exception e) {
+            Log.w(TAG, "writeResult failed", e);
+        }
+    }
+
+    /** 静默执行 su 命令（不弹 Toast） */
+    private void execSuSilent(String cmd) {
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", cmd});
+            p.waitFor();
+        } catch (Exception ignored) {}
     }
 
     /** 通过 su 执行命令并捕获输出（失败返回空串） */
