@@ -124,10 +124,50 @@ final class OperitHook {
             TokenHook.install(xposed, cl);
             pushInitialStateLater();
             startFileWatcher();
-            // 所有工具的统一出口（含 list_files 等匿名 ToolExecutor）
-            installGetToolExecutorHook(xposed, cl);
+            // 所有工具执行前必调 notifyToolExecutionStarted(AITool) —— 统一捕获点
+            installToolStartedHook(xposed, cl, aiToolCls);
         } catch (Throwable e) {
             LogX.e(TAG, "installOperitToolHook failed", e);
+        }
+    }
+
+    /** Hook AIToolHandler.notifyToolExecutionStarted(AITool) —— 所有工具执行前必调 */
+    private static void installToolStartedHook(final XposedInterface xposed, ClassLoader cl,
+                                               Class<?> aiToolCls) {
+        try {
+            Class<?> handlerCls = Class.forName(
+                    "com.ai.assistance.operit.core.tools.AIToolHandler", true, cl);
+            Method target = null;
+            for (Method m : handlerCls.getDeclaredMethods()) {
+                if (!"notifyToolExecutionStarted".equals(m.getName())) continue;
+                Class<?>[] ps = m.getParameterTypes();
+                if (ps.length == 1 && aiToolCls.isAssignableFrom(ps[0])) {
+                    target = m;
+                    break;
+                }
+            }
+            if (target == null) {
+                LogX.w(TAG, "notifyToolExecutionStarted not found");
+                return;
+            }
+            final Method t = target;
+            final Class<?> tc = aiToolCls;
+            xposed.hook(t).intercept(chain -> {
+                try {
+                    Object tool = chain.getArg(0);
+                    String name = str(field(tc, tool, "name"));
+                    if (name != null && !name.isEmpty()) {
+                        AgentProgress.recordTool(name, "", true);
+                        FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                                AgentProgress.body(), AgentProgress.percent());
+                        LogX.i(TAG, "tool-started -> " + name);
+                    }
+                } catch (Throwable ignored) {}
+                return chain.proceed();
+            });
+            LogX.i(TAG, "HOOKED notifyToolExecutionStarted -> all tools");
+        } catch (Throwable e) {
+            LogX.e(TAG, "installToolStartedHook failed", e);
         }
     }
 
