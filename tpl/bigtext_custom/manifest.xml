@@ -182,9 +182,9 @@
     文字区域高度 = title高度 + (has_subtext ? title_gap + subtext高度 : 0) + title_gap + bigtext高度
     显示顺序：title → subText → bigText
   -->
-  <!-- 图表 + 统计行 高度（展开态 agent 数据） -->
-  <Var name="chart_h" type="number" expression="(50 * #scale)"/>
-  <Var name="stats_h" type="number" expression="(16 * #scale)"/>
+  <!-- 图表 + 统计行 高度（展开态 agent 数据，背屏高度有限需紧凑） -->
+  <Var name="chart_h" type="number" expression="(36 * #scale)"/>
+  <Var name="stats_h" type="number" expression="(14 * #scale)"/>
   <Var name="text_block_h" type="number" expression="(#title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + #text_measure.text_height)) + (#has_stats * (#title_gap + #chart_h + #title_gap + #stats_h)))"/>
   <Var name="total_content_h" type="number" expression="(#icon_size + #icon_text_gap + #text_block_h)"/>
   <!-- 在 area_top ~ area_bottom 之间垂直居中 -->

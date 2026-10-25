@@ -245,7 +245,7 @@ final class FocusNotify {
         try {
             // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
             n.extras.putString("token_history", TokenHook.getHistoryJson());
-            n.extras.putString("token_path", TokenHook.getHistoryPath(240, 60));
+            n.extras.putString("token_path", TokenHook.getHistoryPath(240, 36));
             n.extras.putString("hit_rate", TokenHook.getHitRate() + "%");
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getLastIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getLastOut()));
