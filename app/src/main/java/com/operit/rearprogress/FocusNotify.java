@@ -296,11 +296,12 @@ final class FocusNotify {
         try {
             // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
             n.extras.putString("token_history", TokenHook.getHistoryJson());
-            n.extras.putString("token_path", TokenHook.getHistoryPath(800, 110));
+            n.extras.putString("token_path", TokenHook.getHistoryPath(630, 110));
             n.extras.putString("hit_rate", TokenHook.getHitRate() + "%");
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getLastIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getLastOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());
+            n.extras.putString("time_range", TokenHook.getTimeRange());
         } catch (Throwable ignored) {}
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。

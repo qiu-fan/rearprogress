@@ -38,6 +38,7 @@
   <Var name="lu_token_in" type="string" expression="''" const="true"/>
   <Var name="lu_token_out" type="string" expression="''" const="true"/>
   <Var name="lu_tool_flow" type="string" expression="''" const="true"/>
+  <Var name="lu_time_range" type="string" expression="''" const="true"/>
 
   <!-- 字段存在标记 -->
   <Var name="has_bigtext" type="number" expression="0" const="true"/>
@@ -106,6 +107,7 @@
     <VariableCommand name="lu_token_in" expression="jsonGetString($data, 'lu_token_in')" type="string"/>
     <VariableCommand name="lu_token_out" expression="jsonGetString($data, 'lu_token_out')" type="string"/>
     <VariableCommand name="lu_tool_flow" expression="jsonGetString($data, 'lu_tool_flow')" type="string"/>
+    <VariableCommand name="lu_time_range" expression="jsonGetString($data, 'lu_time_range')" type="string"/>
     <VariableCommand name="has_bigtext" expression="(len(@lu_big_text) } 0)" type="number"/>
     <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
     <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
@@ -182,10 +184,11 @@
     文字区域高度 = title高度 + (has_subtext ? title_gap + subtext高度 : 0) + title_gap + bigtext高度
     显示顺序：title → subText → bigText
   -->
-  <!-- 图表 + 统计行 高度（展开态 agent 数据，背屏高度有限需紧凑） -->
+  <!-- 图表 + 统计行 + 时间段 高度（背屏高度有限需紧凑） -->
   <Var name="chart_h" type="number" expression="(40 * #scale)"/>
   <Var name="stats_h" type="number" expression="(18 * #scale)"/>
-  <Var name="text_block_h" type="number" expression="(#title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + #text_measure.text_height)) + (#has_stats * (#title_gap + #chart_h + #title_gap + #stats_h)))"/>
+  <Var name="time_h" type="number" expression="(16 * #scale)"/>
+  <Var name="text_block_h" type="number" expression="(#title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + #text_measure.text_height)) + (#has_stats * (#title_gap + #chart_h + (4 * #scale) + #stats_h + (2 * #scale) + #time_h)))"/>
   <Var name="total_content_h" type="number" expression="(#icon_size + #icon_text_gap + #text_block_h)"/>
   <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
   <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2))"/>

@@ -64,11 +64,17 @@ final class TokenHook {
     private static final long[] sHistOut = new long[HISTORY_SIZE];
     private static volatile int sHistCount = 0;
     private static volatile int sHistHead = 0;
+    /** 历史首/末时间戳（算图表时间段） */
+    private static volatile long sHistFirstAt = 0L;
+    private static volatile long sHistLastAt = 0L;
 
     private TokenHook() {}
 
     /** 记录一次 token 快照（环形缓冲） */
     private static void recordHistory(long in, long out) {
+        long now = System.currentTimeMillis();
+        if (sHistCount == 0) sHistFirstAt = now;
+        sHistLastAt = now;
         sHistIn[sHistHead] = in;
         sHistOut[sHistHead] = out;
         sHistHead = (sHistHead + 1) % HISTORY_SIZE;
@@ -94,6 +100,15 @@ final class TokenHook {
     static int getHitRate() {
         if (sLastIn <= 0) return 0;
         return (int) Math.round(sLastCached * 100.0 / sLastIn);
+    }
+
+    /** 图表跨越的时间段，如 "12:30-12:31 (60s)"，无数据返回空 */
+    static String getTimeRange() {
+        if (sHistFirstAt == 0 || sHistLastAt <= sHistFirstAt) return "";
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US);
+        long spanSec = (sHistLastAt - sHistFirstAt) / 1000;
+        return f.format(new java.util.Date(sHistFirstAt)) + "-" + f.format(new java.util.Date(sHistLastAt))
+                + " (" + spanSec + "s)";
     }
 
     /** 最近一次 input token */
