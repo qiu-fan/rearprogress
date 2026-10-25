@@ -217,12 +217,12 @@
   <Rectangle visibility="#has_stats" x="#text_x" y="(#chart_y + #chart_h / 2)" w="#text_w" h="1" fillColor="#1AFFFFFF" name="chart_grid_mid"/>
   <!-- token 趋势图（Java 算好的 SVG path，宽度匹配 text_w） -->
   <Path visibility="#has_stats" pathDataExp="@lu_token_path" x="#text_x" y="#chart_y" strokeColor="#4CC9F0" weight="2" cap="round" name="token_chart"/>
-  <!-- 统计行：hit率 + token明细（图表下方，加大间距不顶着） -->
+  <!-- 统计行：hit率 + token明细（图表下方） -->
   <Var name="stats_y" type="number" expression="(#chart_y + #chart_h + (4 * #scale))"/>
   <Text visibility="#has_stats" x="#text_x" y="#stats_y" size="#text_size" color="#88FFFFFF" textExp="(('hit ' + @lu_hit_rate) + ('   ↑' + @lu_token_in) + (' ↓' + @lu_token_out))" width="#text_w" name="stats_line" fontFamily="mipro-medium"/>
-  <!-- 工具流动（统计行下一行，间距） -->
-  <Var name="flow_y" type="number" expression="(#stats_y + #stats_h + (2 * #scale))"/>
-  <Text visibility="#has_stats" x="#text_x" y="#flow_y" size="#text_size" color="#66FFFFFF" textExp="@lu_tool_flow" width="#text_w" name="tool_flow" fontFamily="mipro-medium" ellipsis="true"/>
+  <!-- 时间段标注（图表跨越的时间） -->
+  <Var name="time_y" type="number" expression="(#stats_y + #stats_h + (2 * #scale))"/>
+  <Text visibility="#has_stats" x="#text_x" y="#time_y" size="#text_size" color="#55FFFFFF" textExp="@lu_time_range" width="#text_w" name="time_range" fontFamily="mipro-medium"/>
 
   <!-- 无障碍 -->
   <Rectangle x="0" y="0" w="#view_width" h="#view_height" contentDescriptionExp="(((@lu_title + ' ') + @lu_big_text) + ' ' + @lu_sub_text)" alpha="0"/>
