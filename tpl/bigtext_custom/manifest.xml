@@ -9,8 +9,8 @@
   <Var name="icon_size" type="number" expression="(40 * #scale)"/>
   <Var name="icon_corner" type="number" expression="(102 * #scale)"/>
 
-  <!-- 内容区域：padding（顶部对齐右侧时间组件，底部避让边界线，整体上移） -->
-  <Var name="area_top" type="number" expression="(10 * #scale)"/>
+  <!-- 内容区域：顶部对齐右侧时间组件上部，底部避让边界线，整体上移 -->
+  <Var name="area_top" type="number" expression="(6 * #scale)"/>
   <Var name="area_bottom" type="number" expression="((213 - 20 - 18) * #scale)"/>
   <Var name="area_h" type="number" expression="(#area_bottom - #area_top)"/>
 
