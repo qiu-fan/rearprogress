@@ -440,11 +440,13 @@ final class OperitHook {
         }
     }
 
-    /** 启动后先推「Agent / 已就绪」初始状态到背屏 */
+    /** 启动后先推「Agent / 已就绪」初始状态到背屏（延时避开启动扫描窗口，且只在尚无真实工具时推） */
     private static void pushInitialStateLater() {
         Thread t = new Thread(() -> {
             try {
-                Thread.sleep(2000L);
+                Thread.sleep(AgentProgress.startupWindowMs() + 500L);
+                // 若启动窗口内已有真实工具记录（不该有），则不覆盖
+                if (AgentProgress.toolCount() > 0) return;
                 AgentProgress.markReady();
                 // 初始状态：标题 Agent，副标题 Ready（≠标题，避免灵动岛左右相同），内容 已就绪
                 FocusNotify.pushState("Agent", "Ready", "已就绪", -1);

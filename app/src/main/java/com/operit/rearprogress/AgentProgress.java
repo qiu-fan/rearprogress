@@ -376,6 +376,10 @@ final class AgentProgress {
 
     /** 内部执行命令，不显示在灵动岛（由外层工具触发） */
     private static final java.util.Set<String> HIDDEN_TOOLS = new java.util.HashSet<>();
+    /** Operit 进程启动时刻（elapsedRealtime 毫秒），用于过滤启动扫描 */
+    private static final long sProcessStartMs = android.os.SystemClock.elapsedRealtime();
+    /** 启动窗口：进程启动后此毫秒内的工具调用视为启动扫描（如安装新模块时的 copy_file），不记录不显示 */
+    private static final long STARTUP_WINDOW_MS = 5000L;
     static {
         HIDDEN_TOOLS.add("execute_hidden_terminal_command");
         HIDDEN_TOOLS.add("execute_shell");
@@ -399,6 +403,10 @@ final class AgentProgress {
         String name = (toolName == null || toolName.isEmpty()) ? "tool" : toolName;
         // 内部/启动扫描工具：完全不参与（不改状态、不计数、不显示）
         if (HIDDEN_TOOLS.contains(name)) {
+            return;
+        }
+        // 启动窗口内的工具调用（如安装新模块时 Operit 自己跑的 copy_file/read_file）：不记录不显示
+        if (android.os.SystemClock.elapsedRealtime() - sProcessStartMs < STARTUP_WINDOW_MS) {
             return;
         }
 
@@ -527,6 +535,11 @@ final class AgentProgress {
 
     static int toolCount() {
         return sToolCount;
+    }
+
+    /** 启动窗口时长（毫秒），供初始状态推送对齐 */
+    static long startupWindowMs() {
+        return STARTUP_WINDOW_MS;
     }
 
     /** 最近工具名流动（逗号分隔，供展开态显示），如 "Edit,Grep,Shell(root)" */
