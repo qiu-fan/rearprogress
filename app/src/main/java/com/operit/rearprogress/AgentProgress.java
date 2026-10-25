@@ -82,7 +82,7 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("edit_file", "EditFile");
         TOOL_NAME_MAP.put("delete_file", "DeleteFile");
         TOOL_NAME_MAP.put("write_file", "WriteFile");
-        TOOL_NAME_MAP.put("write_file_binary", "WriteFileBinary");
+        TOOL_NAME_MAP.put("write_file_binary", "WriteFile");
         TOOL_NAME_MAP.put("list_files", "ListFile");
         TOOL_NAME_MAP.put("find_files", "FindFiles");
         TOOL_NAME_MAP.put("make_directory", "MakeDir");
@@ -484,7 +484,7 @@ final class AgentProgress {
         }
 
         // 3. token 还没拿到时：
-        //    无工具（ready）→ ready；有工具 → ↑0 ↓0（token 显示 0）
+        //    无工具（ready）→ ready（背屏模板会映射为「已就绪」）；有工具 → ↑0 ↓0（token 显示 0）
         synchronized (AgentProgress.class) {
             if (sRecent.isEmpty()) return "ready";
             return "↑0 ↓0";  // 有工具但无 token → 显示 ↑0 ↓0
