@@ -58,12 +58,100 @@ final class TokenHook {
     private static volatile java.util.concurrent.ScheduledFuture<?> sFinalizeTask;
     private static java.util.concurrent.ScheduledExecutorService sScheduler;
 
-    // ---- 价格表（元 / 1K token）—— 可按模型调整 ----
-    private static final double PRICE_CACHED_PER_K = 0.02;   // 缓存命中
-    private static final double PRICE_INPUT_PER_K = 1.0;     // 未缓存输入
-    private static final double PRICE_OUTPUT_PER_K = 2.0;    // 输出
+    // ---- token 历史（环形缓冲，供展开态图表） ----
+    private static final int HISTORY_SIZE = 40;
+    private static final long[] sHistIn = new long[HISTORY_SIZE];
+    private static final long[] sHistOut = new long[HISTORY_SIZE];
+    private static volatile int sHistCount = 0;
+    private static volatile int sHistHead = 0;
+    /** 历史首/末时间戳（算图表时间段） */
+    private static volatile long sHistFirstAt = 0L;
+    private static volatile long sHistLastAt = 0L;
+    /** 上一轮结束时的累计总 token（供 hit 行显示"上一轮总"） */
+    private static volatile long sPrevTotalIn = 0L;
+    private static volatile long sPrevTotalOut = 0L;
 
     private TokenHook() {}
+
+    /** 记录一次 token 快照（环形缓冲） */
+    private static void recordHistory(long in, long out) {
+        long now = System.currentTimeMillis();
+        if (sHistCount == 0) sHistFirstAt = now;
+        sHistLastAt = now;
+        sHistIn[sHistHead] = in;
+        sHistOut[sHistHead] = out;
+        sHistHead = (sHistHead + 1) % HISTORY_SIZE;
+        if (sHistCount < HISTORY_SIZE) sHistCount++;
+    }
+
+    /** 取 token 历史（时间顺序，旧→新），供图表用。返回 JSON 数组 [[in,out],...] */
+    static String getHistoryJson() {
+        int n = sHistCount;
+        if (n == 0) return "[]";
+        StringBuilder sb = new StringBuilder("[");
+        int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (i > 0) sb.append(',');
+            sb.append('[').append(sHistIn[idx]).append(',').append(sHistOut[idx]).append(']');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    /** 命中率 = cached / in（0-100），input 为 0 时返回 0 */
+    static int getHitRate() {
+        if (sLastIn <= 0) return 0;
+        return (int) Math.round(sLastCached * 100.0 / sLastIn);
+    }
+
+    /** 图表跨越的时间段，如 "12:30-12:31 (60s)"，无数据返回空 */
+    static String getTimeRange() {
+        if (sHistFirstAt == 0 || sHistLastAt <= sHistFirstAt) return "";
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US);
+        long spanSec = (sHistLastAt - sHistFirstAt) / 1000;
+        return f.format(new java.util.Date(sHistFirstAt)) + "-" + f.format(new java.util.Date(sHistLastAt))
+                + " (" + spanSec + "s)";
+    }
+
+    /** 上一轮结束的总 input/output（供 hit 行显示"上一轮总"） */
+    static long getPrevTotalIn() { return Math.max(0, sPrevTotalIn); }
+    static long getPrevTotalOut() { return Math.max(0, sPrevTotalOut); }
+
+    /** 最近一次 input token */
+    static long getLastIn() { return Math.max(0, sLastIn); }
+    /** 最近一次 output token */
+    static long getLastOut() { return Math.max(0, sLastOut); }
+
+    /**
+     * 生成 token 趋势的 SVG path（Java 侧算好，MAML 直接 Path 画，零解析）。
+     * @param w 图宽 @param h 图高（像素）
+     * @return 如 "M0,50 L10,40 L20,30 ..."，无数据返回空串
+     */
+    static String getHistoryPath(int w, int h) {
+        int n = sHistCount;
+        if (n < 2) return "";
+        // 取 in 的最大值归一化（趋势用输入量）
+        long max = 1;
+        int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        for (int i = 0; i < n; i++) {
+            long v = sHistIn[(start + i) % HISTORY_SIZE];
+            if (v > max) max = v;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            long v = sHistIn[(start + i) % HISTORY_SIZE];
+            float x = (w * i) / (float) (n - 1);
+            float y = h - (float) v / max * h;  // 归一化，y 向下
+            if (i == 0) sb.append("M").append(round(x)).append(',').append(round(y));
+            else sb.append(" L").append(round(x)).append(',').append(round(y));
+        }
+        return sb.toString();
+    }
+
+    private static String round(float v) {
+        return String.format(java.util.Locale.US, "%.1f", v);
+    }
 
     /** 是否已经拿到过实时数据（用于让数据库兜底让位） */
     static boolean hasLiveData() {
@@ -286,6 +374,7 @@ final class TokenHook {
         sLastPushAt = now;
         sHasLive = true;
         sFinalized = false;  // 新数据到来，回到流式状态
+        recordHistory(in, out);  // 记录历史（供图表）
 
         String text = format(in, out, cached, true);  // 流式中带 …
         AgentProgress.setLastTokenUsage(text);
@@ -325,12 +414,11 @@ final class TokenHook {
                     // 期间没有新数据（值未变）才算完成
                     if (sLastIn == in && sLastOut == out && sLastCached == cached && !sFinalized) {
                         sFinalized = true;
-                        // 计算费用：input = in - cached（未缓存部分），cached 命中部分，output
-                        double cost = calcCost(in, out, cached);
-                        String total = format(in, out, cached, false)
-                                + String.format(java.util.Locale.US, " ¥%.2f", cost);
+                        sPrevTotalIn = in;      // 存上一轮总
+                        sPrevTotalOut = out;
+                        String total = format(in, out, cached, false);
                         AgentProgress.setLastTokenUsage(total);
-                        LogX.i(TAG, "token finalized (总+费用): " + total);
+                        LogX.i(TAG, "token finalized (总): " + total);
                         FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
                                 AgentProgress.body(), AgentProgress.percent());
                     }
@@ -341,18 +429,6 @@ final class TokenHook {
         } catch (Throwable t) {
             LogX.w(TAG, "scheduleFinalize failed: " + t);
         }
-    }
-
-    /**
-     * 计算单次费用（元）。
-     * 输入 token = in - cached（未缓存部分按输入价，缓存命中部分按缓存价）
-     */
-    private static double calcCost(long in, long out, long cached) {
-        long uncachedIn = Math.max(0, in - cached);
-        double costIn = uncachedIn / 1000.0 * PRICE_INPUT_PER_K;
-        double costCached = cached / 1000.0 * PRICE_CACHED_PER_K;
-        double costOut = out / 1000.0 * PRICE_OUTPUT_PER_K;
-        return costIn + costCached + costOut;
     }
 
     // ------------------------------------------------------------ 格式化

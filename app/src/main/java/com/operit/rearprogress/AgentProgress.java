@@ -85,6 +85,8 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("create_file", "Create");
         TOOL_NAME_MAP.put("edit_file", "Edit");
         TOOL_NAME_MAP.put("delete_file", "Delete");
+        TOOL_NAME_MAP.put("write_file", "WriteFile");
+        TOOL_NAME_MAP.put("write_file_binary", "WriteFile");
         TOOL_NAME_MAP.put("list_files", "List");
         TOOL_NAME_MAP.put("find_files", "Find");
         TOOL_NAME_MAP.put("make_directory", "Mkdir");
@@ -185,11 +187,50 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("read_notification", "ReadNotif");
         TOOL_NAME_MAP.put("github", "GitHub");
         TOOL_NAME_MAP.put("workflow", "Workflow");
+        TOOL_NAME_MAP.put("workflow:create_workflow", "Workflow");
+        TOOL_NAME_MAP.put("workflow:trigger_workflow", "WorkflowRun");
+        TOOL_NAME_MAP.put("workflow:delete_workflow", "WorkflowDel");
+        TOOL_NAME_MAP.put("workflow:update_workflow", "WorkflowEdit");
+        TOOL_NAME_MAP.put("workflow:enable_workflow", "WorkflowOn");
+        TOOL_NAME_MAP.put("workflow:disable_workflow", "WorkflowOff");
+        TOOL_NAME_MAP.put("workflow:query_workflow", "WorkflowQry");
         TOOL_NAME_MAP.put("worldbook", "WorldBook");
+        TOOL_NAME_MAP.put("worldbook:create_worldbook", "WorldBook");
+        TOOL_NAME_MAP.put("worldbook:update_worldbook", "WorldBookEdit");
+        TOOL_NAME_MAP.put("worldbook:delete_worldbook", "WorldBookDel");
         TOOL_NAME_MAP.put("extended_file_tools", "FileTools");
         TOOL_NAME_MAP.put("extended_memory_tools", "MemTools");
+        TOOL_NAME_MAP.put("extended_chat", "ChatTools");
         TOOL_NAME_MAP.put("browser", "Browser");
         TOOL_NAME_MAP.put("crossref", "CrossRef");
+        TOOL_NAME_MAP.put("time", "Time");
+        TOOL_NAME_MAP.put("daily_life", "DailyLife");
+        TOOL_NAME_MAP.put("file_converter", "Convert");
+        TOOL_NAME_MAP.put("ffmpeg", "FFmpeg");
+        TOOL_NAME_MAP.put("siliconflow_draw", "Draw");
+        TOOL_NAME_MAP.put("system_tools", "SysTools");
+        TOOL_NAME_MAP.put("automatic_ui_base", "UIAuto");
+        TOOL_NAME_MAP.put("qqbot", "QQBot");
+        TOOL_NAME_MAP.put("miui-notes", "MiNotes");
+        TOOL_NAME_MAP.put("deepseek-export", "DSExport");
+        TOOL_NAME_MAP.put("rikkahub-backup", "RikkaBak");
+        TOOL_NAME_MAP.put("apk_reverse", "APKRev");
+        TOOL_NAME_MAP.put("code_runner", "CodeRun");
+        TOOL_NAME_MAP.put("super_admin", "RootTools");
+        TOOL_NAME_MAP.put("various_search", "Search");
+        TOOL_NAME_MAP.put("12306_ticket", "Train12306");
+        TOOL_NAME_MAP.put("extended_http_tools", "HTTPT");
+        TOOL_NAME_MAP.put("operit_editor", "OpEditor");
+        TOOL_NAME_MAP.put("operit_editor:restart_mcp_window", "McpRestart");
+        TOOL_NAME_MAP.put("operit_editor:restart_mcp", "McpRestart");
+        TOOL_NAME_MAP.put("operit_editor:read_config", "OpCfgRead");
+        TOOL_NAME_MAP.put("operit_editor:write_config", "OpCfgWrite");
+        TOOL_NAME_MAP.put("worldbook_tools", "WBookT");
+        TOOL_NAME_MAP.put("github", "GitHub");
+        TOOL_NAME_MAP.put("rea", "REA");
+        TOOL_NAME_MAP.put("rea:inspect_android_package", "REA");
+        TOOL_NAME_MAP.put("rea:inspect_apk", "REA");
+        TOOL_NAME_MAP.put("rea:inspect", "REA");
     }
 
     private AgentProgress() {}
@@ -351,7 +392,7 @@ final class AgentProgress {
         HIDDEN_TOOLS.add("find_chat");
         HIDDEN_TOOLS.add("get_chat_messages");
         HIDDEN_TOOLS.add("list_character_cards");
-        HIDDEN_TOOLS.add("write_file");
+        // write_file 移出 HIDDEN（文件写入有效，需显示）
         HIDDEN_TOOLS.add("create_terminal_session");
     }
 
@@ -437,11 +478,10 @@ final class AgentProgress {
             return sLastTokenUsage;
         }
 
-        // 3. 兜底：最近工具名（token 还没拿到时）
+        // 3. token 还没拿到时：返回占位符（参数属 body 职责，不塞副标题）
         synchronized (AgentProgress.class) {
-            if (sRecent.isEmpty()) return "";
-            String[] last = sRecent.get(sRecent.size() - 1);
-            return "1".equals(last[2]) ? last[0] : last[0] + " ✗";
+            if (sRecent.isEmpty()) return "…";
+            return "…";  // 有工具但无 token → 占位，避免与 title/参数混淆
         }
     }
 
@@ -497,6 +537,19 @@ final class AgentProgress {
 
     static int toolCount() {
         return sToolCount;
+    }
+
+    /** 最近工具名流动（逗号分隔，供展开态显示），如 "Edit,Grep,Shell(root)" */
+    static String getToolFlow() {
+        synchronized (AgentProgress.class) {
+            if (sRecent.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            for (int i = sRecent.size() - 1; i >= 0; i--) {
+                if (sb.length() > 0) sb.append(',');
+                sb.append(sRecent.get(i)[0]);
+            }
+            return sb.toString();
+        }
     }
 
     // ---------------------------------------------------------------- 终端历史
