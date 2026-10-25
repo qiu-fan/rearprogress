@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -100,24 +101,10 @@ public class MainActivity extends Activity {
                 makeButton("测重启广播", v -> sendCmd("restart_operit")),
                 makeButton("测状态", v -> sendCmd("status"))));
 
-        // —— 模拟发布页：模拟 Hook 推送通知（token/工具名/内容） ——
-        root.addView(sectionLabel("模拟发布（模拟 Hook 推送）"));
-        etTool = makeInput("工具名，如 Shell(root)");
-        etToken = makeInput("token 副标题，如 ↑1.05M ↓398");
-        etBody = makeInput("内容（参数摘要），多行一条");
-        root.addView(etTool);
-        root.addView(etToken);
-        root.addView(etBody);
+        // —— 模拟发布：跳到独立测试页 ——
         root.addView(btnRow(
-                makeButton("发布", v -> publishTest()),
-                makeButton("模拟有token", v -> { etToken.setText("↑897K ↓123"); publishTest(); }),
-                makeButton("模拟无token", v -> { etToken.setText("↑0 ↓0"); publishTest(); }),
-                makeButton("清除", v -> {
-                    etTool.setText(""); etToken.setText(""); etBody.setText("");
-                    Toast.makeText(this, "已清除测试输入", Toast.LENGTH_SHORT).show();
-                })));
-        root.addView(btnRow(
-                makeButton("清除测试通知", v -> execSuSilent("cmd notification cancel tag:rp_test"))));
+                makeButton("→ 模拟发布（测试页）", v ->
+                        startActivity(new Intent(this, TestPublishActivity.class)))));
 
         // 注册 AI 远程命令接收器
         registerCmdReceiver();
@@ -305,8 +292,8 @@ public class MainActivity extends Activity {
     }
 
     /** 单行输入框（带提示） */
-    private EditText makeInput(String hint) {
-        EditText et = new EditText(this);
+    static EditText makeInput(Activity a, String hint) {
+        EditText et = new EditText(a);
         et.setHint(hint);
         et.setTextSize(13);
         et.setSingleLine(false);
@@ -318,41 +305,8 @@ public class MainActivity extends Activity {
         return et;
     }
 
-    /**
-     * 模拟 Hook 推送：直接调 FocusNotify.pushState（模拟 token/工具名/内容三段），
-     * 等价于 Hook 捕获到工具调用+token 后的推送，用于背屏/灵动岛渲染调试。
-     */
-    private void publishTest() {
-        final String tool = etTool.getText().toString().trim().isEmpty()
-                ? "Shell(root)" : etTool.getText().toString().trim();
-        final String token = etToken.getText().toString().trim().isEmpty()
-                ? "↑0 ↓0" : etToken.getText().toString().trim();
-        final String body = etBody.getText().toString().trim();
-        new Thread(() -> {
-            try {
-                // 面板进程没有通知权限 → 用 su 直接调 cmd notification post（携带与 Hook 相同的 extras）
-                String pkg = getPackageName();
-                String extras = "--es lu_title '" + esc(tool) + "'"
-                        + " --es lu_sub_text '" + esc(token) + "'"
-                        + " --es lu_big_text '" + esc(body) + "'"
-                        + " --es lu_hit_rate '99.50%'"
-                        + " --es lu_token_in '" + esc(token) + "'"
-                        + " --es lu_token_out ''"
-                        + " --es lu_token_path 'M0.0,50 L120.0,30 L300.0,10 L480.0,40 L630.0,20'"
-                        + " --es lu_task_time '12:00-12:30 (30m0s)'"
-                        + " --es lu_time_range '30m0s'";
-                execSuSilent("cmd notification post -S bigtext -t '" + esc(tool) + "' '" + esc(body)
-                        + "' tag:rp_test " + extras);
-                runOnUiThread(() -> Toast.makeText(this, "已发布: " + tool, Toast.LENGTH_SHORT).show());
-            } catch (Throwable t) {
-                Log.w(TAG, "publishTest failed", t);
-                runOnUiThread(() -> Toast.makeText(this, "发布失败: " + t.getMessage(), Toast.LENGTH_SHORT).show());
-            }
-        }).start();
-    }
-
     /** shell 单引号转义 */
-    private static String esc(String s) {
+    static String esc(String s) {
         return (s == null) ? "" : s.replace("'", "'\\''");
     }
 
