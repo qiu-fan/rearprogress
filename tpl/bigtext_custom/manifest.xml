@@ -200,7 +200,9 @@
   <!-- "Agent" 文字标签（替代 App 图标，标签本身下移避免贴顶越线） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
   <Var name="agent_label_y" type="number" expression="max(#area_top + (10 * #scale), #icon_y + (14 * #scale))"/>
-  <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
+  <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold" folmeMode="true">
+    <FolmeState name="agent_fade" alpha="255"/>
+  </Text>
 
   <!-- Title（第一行） -->
   <Var name="title_y" type="number" expression="(#icon_y + #icon_size + #icon_text_gap)"/>
@@ -230,7 +232,7 @@
   <Text visibility="#has_stats" x="#text_x" y="#stats_y" size="#text_size" color="#88FFFFFF" textExp="(('hit ' + @lu_hit_rate) + ('   ↑' + @lu_token_in) + (' ↓' + @lu_token_out))" width="#text_w" name="stats_line" fontFamily="mipro-medium"/>
   <!-- 时间刻度标注（图表跨越时间，固定 10s/20s/30s 刻度示意） -->
   <Var name="time_y" type="number" expression="(#stats_y + #stats_h + (2 * #scale))"/>
-  <Text visibility="#has_stats" x="#text_x" y="#time_y" size="#text_size" color="#55FFFFFF" textExp="((@lu_time_range + '    10s   20s   30s   40s'))" width="#text_w" name="time_range" fontFamily="mipro-medium"/>
+  <Text visibility="#has_stats" x="#text_x" y="#time_y" size="#text_size" color="#55FFFFFF" textExp="@lu_time_range" width="#text_w" name="time_range" fontFamily="mipro-medium"/>
 
   <!-- 无障碍 -->
   <Rectangle x="0" y="0" w="#view_width" h="#view_height" contentDescriptionExp="(((@lu_title + ' ') + @lu_big_text) + ' ' + @lu_sub_text)" alpha="0"/>
