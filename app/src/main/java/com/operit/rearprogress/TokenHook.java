@@ -101,6 +101,36 @@ final class TokenHook {
     /** 最近一次 output token */
     static long getLastOut() { return Math.max(0, sLastOut); }
 
+    /**
+     * 生成 token 趋势的 SVG path（Java 侧算好，MAML 直接 Path 画，零解析）。
+     * @param w 图宽 @param h 图高（像素）
+     * @return 如 "M0,50 L10,40 L20,30 ..."，无数据返回空串
+     */
+    static String getHistoryPath(int w, int h) {
+        int n = sHistCount;
+        if (n < 2) return "";
+        // 取 in 的最大值归一化（趋势用输入量）
+        long max = 1;
+        int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        for (int i = 0; i < n; i++) {
+            long v = sHistIn[(start + i) % HISTORY_SIZE];
+            if (v > max) max = v;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            long v = sHistIn[(start + i) % HISTORY_SIZE];
+            float x = (w * i) / (float) (n - 1);
+            float y = h - (float) v / max * h;  // 归一化，y 向下
+            if (i == 0) sb.append("M").append(round(x)).append(',').append(round(y));
+            else sb.append(" L").append(round(x)).append(',').append(round(y));
+        }
+        return sb.toString();
+    }
+
+    private static String round(float v) {
+        return String.format(java.util.Locale.US, "%.1f", v);
+    }
+
     /** 是否已经拿到过实时数据（用于让数据库兜底让位） */
     static boolean hasLiveData() {
         return sHasLive;

@@ -245,6 +245,8 @@ final class FocusNotify {
         try {
             // token 实时趋势（JSON 数组，供图表）
             n.extras.putString("lu_token_history", TokenHook.getHistoryJson());
+            // token 趋势 SVG path（Java 算好，MAML Path 直接画）
+            n.extras.putString("lu_token_path", TokenHook.getHistoryPath(240, 60));
             // 命中率（cached/input 百分比）
             n.extras.putString("lu_hit_rate", TokenHook.getHitRate() + "%");
             // 当前 token 明细
