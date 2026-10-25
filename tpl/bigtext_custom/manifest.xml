@@ -68,7 +68,7 @@
     展示优先级：bigtext > title > subtext
     每个非空字段至少保留1行
   -->
-  <Var name="max_lines" type="number" expression="6"/>
+  <Var name="max_lines" type="number" expression="4"/>
 
   <!-- ==================== 帧率管理 ==================== -->
   <Function name="acquireFrameRate">
@@ -210,7 +210,7 @@
 
   <!-- "Agent" 文字标签（仅 Operit 包显示），顶部对齐安全区上沿（10*scale） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset - ifelse(#bigtext_natural_lines > 3, 10.9 * #scale, 0)"/>
+  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset"/>
   <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
