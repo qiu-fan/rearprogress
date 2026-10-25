@@ -11,6 +11,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -41,6 +42,8 @@ public class MainActivity extends Activity {
     private TextView tvStatus;
     private TextView tvLog;
     private ScrollView logScroll;
+    /** 模拟发布输入框 */
+    private EditText etTool, etToken, etBody;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean refreshing = true;
     private boolean receiverRegistered = false;
@@ -80,7 +83,8 @@ public class MainActivity extends Activity {
         root.addView(sectionLabel("操作"));
         root.addView(btnRow(
                 makeButton("重启 Operit", v -> restartOperit()),
-                makeButton("强停", v -> execSu("am force-stop " + OPERIT_PKG, "已强停"))));
+                makeButton("强停", v -> execSu("am force-stop " + OPERIT_PKG, "已强停")),
+                makeButton("重启背屏", v -> restartSubScreenCenter())));
         root.addView(btnRow(
                 makeButton("开通知", v -> { execSu("touch " + ENABLED_FILE, "已开"); refreshStatus(); }),
                 makeButton("清通知", v -> { execSu("rm -f " + ENABLED_FILE, "已清"); refreshStatus(); })));
@@ -88,13 +92,32 @@ public class MainActivity extends Activity {
                 makeButton("清进度", v -> { execSu("rm -f " + PROGRESS_FILE, "已清"); refreshStatus(); }),
                 makeButton("清日志", v -> { execSuSilent("logcat -c"); tvLog.setText("（日志已清空）"); })));
 
-        // ===== 测试区 =====
+        // ===== 测试区（含模拟发布页，核心调试） =====
         root.addView(sectionLabel("测试"));
         root.addView(btnRow(
                 makeButton("测进度(纯)", v -> testProgress(false)),
                 makeButton("测进度(JSON)", v -> testProgress(true)),
                 makeButton("测重启广播", v -> sendCmd("restart_operit")),
                 makeButton("测状态", v -> sendCmd("status"))));
+
+        // —— 模拟发布页：模拟 Hook 推送通知（token/工具名/内容） ——
+        root.addView(sectionLabel("模拟发布（模拟 Hook 推送）"));
+        etTool = makeInput("工具名，如 Shell(root)");
+        etToken = makeInput("token 副标题，如 ↑1.05M ↓398");
+        etBody = makeInput("内容（参数摘要），多行一条");
+        root.addView(etTool);
+        root.addView(etToken);
+        root.addView(etBody);
+        root.addView(btnRow(
+                makeButton("发布", v -> publishTest()),
+                makeButton("模拟有token", v -> { etToken.setText("↑897K ↓123"); publishTest(); }),
+                makeButton("模拟无token", v -> { etToken.setText("↑0 ↓0"); publishTest(); }),
+                makeButton("清除", v -> {
+                    etTool.setText(""); etToken.setText(""); etBody.setText("");
+                    Toast.makeText(this, "已清除测试输入", Toast.LENGTH_SHORT).show();
+                })));
+        root.addView(btnRow(
+                makeButton("清除测试通知", v -> execSuSilent("cmd notification cancel tag:rp_test"))));
 
         // 注册 AI 远程命令接收器
         registerCmdReceiver();
@@ -277,6 +300,74 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 Log.w(TAG, "execSu failed", e);
                 runOnUiThread(() -> Toast.makeText(this, "执行失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    /** 单行输入框（带提示） */
+    private EditText makeInput(String hint) {
+        EditText et = new EditText(this);
+        et.setHint(hint);
+        et.setTextSize(13);
+        et.setSingleLine(false);
+        et.setMaxLines(2);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 0, 4);
+        et.setLayoutParams(lp);
+        return et;
+    }
+
+    /**
+     * 模拟 Hook 推送：直接调 FocusNotify.pushState（模拟 token/工具名/内容三段），
+     * 等价于 Hook 捕获到工具调用+token 后的推送，用于背屏/灵动岛渲染调试。
+     */
+    private void publishTest() {
+        final String tool = etTool.getText().toString().trim().isEmpty()
+                ? "Shell(root)" : etTool.getText().toString().trim();
+        final String token = etToken.getText().toString().trim().isEmpty()
+                ? "↑0 ↓0" : etToken.getText().toString().trim();
+        final String body = etBody.getText().toString().trim();
+        new Thread(() -> {
+            try {
+                // 面板进程没有通知权限 → 用 su 直接调 cmd notification post（携带与 Hook 相同的 extras）
+                String pkg = getPackageName();
+                String extras = "--es lu_title '" + esc(tool) + "'"
+                        + " --es lu_sub_text '" + esc(token) + "'"
+                        + " --es lu_big_text '" + esc(body) + "'"
+                        + " --es lu_hit_rate '99.50%'"
+                        + " --es lu_token_in '" + esc(token) + "'"
+                        + " --es lu_token_out ''"
+                        + " --es lu_token_path 'M0.0,50 L120.0,30 L300.0,10 L480.0,40 L630.0,20'"
+                        + " --es lu_task_time '12:00-12:30 (30m0s)'"
+                        + " --es lu_time_range '30m0s'";
+                execSuSilent("cmd notification post -S bigtext -t '" + esc(tool) + "' '" + esc(body)
+                        + "' tag:rp_test " + extras);
+                runOnUiThread(() -> Toast.makeText(this, "已发布: " + tool, Toast.LENGTH_SHORT).show());
+            } catch (Throwable t) {
+                Log.w(TAG, "publishTest failed", t);
+                runOnUiThread(() -> Toast.makeText(this, "发布失败: " + t.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    /** shell 单引号转义 */
+    private static String esc(String s) {
+        return (s == null) ? "" : s.replace("'", "'\\''");
+    }
+
+    /** 重启副屏中心（负责 MAML 背屏渲染的进程）：强停后系统会自动拉起 */
+    private void restartSubScreenCenter() {
+        Toast.makeText(this, "正在重启副屏中心…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                execSuSilent("am force-stop com.xiaomi.subscreencenter");
+                Thread.sleep(2000);
+                // 系统会自动重启（它是常驻服务）；如未拉起，兜底 startservice
+                execSuSilent("am startservice -n com.xiaomi.subscreencenter/.smartassistant.SmartAssistantService >/dev/null 2>&1");
+                runOnUiThread(() -> Toast.makeText(this, "副屏中心已重启", Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }).start();
     }
