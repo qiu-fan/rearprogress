@@ -193,9 +193,10 @@
   <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
   <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2))"/>
 
-  <!-- "Agent" 文字标签（替代 App 图标） -->
+  <!-- "Agent" 文字标签（替代 App 图标，标签本身下移避免贴顶） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Text x="#text_x" y="#icon_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
+  <Var name="agent_label_y" type="number" expression="(#icon_y + (8 * #scale))"/>
+  <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第一行） -->
   <Var name="title_y" type="number" expression="(#icon_y + #icon_size + #icon_text_gap)"/>
