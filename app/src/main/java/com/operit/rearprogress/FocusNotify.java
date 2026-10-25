@@ -302,7 +302,10 @@ final class FocusNotify {
             // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
             n.extras.putString("token_history", TokenHook.getHistoryJson());
             n.extras.putString("token_path", TokenHook.getHistoryPath(630, 110));
-            n.extras.putString("hit_rate", String.format(java.util.Locale.US, "%.2f", TokenHook.getHitRate()) + "%");
+            // 命中率：无 token 数据时为空（背屏模板显示 ready，不显示 hit）
+            String hitRate = AgentProgress.toolName().equals("ready") ? ""
+                    : String.format(java.util.Locale.US, "%.2f", TokenHook.getHitRate()) + "%";
+            n.extras.putString("hit_rate", hitRate);
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getPrevTotalIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getPrevTotalOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());

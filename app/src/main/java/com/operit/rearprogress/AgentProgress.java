@@ -61,13 +61,9 @@ final class AgentProgress {
         // 内部工具（Operit 内置）
         TOOL_NAME_MAP.put("execute_hidden_terminal_command", "HiddenCmd");
         TOOL_NAME_MAP.put("execute_shell", "Shell");
-        TOOL_NAME_MAP.put("file_exists", "Exist");
         TOOL_NAME_MAP.put("find_chat", "FindChat");
         TOOL_NAME_MAP.put("get_chat_messages", "Chat");
-        TOOL_NAME_MAP.put("http_request", "HTTP");
         TOOL_NAME_MAP.put("list_character_cards", "Cards");
-        TOOL_NAME_MAP.put("read_file_full", "ReadFull");
-        TOOL_NAME_MAP.put("super_admin", "Root");
 
         // super_admin 包
         TOOL_NAME_MAP.put("super_admin:shell", "Shell(root)");
@@ -77,28 +73,27 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("super_admin:terminal_input", "TermIn(root)");
         TOOL_NAME_MAP.put("execute_in_terminal_session", "TermExec");
 
-        // 文件操作
-        TOOL_NAME_MAP.put("read_file", "Read");
+        // 文件操作（驼峰命名，省宽度易读）
+        TOOL_NAME_MAP.put("read_file", "ReadFile");
         TOOL_NAME_MAP.put("read_file_part", "ReadPart");
         TOOL_NAME_MAP.put("read_file_full", "ReadFull");
-        TOOL_NAME_MAP.put("read_file_binary", "ReadBin");
-        TOOL_NAME_MAP.put("create_file", "Create");
+        TOOL_NAME_MAP.put("read_file_binary", "ReadBinary");
+        TOOL_NAME_MAP.put("create_file", "CreateFile");
         TOOL_NAME_MAP.put("edit_file", "EditFile");
-        TOOL_NAME_MAP.put("delete_file", "Delete");
+        TOOL_NAME_MAP.put("delete_file", "DeleteFile");
         TOOL_NAME_MAP.put("write_file", "WriteFile");
-        TOOL_NAME_MAP.put("write_file_binary", "WriteFile");
-        TOOL_NAME_MAP.put("list_files", "List");
-        TOOL_NAME_MAP.put("find_files", "Find");
-        TOOL_NAME_MAP.put("make_directory", "Mkdir");
-        TOOL_NAME_MAP.put("file_exists", "Exist");
-        TOOL_NAME_MAP.put("grep_code", "Grep_code");
-        TOOL_NAME_MAP.put("grep_context", "GrepCtx");
-        TOOL_NAME_MAP.put("move_file", "Move");
-        TOOL_NAME_MAP.put("copy_file", "Copy");
-        TOOL_NAME_MAP.put("rename_file", "Rename");
+        TOOL_NAME_MAP.put("write_file_binary", "WriteFileBinary");
+        TOOL_NAME_MAP.put("list_files", "ListFile");
+        TOOL_NAME_MAP.put("find_files", "FindFiles");
+        TOOL_NAME_MAP.put("make_directory", "MakeDir");
+        TOOL_NAME_MAP.put("file_exists", "FileExist");
+        TOOL_NAME_MAP.put("grep_code", "GrepCode");
+        TOOL_NAME_MAP.put("grep_context", "GrepContext");
+        TOOL_NAME_MAP.put("move_file", "MoveFile");
+        TOOL_NAME_MAP.put("copy_file", "CopyFile");
+        TOOL_NAME_MAP.put("rename_file", "RenameFile");
         TOOL_NAME_MAP.put("file_info", "FileInfo");
-        TOOL_NAME_MAP.put("apply_file", "Apply");
-        TOOL_NAME_MAP.put("read_file_full", "ReadFull");
+        TOOL_NAME_MAP.put("apply_file", "ApplyFile");
 
         // 网络/搜索
         TOOL_NAME_MAP.put("visit_web", "Web");
@@ -108,12 +103,12 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("package_proxy", "Proxy");
         TOOL_NAME_MAP.put("various_search", "Search");
 
-        // 记忆
-        TOOL_NAME_MAP.put("query_memory", "Memory");
-        TOOL_NAME_MAP.put("get_memory_by_title", "MemTitle");
-        TOOL_NAME_MAP.put("create_memory", "MemCreate");
-        TOOL_NAME_MAP.put("update_memory", "MemUpdate");
-        TOOL_NAME_MAP.put("delete_memory", "MemDelete");
+        // 记忆（驼峰）
+        TOOL_NAME_MAP.put("query_memory", "QueryMemory");
+        TOOL_NAME_MAP.put("get_memory_by_title", "MemoryTitle");
+        TOOL_NAME_MAP.put("create_memory", "CreateMemory");
+        TOOL_NAME_MAP.put("update_memory", "UpdateMemory");
+        TOOL_NAME_MAP.put("delete_memory", "DeleteMemory");
 
         // 代码执行（run + 语言）
         TOOL_NAME_MAP.put("code_runner:run_javascript_node", "runJS");
@@ -441,9 +436,11 @@ final class AgentProgress {
                 String[] last = sRecent.get(sRecent.size() - 1);
                 String toolName = last[0];
 
-                // 文件操作追加 diff 统计
+                // 文件操作追加 diff 统计（驼峰映射后的名字）
                 if (sLastDiffStats != null && !sLastDiffStats.isEmpty()
-                        && (toolName.equals("Edit") || toolName.equals("Create") || toolName.equals("Delete"))) {
+                        && (toolName.startsWith("EditFile") || toolName.startsWith("CreateFile")
+                            || toolName.startsWith("WriteFile") || toolName.startsWith("DeleteFile")
+                            || toolName.startsWith("ApplyFile"))) {
                     LogX.i("RearProgress", "title() -> tool+diff: [" + toolName + " " + sLastDiffStats + "]");
                     return toolName + " " + sLastDiffStats;
                 }
@@ -479,10 +476,10 @@ final class AgentProgress {
         }
 
         // 3. token 还没拿到时：
-        //    无工具（ready）→ ready；有工具 → 0（token 显示 0）
+        //    无工具（ready）→ ready；有工具 → ↑0 ↓0（token 显示 0）
         synchronized (AgentProgress.class) {
             if (sRecent.isEmpty()) return "ready";
-            return "0";  // 有工具但无 token → 显示 0
+            return "↑0 ↓0";  // 有工具但无 token → 显示 ↑0 ↓0
         }
     }
 
