@@ -200,7 +200,6 @@
   <Var name="icon_y" type="number" expression="#content_start_y"/>
   <Var name="agent_label_y" type="number" expression="max(#area_top + (8 * #scale), #icon_y)"/>
   <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
-  <Text x="(#text_x + (90 * #scale))" y="#agent_label_y" size="#text_size" color="#66FFFFFF" textExp="@lu_time_range" name="time_dur" fontFamily="mipro-medium"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
   <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale))"/>
