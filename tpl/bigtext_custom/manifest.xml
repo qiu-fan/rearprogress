@@ -208,7 +208,7 @@
 
   <!-- SubText（第二行：token + hit率） -->
   <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="(@lu_sub_text + '   ' + @lu_hit_rate)" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="ifelse(eq(@lu_sub_text, 'ready'), @lu_sub_text, (@lu_sub_text + '   ' + @lu_hit_rate))" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- BigText（第三行，可选） -->
   <Var name="text_y" type="number" expression="ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap))"/>

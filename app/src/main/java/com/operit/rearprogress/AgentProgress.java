@@ -478,10 +478,11 @@ final class AgentProgress {
             return sLastTokenUsage;
         }
 
-        // 3. token 还没拿到时：返回占位符（参数属 body 职责，不塞副标题）
+        // 3. token 还没拿到时：
+        //    无工具（ready）→ ready；有工具 → 0（token 显示 0）
         synchronized (AgentProgress.class) {
-            if (sRecent.isEmpty()) return "…";
-            return "…";  // 有工具但无 token → 占位，避免与 title/参数混淆
+            if (sRecent.isEmpty()) return "ready";
+            return "0";  // 有工具但无 token → 显示 0
         }
     }
 
