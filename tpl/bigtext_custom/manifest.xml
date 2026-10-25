@@ -1,0 +1,293 @@
+<Widget frameRate="0" useVariableUpdater="" scaleByDensity="false" screenWidth="1080" version="2" transparentSurface="true">
+  <!-- ==================== 缩放与布局常量 ==================== -->
+  <Var name="scale" type="number" expression="(#view_height / 213)"/>
+  <Var name="content_x" type="number" expression="(103 * #scale)"/>
+  <Var name="content_pad" type="number" expression="(20 * #scale)"/>
+  <Var name="content_pad_right" type="number" expression="(20 * #scale)"/>
+  <Var name="text_x" type="number" expression="(#content_x + #content_pad)"/>
+  <Var name="text_w" type="number" expression="(#view_width - #content_x - #content_pad - #content_pad_right)"/>
+  <Var name="icon_size" type="number" expression="(40 * #scale)"/>
+  <Var name="icon_corner" type="number" expression="(102 * #scale)"/>
+
+  <!-- 内容区域：padding 20 -->
+  <Var name="area_top" type="number" expression="(20 * #scale)"/>
+  <Var name="area_bottom" type="number" expression="((213 - 20 - 12) * #scale)"/>
+  <Var name="area_h" type="number" expression="(#area_bottom - #area_top)"/>
+
+  <!-- 文字参数 -->
+  <Var name="title_size" type="number" expression="(18 * #scale)"/>
+  <Var name="text_size" type="number" expression="(14 * #scale)"/>
+  <Var name="icon_text_gap" type="number" expression="(10 * #scale)"/>
+  <Var name="title_gap" type="number" expression="(2 * #scale)"/>
+  <Var name="text_gap" type="number" expression="(0 * #scale)"/>
+
+  <!-- ==================== 状态变量 ==================== -->
+  <Var name="is_pause" type="number" expression="0" const="true"/>
+  <Var name="frame_ref" type="number" expression="0" const="true"/>
+
+  <!-- ==================== 数据变量 ==================== -->
+  <Var name="lu_package_name" type="string" expression="''" const="true"/>
+  <Var name="data" type="jsonO" expression="newJsonObject()" const="true"/>
+  <Var name="lu_title" type="string" expression="''" const="true"/>
+  <Var name="lu_big_text" type="string" expression="''" const="true"/>
+  <Var name="lu_sub_text" type="string" expression="''" const="true"/>
+
+  <!-- 展开态扩展数据（agent 统计） -->
+  <Var name="lu_token_path" type="string" expression="''" const="true"/>
+  <Var name="lu_hit_rate" type="string" expression="''" const="true"/>
+  <Var name="lu_token_in" type="string" expression="''" const="true"/>
+  <Var name="lu_token_out" type="string" expression="''" const="true"/>
+  <Var name="lu_tool_flow" type="string" expression="''" const="true"/>
+  <Var name="lu_time_range" type="string" expression="''" const="true"/>
+
+  <!-- 字段存在标记 -->
+  <Var name="has_bigtext" type="number" expression="0" const="true"/>
+  <Var name="has_subtext" type="number" expression="0" const="true"/>
+  <Var name="has_stats" type="number" expression="0" const="true"/>
+
+  <!-- 调色板 -->
+  <Var name="paletteColorHex" type="string" expression="''" const="true"/>
+  <Var name="mainColor" type="number" expression="0" const="true"/>
+  <Var name="mainColorHex" type="string" expression="''" const="true"/>
+  <Var name="paletteColor" type="number" expression="0" const="true"/>
+
+  <!-- ==================== 折行计算 ==================== -->
+  <!--
+    最多4行，title 必填，bigtext/subtext 可选
+    展示优先级：bigtext > title > subtext
+    每个非空字段至少保留1行
+  -->
+  <Var name="max_lines" type="number" expression="4"/>
+
+  <!-- ==================== 帧率管理 ==================== -->
+  <Function name="acquireFrameRate">
+    <VariableCommand name="frame_ref" expression="(#frame_ref + 1)" type="number"/>
+    <FrameRateCommand rate="60"/>
+  </Function>
+  <Function name="releaseFrameRate">
+    <VariableCommand name="frame_ref" expression="(#frame_ref - 1)" type="number"/>
+    <MultiCommand condition="(#frame_ref {= 0)">
+      <VariableCommand name="frame_ref" expression="0" type="number"/>
+      <FrameRateCommand rate="0"/>
+    </MultiCommand>
+  </Function>
+  <Function name="updateFrameRate">
+    <FunctionCommand target="acquireFrameRate"/>
+    <FunctionCommand target="releaseFrameRate" delay="1000"/>
+  </Function>
+
+  <!-- ==================== AOD 动画 ==================== -->
+  <Function name="goAodState">
+    <FunctionCommand target="updateFrameRate"/>
+    <FolmeCommand target="aod_mask" config="'folme_aod_config'" states="'folme_aod'" command="to"/>
+  </Function>
+  <Function name="goDeskState">
+    <FunctionCommand target="updateFrameRate"/>
+    <FolmeCommand target="aod_mask" config="'folme_desk_config'" states="'folme_desk'" command="to"/>
+  </Function>
+
+  <!-- ==================== 数据解析 ==================== -->
+  <Function name="remove_rich_text">
+    <VariableCommand name="lu_title" expression="strReplaceAll(@lu_title,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_big_text" expression="strReplaceAll(@lu_big_text,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <VariableCommand name="lu_sub_text" expression="strReplaceAll(@lu_sub_text,'&lt;font[^>]*>|&lt;/font>','')" type="string"/>
+    <!-- 清理换行符（\n / \r 替换为空格，避免被 lineClamp 误判截断） -->
+    <VariableCommand name="lu_title" expression="strReplaceAll(@lu_title,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_sub_text" expression="strReplaceAll(@lu_sub_text,'[\r\n]+',' ')" type="string"/>
+    <VariableCommand name="lu_big_text" expression="strReplaceAll(@lu_big_text,'[\r\n]+',' ')" type="string"/>
+  </Function>
+
+  <Function name="parseData">
+    <VariableCommand name="lu_title" expression="jsonGetString($data, 'lu_title')" type="string"/>
+    <VariableCommand name="lu_big_text" expression="jsonGetString($data, 'lu_big_text')" type="string"/>
+    <VariableCommand name="lu_sub_text" expression="jsonGetString($data, 'lu_sub_text')" type="string"/>
+    <!-- 展开态 agent 统计 -->
+    <VariableCommand name="lu_token_path" expression="jsonGetString($data, 'lu_token_path')" type="string"/>
+    <VariableCommand name="lu_hit_rate" expression="jsonGetString($data, 'lu_hit_rate')" type="string"/>
+    <VariableCommand name="lu_token_in" expression="jsonGetString($data, 'lu_token_in')" type="string"/>
+    <VariableCommand name="lu_token_out" expression="jsonGetString($data, 'lu_token_out')" type="string"/>
+    <VariableCommand name="lu_tool_flow" expression="jsonGetString($data, 'lu_tool_flow')" type="string"/>
+    <VariableCommand name="lu_time_range" expression="jsonGetString($data, 'lu_time_range')" type="string"/>
+    <VariableCommand name="has_bigtext" expression="(len(@lu_big_text) } 0)" type="number"/>
+    <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
+    <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
+    <FunctionCommand target="remove_rich_text"/>
+  </Function>
+
+  <Function name="logData">
+    <ExternCommand command="FLLogD" strPara="('liveupdate_layout2 | pkg=' + @lu_package_name + ' title=' + @lu_title + ' subtext=' + @lu_sub_text + ' bigtext=' + @lu_big_text)"/>
+  </Function>
+
+  <Function name="refreshIconColor">
+    <BinderCommand name="getIconColor" command="refresh"/>
+  </Function>
+
+  <Function name="initData">
+    <MultiCommand condition="(len(@miui.liveupdate.param) } 0)">
+      <VariableCommand name="data" expression="strToJson(@miui.liveupdate.param)" type="jsonO"/>
+      <VariableCommand name="lu_package_name" expression="jsonGetString($data, 'lu_package_name')" type="string"/>
+      <FunctionCommand target="parseData"/>
+      <FunctionCommand target="logData"/>
+    </MultiCommand>
+    <FunctionCommand target="refreshIconColor" delay="500"/>
+  </Function>
+
+  <!-- ==================== UI 渲染 ==================== -->
+  <!-- 背景（吸色填充） -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" fillColor="@paletteColorHex"/>
+  <Image x="0" y="0" w="#view_width" h="#view_height" src="assets/bg.png"/>
+
+  <!-- AOD 遮罩（只盖背景，不盖内容） -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" alpha="((eqs(@aod_desk_state,'1') * 255) * 0.4)" folmeMode="true" name="aod_mask" fillColor="#000000"/>
+
+  <!-- ==================== 自然测量（用单行宽度估算行数） ==================== -->
+  <Text x="0" y="0" size="#title_size" textExp="@lu_title" name="title_natural" fontFamily="mipro-semibold" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" name="bigtext_natural" fontFamily="mipro-medium" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" name="subtext_natural" fontFamily="mipro-medium" alpha="0"/>
+
+  <!-- 用单行宽度除以可用宽度，向上取整得到自然行数 -->
+  <Var name="title_natural_lines" type="number" expression="max(1, ceil(#title_natural.text_width / max(1, #text_w)))"/>
+  <Var name="bigtext_natural_lines" type="number" expression="ifelse(#has_bigtext, max(1, ceil(#bigtext_natural.text_width / max(1, #text_w))), 0)"/>
+  <Var name="subtext_natural_lines" type="number" expression="ifelse(#has_subtext, max(1, ceil(#subtext_natural.text_width / max(1, #text_w))), 0)"/>
+
+  <!-- 动态折行：优先级 bigtext > title > subtext -->
+  <!-- 每个非空字段保底1行 -->
+  <Var name="base_title" type="number" expression="1"/>
+  <Var name="base_bigtext" type="number" expression="ifelse(#has_bigtext, 1, 0)"/>
+  <Var name="base_sub" type="number" expression="ifelse(#has_subtext, 1, 0)"/>
+  <!-- 剩余可分配行数 -->
+  <Var name="remaining_0" type="number" expression="max(0, (#max_lines - #base_title - #base_bigtext - #base_sub))"/>
+  <!-- 先给 bigtext -->
+  <Var name="bigtext_want" type="number" expression="ifelse(#has_bigtext, max(0, (#bigtext_natural_lines - #base_bigtext)), 0)"/>
+  <Var name="extra_bigtext" type="number" expression="min(#remaining_0, #bigtext_want)"/>
+  <Var name="remaining_1" type="number" expression="(#remaining_0 - #extra_bigtext)"/>
+  <!-- 再给 title -->
+  <Var name="title_want" type="number" expression="max(0, (#title_natural_lines - #base_title))"/>
+  <Var name="extra_title" type="number" expression="min(#remaining_1, #title_want)"/>
+  <Var name="remaining_2" type="number" expression="(#remaining_1 - #extra_title)"/>
+  <!-- 最后给 subtext -->
+  <Var name="sub_want" type="number" expression="ifelse(#has_subtext, max(0, (#subtext_natural_lines - #base_sub)), 0)"/>
+  <Var name="extra_sub" type="number" expression="min(#remaining_2, #sub_want)"/>
+  <!-- 最终行数（只按自然需求分配，不多给） -->
+  <Var name="title_max_lines" type="number" expression="(#base_title + #extra_title)"/>
+  <Var name="text_max_lines" type="number" expression="(#base_bigtext + #extra_bigtext)"/>
+  <Var name="subtext_max_lines" type="number" expression="(#base_sub + #extra_sub)"/>
+
+  <!-- ==================== 受限测量（用于计算实际高度和垂直居中） ==================== -->
+  <Text x="0" y="0" size="#title_size" textExp="@lu_title" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" width="#text_w" name="text_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true" alpha="0"/>
+
+  <!-- ==================== 垂直居中计算 ==================== -->
+  <!--
+    整体内容高度 = 图标高度 + icon_text_gap + 文字区域高度
+    文字区域高度 = title高度 + (has_subtext ? title_gap + subtext高度 : 0) + title_gap + bigtext高度
+    显示顺序：title → subText → bigText
+  -->
+  <!-- 图表 + 统计行 + 时间段 高度（背屏高度有限需紧凑） -->
+  <Var name="chart_h" type="number" expression="(40 * #scale)"/>
+  <Var name="stats_h" type="number" expression="(18 * #scale)"/>
+  <Var name="time_h" type="number" expression="(16 * #scale)"/>
+  <Var name="text_block_h" type="number" expression="(#title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + #text_measure.text_height)) + (#has_stats * (#title_gap + #chart_h + (4 * #scale) + #stats_h + (2 * #scale) + #time_h)))"/>
+  <Var name="total_content_h" type="number" expression="(#icon_size + #icon_text_gap + #text_block_h)"/>
+  <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
+  <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2))"/>
+
+  <!-- 边界参考线（摄像头上下，文字不越线） -->
+  <Rectangle x="0" y="#area_top" w="#view_width" h="1" fillColor="#33FFFFFF" name="bound_top"/>
+  <Rectangle x="0" y="#area_bottom" w="#view_width" h="1" fillColor="#33FFFFFF" name="bound_bottom"/>
+
+  <!-- "Agent" 文字标签（替代 App 图标，标签本身下移避免贴顶越线） -->
+  <Var name="icon_y" type="number" expression="#content_start_y"/>
+  <Var name="agent_label_y" type="number" expression="max(#area_top + (10 * #scale), #icon_y + (14 * #scale))"/>
+  <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold" folmeMode="true">
+    <FolmeState name="agent_fade" alpha="255"/>
+  </Text>
+
+  <!-- Title（第一行） -->
+  <Var name="title_y" type="number" expression="(#icon_y + #icon_size + #icon_text_gap)"/>
+  <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
+
+  <!-- SubText（第二行，可选） -->
+  <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap)"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+
+  <!-- BigText（第三行，可选） -->
+  <Var name="text_y" type="number" expression="ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap))"/>
+  <Text visibility="#has_bigtext" x="#text_x" y="#text_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_big_text" width="#text_w" name="content_text" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true"/>
+
+  <!-- ===== 展开态 agent 统计（图表 + 数据行） ===== -->
+  <!-- 图表 y：bigtext 下方（或 title/subtext 下方，若无 bigtext） -->
+  <Var name="chart_y" type="number" expression="ifelse(#has_bigtext, (#text_y + #text_measure.text_height + #title_gap), ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height + #title_gap), (#title_y + #title_measure.text_height + #title_gap)))"/>
+  <!-- 图表背景 + 标尺（网格线） -->
+  <Rectangle visibility="#has_stats" x="#text_x" y="#chart_y" w="#text_w" h="#chart_h" fillColor="#14FFFFFF" cornerRadius="4" name="chart_bg"/>
+  <!-- 底部基线（标尺参考） -->
+  <Rectangle visibility="#has_stats" x="#text_x" y="(#chart_y + #chart_h - 1)" w="#text_w" h="1" fillColor="#33FFFFFF" name="chart_baseline"/>
+  <!-- 中部水平网格线（标尺） -->
+  <Rectangle visibility="#has_stats" x="#text_x" y="(#chart_y + #chart_h / 2)" w="#text_w" h="1" fillColor="#1AFFFFFF" name="chart_grid_mid"/>
+  <!-- token 趋势图（Java 算好的 SVG path，宽度匹配 text_w） -->
+  <Path visibility="#has_stats" pathDataExp="@lu_token_path" x="#text_x" y="#chart_y" strokeColor="#4CC9F0" weight="2" cap="round" name="token_chart"/>
+  <!-- 统计行：hit率 + token明细（图表下方） -->
+  <Var name="stats_y" type="number" expression="(#chart_y + #chart_h + (4 * #scale))"/>
+  <Text visibility="#has_stats" x="#text_x" y="#stats_y" size="#text_size" color="#88FFFFFF" textExp="(('hit ' + @lu_hit_rate) + ('   ↑' + @lu_token_in) + (' ↓' + @lu_token_out))" width="#text_w" name="stats_line" fontFamily="mipro-medium"/>
+  <!-- 时间刻度标注（图表跨越时间，固定 10s/20s/30s 刻度示意） -->
+  <Var name="time_y" type="number" expression="(#stats_y + #stats_h + (2 * #scale))"/>
+  <Text visibility="#has_stats" x="#text_x" y="#time_y" size="#text_size" color="#55FFFFFF" textExp="@lu_time_range" width="#text_w" name="time_range" fontFamily="mipro-medium"/>
+
+  <!-- 无障碍 -->
+  <Rectangle x="0" y="0" w="#view_width" h="#view_height" contentDescriptionExp="(((@lu_title + ' ') + @lu_big_text) + ' ' + @lu_sub_text)" alpha="0"/>
+
+  <!-- ==================== Folme 动画配置 ==================== -->
+  <Group>
+    <FolmeState name="folme_aod" alpha="(255 * 0.4)"/>
+    <FolmeConfig name="folme_aod_config" ease="-2,1,0.72"/>
+    <FolmeState name="folme_desk" alpha="0"/>
+    <FolmeConfig name="folme_desk_config" ease="-2,1,0.5"/>
+  </Group>
+
+  <!-- ==================== 数据绑定 ==================== -->
+  <VariableBinders>
+    <MiPaletteBinder name="getIconColor" actionType="get_palette_color_string" queryAtStart="false" imageName="'app_icon'" scheme="'primary'" toneIndex="10" columns="mainColor,mainColorHex,paletteColor,paletteColorHex">
+      <Variable name="mainColor" column="mainColor" type="number"/>
+      <Variable name="mainColorHex" column="mainColorHex" type="string"/>
+      <Variable name="paletteColor" column="paletteColor" type="number"/>
+      <Variable name="paletteColorHex" column="paletteColorHex" type="string"/>
+      <Trigger>
+        <ExternCommand command="FLLogD" strPara="('getIconColor | pkg=' + @package_name + ' paletteColorHex=' + @paletteColorHex + ' mainColorHex=' + @mainColorHex)"/>
+        <FunctionCommand target="updateFrameRate"/>
+      </Trigger>
+    </MiPaletteBinder>
+  </VariableBinders>
+
+  <!-- ==================== 生命周期 ==================== -->
+  <ExternalCommands>
+    <Trigger action="init">
+      <FunctionCommand target="initData"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="notification_received">
+      <FunctionCommand target="initData"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="enterAod">
+      <FunctionCommand target="goAodState"/>
+    </Trigger>
+    <Trigger action="exitAod">
+      <FunctionCommand target="goDeskState"/>
+      <FunctionCommand target="updateFrameRate"/>
+    </Trigger>
+    <Trigger action="pause">
+      <VariableCommand name="is_pause" expression="1" type="number"/>
+      <VariableCommand name="frame_ref" expression="0" type="number"/>
+      <FrameRateCommand rate="0"/>
+    </Trigger>
+    <Trigger action="resume">
+      <VariableCommand name="is_pause" expression="0" type="number"/>
+      <FunctionCommand target="updateFrameRate"/>
+      <MultiCommand condition="(len(@paletteColorHex) == 0)">
+        <ExternCommand command="FLLogD" strPara="('resume_retry_color | pkg=' + @package_name)"/>
+        <FunctionCommand target="refreshIconColor" delay="500"/>
+      </MultiCommand>
+    </Trigger>
+  </ExternalCommands>
+</Widget>
