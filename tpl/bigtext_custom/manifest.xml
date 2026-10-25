@@ -183,8 +183,8 @@
     显示顺序：title → subText → bigText
   -->
   <!-- 图表 + 统计行 高度（展开态 agent 数据，背屏高度有限需紧凑） -->
-  <Var name="chart_h" type="number" expression="(36 * #scale)"/>
-  <Var name="stats_h" type="number" expression="(14 * #scale)"/>
+  <Var name="chart_h" type="number" expression="(40 * #scale)"/>
+  <Var name="stats_h" type="number" expression="(18 * #scale)"/>
   <Var name="text_block_h" type="number" expression="(#title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + #text_measure.text_height)) + (#has_stats * (#title_gap + #chart_h + #title_gap + #stats_h)))"/>
   <Var name="total_content_h" type="number" expression="(#icon_size + #icon_text_gap + #text_block_h)"/>
   <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
@@ -209,13 +209,19 @@
   <!-- ===== 展开态 agent 统计（图表 + 数据行） ===== -->
   <!-- 图表 y：bigtext 下方（或 title/subtext 下方，若无 bigtext） -->
   <Var name="chart_y" type="number" expression="ifelse(#has_bigtext, (#text_y + #text_measure.text_height + #title_gap), ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height + #title_gap), (#title_y + #title_measure.text_height + #title_gap)))"/>
-  <!-- token 趋势图（Java 算好的 SVG path） -->
+  <!-- 图表背景 + 标尺（网格线） -->
+  <Rectangle visibility="#has_stats" x="#text_x" y="#chart_y" w="#text_w" h="#chart_h" fillColor="#14FFFFFF" cornerRadius="4" name="chart_bg"/>
+  <!-- 底部基线（标尺参考） -->
+  <Rectangle visibility="#has_stats" x="#text_x" y="(#chart_y + #chart_h - 1)" w="#text_w" h="1" fillColor="#33FFFFFF" name="chart_baseline"/>
+  <!-- 中部水平网格线（标尺） -->
+  <Rectangle visibility="#has_stats" x="#text_x" y="(#chart_y + #chart_h / 2)" w="#text_w" h="1" fillColor="#1AFFFFFF" name="chart_grid_mid"/>
+  <!-- token 趋势图（Java 算好的 SVG path，宽度匹配 text_w） -->
   <Path visibility="#has_stats" pathDataExp="@lu_token_path" x="#text_x" y="#chart_y" strokeColor="#4CC9F0" weight="2" cap="round" name="token_chart"/>
-  <!-- 统计行：hit率 + token明细 + 工具流动（图表下方一行） -->
-  <Var name="stats_y" type="number" expression="(#chart_y + #chart_h + #title_gap)"/>
-  <Text visibility="#has_stats" x="#text_x" y="#stats_y" size="#text_size" color="#88FFFFFF" textExp="(('hit ' + @lu_hit_rate) + ('  ↑' + @lu_token_in) + (' ↓' + @lu_token_out))" width="#text_w" name="stats_line" fontFamily="mipro-medium"/>
-  <!-- 工具流动（统计行下一行） -->
-  <Var name="flow_y" type="number" expression="(#stats_y + #stats_h)"/>
+  <!-- 统计行：hit率 + token明细（图表下方，加大间距不顶着） -->
+  <Var name="stats_y" type="number" expression="(#chart_y + #chart_h + (4 * #scale))"/>
+  <Text visibility="#has_stats" x="#text_x" y="#stats_y" size="#text_size" color="#88FFFFFF" textExp="(('hit ' + @lu_hit_rate) + ('   ↑' + @lu_token_in) + (' ↓' + @lu_token_out))" width="#text_w" name="stats_line" fontFamily="mipro-medium"/>
+  <!-- 工具流动（统计行下一行，间距） -->
+  <Var name="flow_y" type="number" expression="(#stats_y + #stats_h + (2 * #scale))"/>
   <Text visibility="#has_stats" x="#text_x" y="#flow_y" size="#text_size" color="#66FFFFFF" textExp="@lu_tool_flow" width="#text_w" name="tool_flow" fontFamily="mipro-medium" ellipsis="true"/>
 
   <!-- 无障碍 -->

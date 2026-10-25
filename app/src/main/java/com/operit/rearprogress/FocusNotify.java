@@ -206,9 +206,60 @@ final class FocusNotify {
         pushState(title, "", body, percent);
     }
 
-    /**
-     * 构建通知（无进度条样式）
+/**
+     * 构建展开态（点开通知）的丰富文本：ASCII 字符图表 + 统计 + 工具流动 + 参数。
+     * 收起态（岛上）仍是 title/subText 不变。
      */
+    private static String buildExpandedText(String title, String toolName, String body) {
+        StringBuilder sb = new StringBuilder();
+        // 统计行
+        sb.append("↑").append(TokenHook.fmt(TokenHook.getLastIn()))
+          .append(" ↓").append(TokenHook.fmt(TokenHook.getLastOut()))
+          .append("   hit:").append(TokenHook.getHitRate()).append("%\n");
+        // ASCII 趋势图（用 token 历史生成柱状字符）
+        String bars = buildAsciiChart();
+        if (!bars.isEmpty()) sb.append(bars).append('\n');
+        // 工具流动
+        String flow = AgentProgress.getToolFlow();
+        if (!flow.isEmpty()) sb.append("最近: ").append(flow).append('\n');
+        // 分隔 + 参数
+        sb.append("───────────\n").append(body);
+        return sb.toString();
+    }
+
+    /** 用 token 历史生成 ASCII 柱状图（▁▂▃▄▅▆▇█），每字符一个采样点 */
+    private static String buildAsciiChart() {
+        String hist = TokenHook.getHistoryJson();
+        if (hist == null || hist.length() < 10) return "";
+        try {
+            // 简易解析 [[in,out],...] 取 in
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("\\[(\\d+),(\\d+)\\]").matcher(hist);
+            java.util.List<Long> vals = new java.util.ArrayList<>();
+            while (m.find()) vals.add(Long.parseLong(m.group(1)));
+            int n = vals.size();
+            if (n < 2) return "";
+            // 采样最多 32 个字符宽
+            int maxCols = 32;
+            int step = Math.max(1, n / maxCols);
+            long max = 1;
+            for (long v : vals) if (v > max) max = v;
+            // 8 级柱状字符（低→高）
+            char[] blocks = {'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'};
+            StringBuilder bar = new StringBuilder();
+            for (int i = 0; i < n; i += step) {
+                int lvl = (int) (vals.get(i) * 7 / max);
+                if (lvl < 0) lvl = 0;
+                if (lvl > 7) lvl = 7;
+                bar.append(blocks[lvl]);
+            }
+            return bar.toString();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** 构建通知（无进度条样式） */
     @SuppressWarnings("deprecation")
     private static Notification buildNotification(Context ctx, String title, String toolName,
                                                   String body, int percent, boolean hasBar) {
@@ -231,10 +282,11 @@ final class FocusNotify {
         b.setShowWhen(false);
         b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
 
-        // 用 BigTextStyle 显示完整内容（无进度条）
+        // 用 BigTextStyle 显示完整内容（展开态 = 丰富 agent 统计 + ASCII 图表）
         try {
+            String expanded = buildExpandedText(title, toolName, body);
             Notification.BigTextStyle bigText = new Notification.BigTextStyle()
-                    .bigText(body)
+                    .bigText(expanded)
                     .setBigContentTitle(title)
                     .setSummaryText(toolName);
             b.setStyle(bigText);
@@ -245,7 +297,7 @@ final class FocusNotify {
         try {
             // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
             n.extras.putString("token_history", TokenHook.getHistoryJson());
-            n.extras.putString("token_path", TokenHook.getHistoryPath(240, 36));
+            n.extras.putString("token_path", TokenHook.getHistoryPath(800, 110));
             n.extras.putString("hit_rate", TokenHook.getHitRate() + "%");
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getLastIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getLastOut()));
