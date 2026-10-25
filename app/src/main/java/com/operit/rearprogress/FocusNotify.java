@@ -298,10 +298,33 @@ final class FocusNotify {
         b.setShowWhen(false);
         b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
 
-        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读这个，保持原样）
+        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读 body，保持原样；展开态追加统计信息）
         try {
+            // 展开态内容：body + 统计信息（背屏只读 body，不受影响）
+            String expanded = body;
+            try {
+                StringBuilder extra = new StringBuilder();
+                String flow = AgentProgress.getToolFlow();
+                if (flow != null && !flow.isEmpty()) {
+                    extra.append("\n\n──── 工具流 ────\n").append(flow);
+                }
+                String taskTime = TokenHook.getTaskTime();
+                if (taskTime != null && !taskTime.isEmpty()) {
+                    extra.append("\n──── 任务 ────\n").append(taskTime);
+                }
+                double hitRate = TokenHook.getHitRate();
+                if (hitRate > 0) {
+                    extra.append(String.format(java.util.Locale.US,
+                            "\n──── 统计 ────\nhit:%.2f%%  ↑%s ↓%s",
+                            hitRate,
+                            TokenHook.fmt(TokenHook.getLastIn()),
+                            TokenHook.fmt(TokenHook.getLastOut())));
+                }
+                if (extra.length() > 0) expanded = body + extra.toString();
+            } catch (Throwable ignored) {}
+
             Notification.BigTextStyle bigText = new Notification.BigTextStyle()
-                    .bigText(body)
+                    .bigText(expanded)
                     .setBigContentTitle(title)
                     .setSummaryText(toolName);
             b.setStyle(bigText);

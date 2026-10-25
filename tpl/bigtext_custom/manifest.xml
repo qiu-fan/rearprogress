@@ -220,7 +220,7 @@
   <!-- SubText（第二行：token + hit率）—— token_offset 控制 token 行独立上移，不影响 A/B/C/D -->
   <Var name="token_offset" type="number" expression="(5.2 * #scale)"/>
   <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap - #token_offset)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text + '   ' + @lu_hit_rate" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- BigText（第三行，可选）—— 消息区整体按 body_offset 上移，不带动上方标题 -->
   <Var name="text_y" type="number" expression="(ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap)) - #body_offset)"/>
