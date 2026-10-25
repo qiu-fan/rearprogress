@@ -9,9 +9,9 @@
   <Var name="icon_size" type="number" expression="(40 * #scale)"/>
   <Var name="icon_corner" type="number" expression="(102 * #scale)"/>
 
-  <!-- 内容区域：padding 20 -->
+  <!-- 内容区域：padding 20（底部略减，整体内容上移） -->
   <Var name="area_top" type="number" expression="(20 * #scale)"/>
-  <Var name="area_bottom" type="number" expression="((213 - 20 - 12) * #scale)"/>
+  <Var name="area_bottom" type="number" expression="((213 - 20 - 18) * #scale)"/>
   <Var name="area_h" type="number" expression="(#area_bottom - #area_top)"/>
 
   <!-- 文字参数 -->
@@ -214,8 +214,8 @@
   <Text visibility="#has_bigtext" x="#text_x" y="#text_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_big_text" width="#text_w" name="content_text" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true"/>
 
   <!-- ===== 展开态 agent 统计（图表 + 数据行） ===== -->
-  <!-- 图表 y：bigtext 下方（或 title/subtext 下方，若无 bigtext） -->
-  <Var name="chart_y" type="number" expression="ifelse(#has_bigtext, (#text_y + #text_measure.text_height + #title_gap), ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height + #title_gap), (#title_y + #title_measure.text_height + #title_gap)))"/>
+  <!-- 图表 y：bigtext 下方（或 title/subtext 下方，若无 bigtext），下方留较大间距避免与折线贴太近 -->
+  <Var name="chart_y" type="number" expression="ifelse(#has_bigtext, (#text_y + #text_measure.text_height + (#title_gap * 2)), ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height + (#title_gap * 2)), (#title_y + #title_measure.text_height + (#title_gap * 2))))"/>
   <!-- 图表背景 + 标尺（网格线） -->
   <Rectangle visibility="#has_stats" x="#text_x" y="#chart_y" w="#text_w" h="#chart_h" fillColor="#14FFFFFF" cornerRadius="4" name="chart_bg"/>
   <!-- 底部基线（标尺参考） -->
