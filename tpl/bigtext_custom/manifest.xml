@@ -45,6 +45,8 @@
   <Var name="has_bigtext" type="number" expression="0" const="true"/>
   <Var name="has_subtext" type="number" expression="0" const="true"/>
   <Var name="has_stats" type="number" expression="0" const="true"/>
+  <!-- Agent 标签是否显示（仅 Operit 包，parseData 里计算） -->
+  <Var name="show_agent_label" type="number" expression="0" const="true"/>
 
   <!-- 调色板 -->
   <Var name="paletteColorHex" type="string" expression="''" const="true"/>
@@ -110,6 +112,8 @@
     <VariableCommand name="lu_tool_flow" expression="jsonGetString($data, 'lu_tool_flow')" type="string"/>
     <VariableCommand name="lu_time_range" expression="jsonGetString($data, 'lu_time_range')" type="string"/>
     <VariableCommand name="lu_task_time" expression="jsonGetString($data, 'lu_task_time')" type="string"/>
+    <!-- Agent 标签只在 Operit 包的卡片上显示（其他应用通知不显示该标签） -->
+    <VariableCommand name="show_agent_label" expression="ifelse(eq(@lu_package_name, 'com.ai.assistance.operit'), 1, 0)" type="number"/>
     <VariableCommand name="has_bigtext" expression="(len(@lu_big_text) } 0)" type="number"/>
     <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
     <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
@@ -196,10 +200,10 @@
   <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
   <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2))"/>
 
-  <!-- "Agent" 文字标签（替代 App 图标），右侧显示时长 -->
+  <!-- "Agent" 文字标签（替代 App 图标），仅 Operit 包的卡片显示 -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
   <Var name="agent_label_y" type="number" expression="max(#area_top + (8 * #scale), #icon_y)"/>
-  <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
+  <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
   <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale))"/>
