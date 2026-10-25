@@ -476,12 +476,10 @@ final class AgentProgress {
             return sLastTokenUsage;
         }
 
-        // 3. token 还没拿到时：返回占位符（不返回工具名，避免与 title 相同导致灵动岛左右一样）
+        // 3. token 还没拿到时：返回占位符（参数属 body 职责，不塞副标题）
         synchronized (AgentProgress.class) {
             if (sRecent.isEmpty()) return "…";
-            String[] last = sRecent.get(sRecent.size() - 1);
-            // 有工具但无 token → 用参数摘要或占位，绝不复用工具名
-            return (last[1] == null || last[1].isEmpty()) ? "…" : last[1];
+            return "…";  // 有工具但无 token → 占位，避免与 title/参数混淆
         }
     }
 
