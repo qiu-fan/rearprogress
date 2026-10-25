@@ -17,6 +17,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 模拟发布测试页（从面板跳转） -->
+        <activity
+            android:name=".TestPublishActivity"
+            android:exported="false"
+            android:label="模拟发布测试" />
     </application>
 
 </manifest>

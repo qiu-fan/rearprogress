@@ -5,12 +5,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -41,6 +43,8 @@ public class MainActivity extends Activity {
     private TextView tvStatus;
     private TextView tvLog;
     private ScrollView logScroll;
+    /** 模拟发布输入框 */
+    private EditText etTool, etToken, etBody;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean refreshing = true;
     private boolean receiverRegistered = false;
@@ -80,7 +84,8 @@ public class MainActivity extends Activity {
         root.addView(sectionLabel("操作"));
         root.addView(btnRow(
                 makeButton("重启 Operit", v -> restartOperit()),
-                makeButton("强停", v -> execSu("am force-stop " + OPERIT_PKG, "已强停"))));
+                makeButton("强停", v -> execSu("am force-stop " + OPERIT_PKG, "已强停")),
+                makeButton("重启背屏", v -> restartSubScreenCenter())));
         root.addView(btnRow(
                 makeButton("开通知", v -> { execSu("touch " + ENABLED_FILE, "已开"); refreshStatus(); }),
                 makeButton("清通知", v -> { execSu("rm -f " + ENABLED_FILE, "已清"); refreshStatus(); })));
@@ -88,13 +93,18 @@ public class MainActivity extends Activity {
                 makeButton("清进度", v -> { execSu("rm -f " + PROGRESS_FILE, "已清"); refreshStatus(); }),
                 makeButton("清日志", v -> { execSuSilent("logcat -c"); tvLog.setText("（日志已清空）"); })));
 
-        // ===== 测试区 =====
+        // ===== 测试区（含模拟发布页，核心调试） =====
         root.addView(sectionLabel("测试"));
         root.addView(btnRow(
                 makeButton("测进度(纯)", v -> testProgress(false)),
                 makeButton("测进度(JSON)", v -> testProgress(true)),
                 makeButton("测重启广播", v -> sendCmd("restart_operit")),
                 makeButton("测状态", v -> sendCmd("status"))));
+
+        // —— 模拟发布：跳到独立测试页 ——
+        root.addView(btnRow(
+                makeButton("→ 模拟发布（测试页）", v ->
+                        startActivity(new Intent(this, TestPublishActivity.class)))));
 
         // 注册 AI 远程命令接收器
         registerCmdReceiver();
@@ -277,6 +287,41 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 Log.w(TAG, "execSu failed", e);
                 runOnUiThread(() -> Toast.makeText(this, "执行失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    /** 单行输入框（带提示） */
+    static EditText makeInput(Activity a, String hint) {
+        EditText et = new EditText(a);
+        et.setHint(hint);
+        et.setTextSize(13);
+        et.setSingleLine(false);
+        et.setMaxLines(2);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 0, 4);
+        et.setLayoutParams(lp);
+        return et;
+    }
+
+    /** shell 单引号转义 */
+    static String esc(String s) {
+        return (s == null) ? "" : s.replace("'", "'\\''");
+    }
+
+    /** 重启副屏中心（负责 MAML 背屏渲染的进程）：强停后系统会自动拉起 */
+    private void restartSubScreenCenter() {
+        Toast.makeText(this, "正在重启副屏中心…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                execSuSilent("am force-stop com.xiaomi.subscreencenter");
+                Thread.sleep(2000);
+                // 系统会自动重启（它是常驻服务）；如未拉起，兜底 startservice
+                execSuSilent("am startservice -n com.xiaomi.subscreencenter/.smartassistant.SmartAssistantService >/dev/null 2>&1");
+                runOnUiThread(() -> Toast.makeText(this, "副屏中心已重启", Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }).start();
     }
