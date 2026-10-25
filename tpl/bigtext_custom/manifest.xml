@@ -209,9 +209,9 @@
   <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale))"/>
   <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
 
-  <!-- SubText（第二行：token + hit率；ready 态只显示「已就绪」，不显示 hit） -->
+  <!-- SubText（第二行：token + hit率；ready 态不显示，已就绪文字仅在初始 body） -->
   <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="ifelse(eq(@lu_sub_text, 'ready'), '已就绪', (@lu_sub_text + '   ' + @lu_hit_rate))" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="ifelse(or(eq(@lu_sub_text, 'ready'), eq(@lu_sub_text, '')), '', (@lu_sub_text + '   ' + @lu_hit_rate))" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- BigText（第三行，可选） -->
   <Var name="text_y" type="number" expression="ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap))"/>
