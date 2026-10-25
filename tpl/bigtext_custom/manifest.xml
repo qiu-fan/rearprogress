@@ -68,7 +68,7 @@
     展示优先级：bigtext > title > subtext
     每个非空字段至少保留1行
   -->
-  <Var name="max_lines" type="number" expression="4"/>
+  <Var name="max_lines" type="number" expression="6"/>
 
   <!-- ==================== 帧率管理 ==================== -->
   <Function name="acquireFrameRate">
@@ -121,7 +121,7 @@
     <VariableCommand name="lu_time_range" expression="jsonGetString($data, 'lu_time_range')" type="string"/>
     <VariableCommand name="lu_task_time" expression="jsonGetString($data, 'lu_task_time')" type="string"/>
     <!-- Agent 标签只在 Operit 包的卡片上显示（其他应用通知不显示该标签） -->
-    <VariableCommand name="show_agent_label" expression="ifelse(eq(@lu_package_name, 'com.ai.assistance.operit'), 1, 0)" type="number"/>
+    <Var name="show_agent_label" type="number" expression="ifelse(eq(@lu_package_name, 'com.ai.assistance.operit'), 1, 0)"/>
     <VariableCommand name="has_bigtext" expression="(len(@lu_big_text) } 0)" type="number"/>
     <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
     <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
@@ -210,7 +210,7 @@
 
   <!-- "Agent" 文字标签（仅 Operit 包显示），顶部对齐安全区上沿（10*scale） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset"/>
+  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset - ifelse(#bigtext_natural_lines > 3, 6.5 * #scale, 0)"/>
   <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->

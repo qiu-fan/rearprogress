@@ -18,6 +18,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -105,6 +107,11 @@ public class MainActivity extends Activity {
         root.addView(btnRow(
                 makeButton("→ 模拟发布（测试页）", v ->
                         startActivity(new Intent(this, TestPublishActivity.class)))));
+
+        // —— 布局参数：跳到独立布局调节页 ——
+        root.addView(btnRow(
+                makeButton("→ 布局参数（背屏）", v ->
+                        startActivity(new Intent(this, LayoutConfigActivity.class)))));
 
         // 注册 AI 远程命令接收器
         registerCmdReceiver();

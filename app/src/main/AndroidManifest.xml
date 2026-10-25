@@ -24,6 +24,12 @@
             android:name=".TestPublishActivity"
             android:exported="false"
             android:label="模拟发布测试" />
+
+        <!-- 布局参数调节页（从面板跳转） -->
+        <activity
+            android:name=".LayoutConfigActivity"
+            android:exported="false"
+            android:label="布局参数" />
     </application>
 
 </manifest>

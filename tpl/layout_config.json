@@ -1,0 +1,22 @@
+{
+  "description": "RearProgress 背屏布局参数 (scale = view_height / 213)",
+  "scale_base": 213,
+  "content_x": 103,
+  "content_pad": 20,
+  "content_pad_right": 20,
+  "area_top": 12,
+  "area_bottom_offset": 1.8,
+  "area_bottom_expr": "213-20-12-1.8",
+  "agent_offset": 11.8,
+  "head_offset": 2,
+  "token_offset": 5.2,
+  "body_offset": 0,
+  "chart_offset": 7.4,
+  "title_gap": 6,
+  "text_rows": 2,
+  "max_lines": 4,
+  "title_size": 18,
+  "text_size": 14,
+  "icon_text_gap": 10,
+  "comment": "位置依赖链: agent_label_y=max(area_top,icon_y)+agent_offset; title_y=agent_label_y+agent_h+4*scale+head_offset; subtext_y=title_y+title_height+title_gap-token_offset; text_y=subtext_y+subtext_height-body_offset; chart_y=长公式(不随消息长度浮动)-body_offset-chart_offset"
+}
