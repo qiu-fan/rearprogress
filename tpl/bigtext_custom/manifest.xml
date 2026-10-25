@@ -18,7 +18,7 @@
   <Var name="title_size" type="number" expression="(18 * #scale)"/>
   <Var name="text_size" type="number" expression="(14 * #scale)"/>
   <Var name="icon_text_gap" type="number" expression="(10 * #scale)"/>
-  <Var name="title_gap" type="number" expression="(2 * #scale)"/>
+  <Var name="title_gap" type="number" expression="(6 * #scale)"/>
   <Var name="text_gap" type="number" expression="(0 * #scale)"/>
 
   <!-- ==================== 状态变量 ==================== -->
@@ -39,6 +39,7 @@
   <Var name="lu_token_out" type="string" expression="''" const="true"/>
   <Var name="lu_tool_flow" type="string" expression="''" const="true"/>
   <Var name="lu_time_range" type="string" expression="''" const="true"/>
+  <Var name="lu_task_time" type="string" expression="''" const="true"/>
 
   <!-- 字段存在标记 -->
   <Var name="has_bigtext" type="number" expression="0" const="true"/>
@@ -108,6 +109,7 @@
     <VariableCommand name="lu_token_out" expression="jsonGetString($data, 'lu_token_out')" type="string"/>
     <VariableCommand name="lu_tool_flow" expression="jsonGetString($data, 'lu_tool_flow')" type="string"/>
     <VariableCommand name="lu_time_range" expression="jsonGetString($data, 'lu_time_range')" type="string"/>
+    <VariableCommand name="lu_task_time" expression="jsonGetString($data, 'lu_task_time')" type="string"/>
     <VariableCommand name="has_bigtext" expression="(len(@lu_big_text) } 0)" type="number"/>
     <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
     <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
@@ -184,31 +186,29 @@
     文字区域高度 = title高度 + (has_subtext ? title_gap + subtext高度 : 0) + title_gap + bigtext高度
     显示顺序：title → subText → bigText
   -->
-  <!-- 图表 + 统计行 + 时间段 高度（背屏高度有限需紧凑） -->
+  <!-- 图表 + 统计行 + 时间段 高度（背屏高度有限需紧凑，内容驱动含 Agent 行） -->
   <Var name="chart_h" type="number" expression="(40 * #scale)"/>
   <Var name="stats_h" type="number" expression="(18 * #scale)"/>
   <Var name="time_h" type="number" expression="(16 * #scale)"/>
-  <Var name="text_block_h" type="number" expression="(#title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + #text_measure.text_height)) + (#has_stats * (#title_gap + #chart_h + (4 * #scale) + #stats_h + (2 * #scale) + #time_h)))"/>
+  <Var name="agent_h" type="number" expression="(20 * #scale)"/>
+  <Var name="text_block_h" type="number" expression="(#agent_h + (4 * #scale) + #title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + #text_measure.text_height)) + (#has_stats * (#title_gap + #chart_h + (4 * #scale) + #stats_h)))"/>
   <Var name="total_content_h" type="number" expression="(#icon_size + #icon_text_gap + #text_block_h)"/>
   <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
   <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2))"/>
 
-  <!-- 边界参考线（摄像头上下，文字不越线） -->
-  <Rectangle x="0" y="#area_top" w="#view_width" h="1" fillColor="#33FFFFFF" name="bound_top"/>
-  <Rectangle x="0" y="#area_bottom" w="#view_width" h="1" fillColor="#33FFFFFF" name="bound_bottom"/>
-
-  <!-- "Agent" 文字标签（替代 App 图标，标签本身下移避免贴顶越线） -->
+  <!-- "Agent" 文字标签（替代 App 图标），右侧显示时长 -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Var name="agent_label_y" type="number" expression="max(#area_top + (10 * #scale), #icon_y + (14 * #scale))"/>
+  <Var name="agent_label_y" type="number" expression="max(#area_top + (8 * #scale), #icon_y)"/>
   <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
+  <Text x="(#text_x + (90 * #scale))" y="#agent_label_y" size="#text_size" color="#66FFFFFF" textExp="@lu_time_range" name="time_dur" fontFamily="mipro-medium"/>
 
-  <!-- Title（第一行） -->
-  <Var name="title_y" type="number" expression="(#icon_y + #icon_size + #icon_text_gap)"/>
+  <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
+  <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale))"/>
   <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
 
-  <!-- SubText（第二行，可选） -->
+  <!-- SubText（第二行：token + hit率） -->
   <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="(@lu_sub_text + '   ' + @lu_hit_rate)" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- BigText（第三行，可选） -->
   <Var name="text_y" type="number" expression="ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap))"/>
@@ -225,12 +225,9 @@
   <Rectangle visibility="#has_stats" x="#text_x" y="(#chart_y + #chart_h / 2)" w="#text_w" h="1" fillColor="#1AFFFFFF" name="chart_grid_mid"/>
   <!-- token 趋势图（Java 算好的 SVG path，宽度匹配 text_w） -->
   <Path visibility="#has_stats" pathDataExp="@lu_token_path" x="#text_x" y="#chart_y" strokeColor="#4CC9F0" weight="2" cap="round" name="token_chart"/>
-  <!-- 统计行：hit率 + token明细（图表下方） -->
+  <!-- 统计行：任务时间（开始-结束 时长），去掉重复token -->
   <Var name="stats_y" type="number" expression="(#chart_y + #chart_h + (4 * #scale))"/>
-  <Text visibility="#has_stats" x="#text_x" y="#stats_y" size="#text_size" color="#88FFFFFF" textExp="(('hit ' + @lu_hit_rate) + ('   ↑' + @lu_token_in) + (' ↓' + @lu_token_out))" width="#text_w" name="stats_line" fontFamily="mipro-medium"/>
-  <!-- 时间刻度标注（图表跨越时间，固定 10s/20s/30s 刻度示意） -->
-  <Var name="time_y" type="number" expression="(#stats_y + #stats_h + (2 * #scale))"/>
-  <Text visibility="#has_stats" x="#text_x" y="#time_y" size="#text_size" color="#55FFFFFF" textExp="@lu_time_range" width="#text_w" name="time_range" fontFamily="mipro-medium"/>
+  <Text visibility="#has_stats" x="#text_x" y="#stats_y" size="#text_size" color="#55FFFFFF" textExp="@lu_task_time" width="#text_w" name="stats_line" fontFamily="mipro-medium"/>
 
   <!-- 无障碍 -->
   <Rectangle x="0" y="0" w="#view_width" h="#view_height" contentDescriptionExp="(((@lu_title + ' ') + @lu_big_text) + ' ' + @lu_sub_text)" alpha="0"/>

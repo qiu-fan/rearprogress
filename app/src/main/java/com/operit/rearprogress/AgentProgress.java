@@ -83,7 +83,7 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("read_file_full", "ReadFull");
         TOOL_NAME_MAP.put("read_file_binary", "ReadBin");
         TOOL_NAME_MAP.put("create_file", "Create");
-        TOOL_NAME_MAP.put("edit_file", "edit_file");
+        TOOL_NAME_MAP.put("edit_file", "EditFile");
         TOOL_NAME_MAP.put("delete_file", "Delete");
         TOOL_NAME_MAP.put("write_file", "WriteFile");
         TOOL_NAME_MAP.put("write_file_binary", "WriteFile");

@@ -177,10 +177,15 @@ final class FocusNotify {
     private static String shortenPaths(String text) {
         if (text == null || text.isEmpty()) return text;
         try {
-            // 工作区路径：/data/user/0/com.ai.assistance.operit/files/workspace/<uuid>/...
+            // 工作区路径（精确，先处理）：.../files/workspace/<uuid>/ → 工作区/
             text = text.replaceAll(
                 "/data/user/0/com\\.ai\\.assistance\\.operit/files/workspace/[0-9a-f-]+/",
                 "工作区/"
+            );
+            // Operit data 路径（兜底）：/data/user/0/com.ai.assistance.operit/ → Operit//
+            text = text.replaceAll(
+                "/data/user/0/com\\.ai\\.assistance\\.operit/",
+                "Operit//"
             );
             // 代码目录：/storage/emulated/0/Android/code/...
             text = text.replaceAll(
@@ -302,6 +307,7 @@ final class FocusNotify {
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getPrevTotalOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());
             n.extras.putString("time_range", TokenHook.getTimeRange());
+            n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。

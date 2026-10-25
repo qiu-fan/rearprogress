@@ -105,13 +105,34 @@ final class TokenHook {
         return sLastCached * 100.0 / sLastIn;
     }
 
-    /** 图表跨越的时间段，如 "12:30-12:31 (60s)"，无数据返回空 */
+    /** 图表跨越的时长，如 "251s"，无数据返回空 */
     static String getTimeRange() {
         if (sHistFirstAt == 0 || sHistLastAt <= sHistFirstAt) return "";
-        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US);
         long spanSec = (sHistLastAt - sHistFirstAt) / 1000;
-        return f.format(new java.util.Date(sHistFirstAt)) + "-" + f.format(new java.util.Date(sHistLastAt))
-                + " (" + spanSec + "s)";
+        if (spanSec >= 60) {
+            long m = spanSec / 60;
+            long s = spanSec % 60;
+            return m + "m" + (s > 0 ? s + "s" : "");
+        }
+        return spanSec + "s";
+    }
+
+    /** 任务时间：开始-结束 (时长)，自适应格式 */
+    static String getTaskTime() {
+        if (sHistFirstAt == 0) return "";
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US);
+        String start = f.format(new java.util.Date(sHistFirstAt));
+        long spanSec = (sHistLastAt - sHistFirstAt) / 1000;
+        String dur;
+        if (spanSec >= 60) {
+            long m = spanSec / 60;
+            long s = spanSec % 60;
+            dur = m + "m" + (s > 0 ? s + "s" : "");
+        } else {
+            dur = spanSec + "s";
+        }
+        if (sHistLastAt <= sHistFirstAt) return start + " - … (" + dur + ")";
+        return start + " - " + f.format(new java.util.Date(sHistLastAt)) + " (" + dur + ")";
     }
 
     /** 上一轮结束的总 input/output（供 hit 行显示"上一轮总"） */
