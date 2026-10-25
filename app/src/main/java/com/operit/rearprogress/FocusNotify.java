@@ -143,6 +143,10 @@ final class FocusNotify {
             String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
             if (key.equals(sLastTitle)) return;   // 完全没变就不发
             sLastTitle = key;
+            // 副标题去重：与标题/内容相同则不显示（避免岛上左右/上下重复文字）
+            if (toolName.equalsIgnoreCase(title) || toolName.equalsIgnoreCase(body)) {
+                toolName = "";
+            }
             LogX.i(TAG, "pushState title=[" + title + "] tool=[" + toolName + "] body=["
                     + (body.length() > 40 ? body.substring(0, 40) + "…" : body) + "] pct=" + percent);
 

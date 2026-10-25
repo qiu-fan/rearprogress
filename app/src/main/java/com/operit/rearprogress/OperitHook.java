@@ -448,9 +448,10 @@ final class OperitHook {
                 // 若启动窗口内已有真实工具记录（不该有），则不覆盖
                 if (AgentProgress.toolCount() > 0) return;
                 AgentProgress.markReady();
-                // 初始状态：标题 Agent，副标题 Ready（≠标题，避免灵动岛左右相同），内容 已就绪
-                FocusNotify.pushState("Agent", "Ready", "已就绪", -1);
-                LogX.i(TAG, "initial state pushed -> Agent / Ready / 已就绪");
+                // 初始状态：标题固定 Agent；副标题留空（避免与标题重复）；内容=已就绪。
+                // 背屏模板 ready 态也会把 subtext 渲染为「已就绪」（Agent + 已就绪）。
+                FocusNotify.pushState("Agent", "", "已就绪", -1);
+                LogX.i(TAG, "initial state pushed -> Agent / (空副标题) / 已就绪");
             } catch (Throwable e) {
                 LogX.e(TAG, "pushInitialState failed", e);
             }
