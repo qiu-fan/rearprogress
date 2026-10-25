@@ -14,6 +14,14 @@
   <Var name="area_bottom" type="number" expression="((213 - 20 - 12) * #scale)"/>
   <Var name="area_h" type="number" expression="(#area_bottom - #area_top)"/>
 
+  <!-- 上方文字下移偏移量（用于调节间距）：Agent 独立、标题独立 -->
+  <Var name="agent_offset" type="number" expression="(11.8 * #scale)"/>
+  <Var name="head_offset" type="number" expression="(2 * #scale)"/>
+  <!-- 消息/图表/任务时间整体上移偏移量（不影响 Agent 和标题） -->
+  <Var name="body_offset" type="number" expression="(0 * #scale)"/>
+  <!-- 图表+任务时间相对消息再上移的偏移量 -->
+  <Var name="chart_offset" type="number" expression="(7.4 * #scale)"/>
+
   <!-- 文字参数 -->
   <Var name="title_size" type="number" expression="(18 * #scale)"/>
   <Var name="text_size" type="number" expression="(14 * #scale)"/>
@@ -202,25 +210,26 @@
 
   <!-- "Agent" 文字标签（仅 Operit 包显示），顶部对齐安全区上沿（10*scale） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y)"/>
+  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset"/>
   <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
-  <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale))"/>
+  <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale) + #head_offset)"/>
   <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
 
-  <!-- SubText（第二行：token + hit率；ready 态不显示，已就绪文字仅在初始 body） -->
-  <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="ifelse(or(eq(@lu_sub_text, 'ready'), eq(@lu_sub_text, '')), '', (@lu_sub_text + '   ' + @lu_hit_rate))" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <!-- SubText（第二行：token + hit率）—— token_offset 控制 token 行独立上移，不影响 A/B/C/D -->
+  <Var name="token_offset" type="number" expression="(5.2 * #scale)"/>
+  <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap - #token_offset)"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
-  <!-- BigText（第三行，可选） -->
-  <Var name="text_y" type="number" expression="ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap))"/>
+  <!-- BigText（第三行，可选）—— 消息区整体按 body_offset 上移，不带动上方标题 -->
+  <Var name="text_y" type="number" expression="(ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap)) - #body_offset)"/>
   <Text visibility="#has_bigtext" x="#text_x" y="#text_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_big_text" width="#text_w" name="content_text" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true"/>
 
   <!-- ===== 展开态 agent 统计（图表 + 数据行）—— 固定位置，不随消息长度变动 ===== -->
   <!-- Agent标签 → title → subtext → bigtext(固定2行) → 图表 → 任务时间 -->
   <Var name="text_rows" type="number" expression="2"/>
-  <Var name="chart_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale) + #title_measure.text_height + (#title_gap) + #subtext_measure.text_height + (#title_gap) + (#text_rows * #subtext_measure.text_height) + (#title_gap * 2))"/>
+  <Var name="chart_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale) + #head_offset + #title_measure.text_height + (#title_gap) + #subtext_measure.text_height + (#title_gap) + (#text_rows * #subtext_measure.text_height) + (#title_gap * 2) - #body_offset - #chart_offset)"/>
   <!-- 图表背景 + 标尺（网格线） -->
   <Rectangle visibility="#has_stats" x="#text_x" y="#chart_y" w="#text_w" h="#chart_h" fillColor="#14FFFFFF" cornerRadius="4" name="chart_bg"/>
   <!-- 底部基线（标尺参考） -->

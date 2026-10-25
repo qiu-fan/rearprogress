@@ -138,6 +138,13 @@ final class FocusNotify {
             toolName = toolName.trim();
             body = body.trim();
             body = shortenPaths(body);  // 替换长路径为简短别名
+            // token 副标题保底：body 有值但 toolName 为空时（GrepCode/ReadPart 等工具
+            // 参数未被记录到 sRecent，导致 toolName() 走不到 token 分支返回空串），
+            // 直接取 token 用量，避免背屏第二行 token 消失
+            if (!body.isEmpty() && toolName.isEmpty()) {
+                String tok = AgentProgress.toolName();
+                if (tok != null && tok.startsWith("↑")) toolName = tok;
+            }
             if (title.isEmpty() && body.isEmpty()) return;
 
             String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;

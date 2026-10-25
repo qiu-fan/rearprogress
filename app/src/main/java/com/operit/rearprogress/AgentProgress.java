@@ -504,10 +504,14 @@ final class AgentProgress {
         synchronized (AgentProgress.class) {
             if (!sRecent.isEmpty()) {
                 StringBuilder sb = new StringBuilder();
+                java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
                 for (int i = sRecent.size() - 1; i >= 0; i--) {
                     String[] r = sRecent.get(i);
                     String d = (r[1] == null) ? "" : r[1].trim();
-                    if (d.isEmpty()) continue;  // 跳过空参数，避免多余的 — 占位线
+                    if (d.isEmpty()) continue;  // 跳过空参数
+                    seen.add(d);  // 去重：同一参数被 Hook 多次记录只显示一次
+                }
+                for (String d : seen) {
                     if (sb.length() > 0) sb.append('\n');
                     sb.append(d);
                 }
