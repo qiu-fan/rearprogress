@@ -200,9 +200,7 @@
   <!-- "Agent" 文字标签（替代 App 图标，标签本身下移避免贴顶越线） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
   <Var name="agent_label_y" type="number" expression="max(#area_top + (10 * #scale), #icon_y + (14 * #scale))"/>
-  <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold" folmeMode="true">
-    <FolmeState name="agent_fade" alpha="255"/>
-  </Text>
+  <Text x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第一行） -->
   <Var name="title_y" type="number" expression="(#icon_y + #icon_size + #icon_text_gap)"/>
