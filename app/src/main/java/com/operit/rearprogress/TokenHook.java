@@ -58,11 +58,6 @@ final class TokenHook {
     private static volatile java.util.concurrent.ScheduledFuture<?> sFinalizeTask;
     private static java.util.concurrent.ScheduledExecutorService sScheduler;
 
-    // ---- 价格表（元 / 1K token）—— 可按模型调整 ----
-    private static final double PRICE_CACHED_PER_K = 0.02;   // 缓存命中
-    private static final double PRICE_INPUT_PER_K = 1.0;     // 未缓存输入
-    private static final double PRICE_OUTPUT_PER_K = 2.0;    // 输出
-
     // ---- token 历史（环形缓冲，供展开态图表） ----
     private static final int HISTORY_SIZE = 40;
     private static final long[] sHistIn = new long[HISTORY_SIZE];
@@ -367,12 +362,9 @@ final class TokenHook {
                     // 期间没有新数据（值未变）才算完成
                     if (sLastIn == in && sLastOut == out && sLastCached == cached && !sFinalized) {
                         sFinalized = true;
-                        // 计算费用：input = in - cached（未缓存部分），cached 命中部分，output
-                        double cost = calcCost(in, out, cached);
-                        String total = format(in, out, cached, false)
-                                + String.format(java.util.Locale.US, " ¥%.2f", cost);
+                        String total = format(in, out, cached, false);
                         AgentProgress.setLastTokenUsage(total);
-                        LogX.i(TAG, "token finalized (总+费用): " + total);
+                        LogX.i(TAG, "token finalized (总): " + total);
                         FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
                                 AgentProgress.body(), AgentProgress.percent());
                     }
@@ -383,18 +375,6 @@ final class TokenHook {
         } catch (Throwable t) {
             LogX.w(TAG, "scheduleFinalize failed: " + t);
         }
-    }
-
-    /**
-     * 计算单次费用（元）。
-     * 输入 token = in - cached（未缓存部分按输入价，缓存命中部分按缓存价）
-     */
-    private static double calcCost(long in, long out, long cached) {
-        long uncachedIn = Math.max(0, in - cached);
-        double costIn = uncachedIn / 1000.0 * PRICE_INPUT_PER_K;
-        double costCached = cached / 1000.0 * PRICE_CACHED_PER_K;
-        double costOut = out / 1000.0 * PRICE_OUTPUT_PER_K;
-        return costIn + costCached + costOut;
     }
 
     // ------------------------------------------------------------ 格式化
