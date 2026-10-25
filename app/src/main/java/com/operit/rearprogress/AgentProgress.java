@@ -85,6 +85,8 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("create_file", "Create");
         TOOL_NAME_MAP.put("edit_file", "Edit");
         TOOL_NAME_MAP.put("delete_file", "Delete");
+        TOOL_NAME_MAP.put("write_file", "WriteFile");
+        TOOL_NAME_MAP.put("write_file_binary", "WriteFile");
         TOOL_NAME_MAP.put("list_files", "List");
         TOOL_NAME_MAP.put("find_files", "Find");
         TOOL_NAME_MAP.put("make_directory", "Mkdir");
@@ -390,7 +392,7 @@ final class AgentProgress {
         HIDDEN_TOOLS.add("find_chat");
         HIDDEN_TOOLS.add("get_chat_messages");
         HIDDEN_TOOLS.add("list_character_cards");
-        HIDDEN_TOOLS.add("write_file");
+        // write_file 移出 HIDDEN（文件写入有效，需显示）
         HIDDEN_TOOLS.add("create_terminal_session");
     }
 

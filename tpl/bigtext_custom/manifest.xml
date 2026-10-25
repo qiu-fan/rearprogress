@@ -193,9 +193,9 @@
   <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
   <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2))"/>
 
-  <!-- App 图标 -->
+  <!-- "Agent" 文字标签（替代 App 图标） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Image x="#text_x" y="#icon_y" w="#icon_size" h="#icon_size" srcExp="@lu_package_name" cornerRadiusExp="#icon_corner" name="app_icon" srcType="ApplicationIcon"/>
+  <Text x="#text_x" y="#icon_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第一行） -->
   <Var name="title_y" type="number" expression="(#icon_y + #icon_size + #icon_text_gap)"/>

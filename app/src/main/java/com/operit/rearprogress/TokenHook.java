@@ -67,6 +67,9 @@ final class TokenHook {
     /** 历史首/末时间戳（算图表时间段） */
     private static volatile long sHistFirstAt = 0L;
     private static volatile long sHistLastAt = 0L;
+    /** 上一轮结束时的累计总 token（供 hit 行显示"上一轮总"） */
+    private static volatile long sPrevTotalIn = 0L;
+    private static volatile long sPrevTotalOut = 0L;
 
     private TokenHook() {}
 
@@ -110,6 +113,10 @@ final class TokenHook {
         return f.format(new java.util.Date(sHistFirstAt)) + "-" + f.format(new java.util.Date(sHistLastAt))
                 + " (" + spanSec + "s)";
     }
+
+    /** 上一轮结束的总 input/output（供 hit 行显示"上一轮总"） */
+    static long getPrevTotalIn() { return Math.max(0, sPrevTotalIn); }
+    static long getPrevTotalOut() { return Math.max(0, sPrevTotalOut); }
 
     /** 最近一次 input token */
     static long getLastIn() { return Math.max(0, sLastIn); }
@@ -407,6 +414,8 @@ final class TokenHook {
                     // 期间没有新数据（值未变）才算完成
                     if (sLastIn == in && sLastOut == out && sLastCached == cached && !sFinalized) {
                         sFinalized = true;
+                        sPrevTotalIn = in;      // 存上一轮总
+                        sPrevTotalOut = out;
                         String total = format(in, out, cached, false);
                         AgentProgress.setLastTokenUsage(total);
                         LogX.i(TAG, "token finalized (总): " + total);

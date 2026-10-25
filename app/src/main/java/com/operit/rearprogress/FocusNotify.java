@@ -298,8 +298,8 @@ final class FocusNotify {
             n.extras.putString("token_history", TokenHook.getHistoryJson());
             n.extras.putString("token_path", TokenHook.getHistoryPath(630, 110));
             n.extras.putString("hit_rate", TokenHook.getHitRate() + "%");
-            n.extras.putString("token_in", TokenHook.fmt(TokenHook.getLastIn()));
-            n.extras.putString("token_out", TokenHook.fmt(TokenHook.getLastOut()));
+            n.extras.putString("token_in", TokenHook.fmt(TokenHook.getPrevTotalIn()));
+            n.extras.putString("token_out", TokenHook.fmt(TokenHook.getPrevTotalOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());
             n.extras.putString("time_range", TokenHook.getTimeRange());
         } catch (Throwable ignored) {}
