@@ -243,17 +243,13 @@ final class FocusNotify {
         Notification n = b.build();
         // 扩展 extras：供展开态 MAML 模板使用（副屏中心会映射成 lu_* 变量）
         try {
-            // token 实时趋势（JSON 数组，供图表）
-            n.extras.putString("lu_token_history", TokenHook.getHistoryJson());
-            // token 趋势 SVG path（Java 算好，MAML Path 直接画）
-            n.extras.putString("lu_token_path", TokenHook.getHistoryPath(240, 60));
-            // 命中率（cached/input 百分比）
-            n.extras.putString("lu_hit_rate", TokenHook.getHitRate() + "%");
-            // 当前 token 明细
-            n.extras.putString("lu_token_in", TokenHook.fmt(TokenHook.getLastIn()));
-            n.extras.putString("lu_token_out", TokenHook.fmt(TokenHook.getLastOut()));
-            // 工具流动（最近工具名，逗号分隔）
-            n.extras.putString("lu_tool_flow", AgentProgress.getToolFlow());
+            // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
+            n.extras.putString("token_history", TokenHook.getHistoryJson());
+            n.extras.putString("token_path", TokenHook.getHistoryPath(240, 60));
+            n.extras.putString("hit_rate", TokenHook.getHitRate() + "%");
+            n.extras.putString("token_in", TokenHook.fmt(TokenHook.getLastIn()));
+            n.extras.putString("token_out", TokenHook.fmt(TokenHook.getLastOut()));
+            n.extras.putString("tool_flow", AgentProgress.getToolFlow());
         } catch (Throwable ignored) {}
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
