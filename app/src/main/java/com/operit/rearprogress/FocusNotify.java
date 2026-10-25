@@ -282,11 +282,10 @@ final class FocusNotify {
         b.setShowWhen(false);
         b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
 
-        // 用 BigTextStyle 显示完整内容（展开态 = 丰富 agent 统计 + ASCII 图表）
+        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读这个，保持原样）
         try {
-            String expanded = buildExpandedText(title, toolName, body);
             Notification.BigTextStyle bigText = new Notification.BigTextStyle()
-                    .bigText(expanded)
+                    .bigText(body)
                     .setBigContentTitle(title)
                     .setSummaryText(toolName);
             b.setStyle(bigText);
