@@ -11,7 +11,7 @@
 
   <!-- 内容区域：顶部对齐右侧时间组件上部，底部避让边界线 -->
   <Var name="area_top" type="number" expression="(12 * #scale)"/>
-  <Var name="area_bottom" type="number" expression="((213 - 20 - 12 - 0.9) * #scale)"/>
+  <Var name="area_bottom" type="number" expression="((213 - 20 - 12 - 1.8) * #scale)"/>
   <Var name="area_h" type="number" expression="(#area_bottom - #area_top)"/>
 
   <!-- 上方文字下移偏移量（用于调节间距）：Agent 独立、标题独立 -->
