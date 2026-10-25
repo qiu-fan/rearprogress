@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 圆角矩形裁剪（图标外形） -->
+    <clipPath id="round">
+      <rect x="0" y="0" width="512" height="512" rx="112" ry="112"/>
+    </clipPath>
+    <!-- 背景渐变：深蓝黑 -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1b2a"/>
+      <stop offset="100%" stop-color="#1b263b"/>
+    </linearGradient>
+    <!-- 青色发光 -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景 -->
+  <g clip-path="url(#round)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+
+    <!-- 终端提示符 >_ -->
+    <!-- > 符号 -->
+    <path d="M120 180 L200 256 L120 332" stroke="#4cc9f0" stroke-width="36"
+          stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#glow)"/>
+    <!-- _ 下划线 -->
+    <rect x="220" y="306" width="120" height="36" rx="18" fill="#4cc9f0" filter="url(#glow)"/>
+
+    <!-- 右侧进度点（3个，表示进行中） -->
+    <circle cx="400" cy="180" r="24" fill="#4cc9f0" filter="url(#glow)"/>
+    <circle cx="400" cy="256" r="24" fill="#4cc9f0" opacity="0.7" filter="url(#glow)"/>
+    <circle cx="400" cy="332" r="24" fill="#4cc9f0" opacity="0.4" filter="url(#glow)"/>
+
+    <!-- 底部进度条（细） -->
+    <rect x="80" y="410" width="352" height="24" rx="12" fill="#1b263b" stroke="#4cc9f0" stroke-width="3" opacity="0.6"/>
+    <rect x="84" y="414" width="230" height="16" rx="8" fill="#4cc9f0" opacity="0.9"/>
+  </g>
+</svg>

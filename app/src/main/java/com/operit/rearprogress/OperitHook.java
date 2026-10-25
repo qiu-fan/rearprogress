@@ -542,11 +542,12 @@ final class OperitHook {
                     java.io.File f = new java.io.File(ENABLED_FILE);
                     boolean enabled = f.exists();
 
-                    // 自动隐藏检查：任务结束后 10 分钟，自动删除 enabled 文件
+                    // 自动隐藏：任务结束 10 分钟后删 enabled（只在文件真实存在时执行）
                     if (enabled && AgentProgress.shouldAutoHide()) {
-                        f.delete();
-                        enabled = false;
-                        LogX.i(TAG, "auto-hide: task done for 10min, deleted enabled file");
+                        if (f.exists() && f.delete()) {
+                            enabled = false;
+                            LogX.i(TAG, "auto-hide: deleted enabled file");
+                        }
                     }
 
                     // 状态变化时触发
