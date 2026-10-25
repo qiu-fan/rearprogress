@@ -446,9 +446,9 @@ final class OperitHook {
             try {
                 Thread.sleep(2000L);
                 AgentProgress.markReady();
-                // 初始状态：标题固定 Agent，内容固定 已就绪
-                FocusNotify.pushState("Agent", "", "已就绪", -1);
-                LogX.i(TAG, "initial state pushed -> Agent / 已就绪");
+                // 初始状态：标题 Agent，副标题 Ready（≠标题，避免灵动岛左右相同），内容 已就绪
+                FocusNotify.pushState("Agent", "Ready", "已就绪", -1);
+                LogX.i(TAG, "initial state pushed -> Agent / Ready / 已就绪");
             } catch (Throwable e) {
                 LogX.e(TAG, "pushInitialState failed", e);
             }

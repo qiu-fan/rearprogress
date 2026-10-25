@@ -185,11 +185,50 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("read_notification", "ReadNotif");
         TOOL_NAME_MAP.put("github", "GitHub");
         TOOL_NAME_MAP.put("workflow", "Workflow");
+        TOOL_NAME_MAP.put("workflow:create_workflow", "Workflow");
+        TOOL_NAME_MAP.put("workflow:trigger_workflow", "WorkflowRun");
+        TOOL_NAME_MAP.put("workflow:delete_workflow", "WorkflowDel");
+        TOOL_NAME_MAP.put("workflow:update_workflow", "WorkflowEdit");
+        TOOL_NAME_MAP.put("workflow:enable_workflow", "WorkflowOn");
+        TOOL_NAME_MAP.put("workflow:disable_workflow", "WorkflowOff");
+        TOOL_NAME_MAP.put("workflow:query_workflow", "WorkflowQry");
         TOOL_NAME_MAP.put("worldbook", "WorldBook");
+        TOOL_NAME_MAP.put("worldbook:create_worldbook", "WorldBook");
+        TOOL_NAME_MAP.put("worldbook:update_worldbook", "WorldBookEdit");
+        TOOL_NAME_MAP.put("worldbook:delete_worldbook", "WorldBookDel");
         TOOL_NAME_MAP.put("extended_file_tools", "FileTools");
         TOOL_NAME_MAP.put("extended_memory_tools", "MemTools");
+        TOOL_NAME_MAP.put("extended_chat", "ChatTools");
         TOOL_NAME_MAP.put("browser", "Browser");
         TOOL_NAME_MAP.put("crossref", "CrossRef");
+        TOOL_NAME_MAP.put("time", "Time");
+        TOOL_NAME_MAP.put("daily_life", "DailyLife");
+        TOOL_NAME_MAP.put("file_converter", "Convert");
+        TOOL_NAME_MAP.put("ffmpeg", "FFmpeg");
+        TOOL_NAME_MAP.put("siliconflow_draw", "Draw");
+        TOOL_NAME_MAP.put("system_tools", "SysTools");
+        TOOL_NAME_MAP.put("automatic_ui_base", "UIAuto");
+        TOOL_NAME_MAP.put("qqbot", "QQBot");
+        TOOL_NAME_MAP.put("miui-notes", "MiNotes");
+        TOOL_NAME_MAP.put("deepseek-export", "DSExport");
+        TOOL_NAME_MAP.put("rikkahub-backup", "RikkaBak");
+        TOOL_NAME_MAP.put("apk_reverse", "APKRev");
+        TOOL_NAME_MAP.put("code_runner", "CodeRun");
+        TOOL_NAME_MAP.put("super_admin", "RootTools");
+        TOOL_NAME_MAP.put("various_search", "Search");
+        TOOL_NAME_MAP.put("12306_ticket", "Train12306");
+        TOOL_NAME_MAP.put("extended_http_tools", "HTTPT");
+        TOOL_NAME_MAP.put("operit_editor", "OpEditor");
+        TOOL_NAME_MAP.put("operit_editor:restart_mcp_window", "McpRestart");
+        TOOL_NAME_MAP.put("operit_editor:restart_mcp", "McpRestart");
+        TOOL_NAME_MAP.put("operit_editor:read_config", "OpCfgRead");
+        TOOL_NAME_MAP.put("operit_editor:write_config", "OpCfgWrite");
+        TOOL_NAME_MAP.put("worldbook_tools", "WBookT");
+        TOOL_NAME_MAP.put("github", "GitHub");
+        TOOL_NAME_MAP.put("rea", "REA");
+        TOOL_NAME_MAP.put("rea:inspect_android_package", "REA");
+        TOOL_NAME_MAP.put("rea:inspect_apk", "REA");
+        TOOL_NAME_MAP.put("rea:inspect", "REA");
     }
 
     private AgentProgress() {}
@@ -437,11 +476,12 @@ final class AgentProgress {
             return sLastTokenUsage;
         }
 
-        // 3. 兜底：最近工具名（token 还没拿到时）
+        // 3. token 还没拿到时：返回占位符（不返回工具名，避免与 title 相同导致灵动岛左右一样）
         synchronized (AgentProgress.class) {
-            if (sRecent.isEmpty()) return "";
+            if (sRecent.isEmpty()) return "…";
             String[] last = sRecent.get(sRecent.size() - 1);
-            return "1".equals(last[2]) ? last[0] : last[0] + " ✗";
+            // 有工具但无 token → 用参数摘要或占位，绝不复用工具名
+            return (last[1] == null || last[1].isEmpty()) ? "…" : last[1];
         }
     }
 
