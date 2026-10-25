@@ -519,19 +519,10 @@ final class AgentProgress {
         }
     }
 
-    /** 进度：AI 给的优先；否则按状态给一个合理值 */
+    /** 进度：仅 AI 上传了有效 percent 时显示，否则 -1（不显示百分比/进度圈） */
     static int percent() {
         if (sAiPercent >= 0) return Math.min(100, sAiPercent);
-        switch (sState) {
-            case DONE:
-                return 100;
-            case READY:
-                return 0;
-            case RUNNING:
-            default:
-                // 渐进式，不封顶到 100，避免看起来已完成
-                return Math.min(92, 10 + sToolCount * 9);
-        }
+        return -1;
     }
 
     static int toolCount() {
