@@ -484,9 +484,9 @@ final class AgentProgress {
         }
 
         // 3. token 还没拿到时：
-        //    无工具（ready）→ ready（背屏模板会映射为「已就绪」）；有工具 → ↑0 ↓0（token 显示 0）
+        //    无工具（ready）→ 空串（不显示，避免岛上「已就绪/ready」来回切换）；有工具 → ↑0 ↓0（token 显示 0）
         synchronized (AgentProgress.class) {
-            if (sRecent.isEmpty()) return "ready";
+            if (sRecent.isEmpty()) return "";
             return "↑0 ↓0";  // 有工具但无 token → 显示 ↑0 ↓0
         }
     }
