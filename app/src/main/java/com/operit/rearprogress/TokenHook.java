@@ -99,10 +99,10 @@ final class TokenHook {
         return sb.toString();
     }
 
-    /** 命中率 = cached / in（0-100），input 为 0 时返回 0 */
-    static int getHitRate() {
+    /** 命中率 = cached / in（0-100，保留两位小数），input 为 0 时返回 0 */
+    static double getHitRate() {
         if (sLastIn <= 0) return 0;
-        return (int) Math.round(sLastCached * 100.0 / sLastIn);
+        return sLastCached * 100.0 / sLastIn;
     }
 
     /** 图表跨越的时间段，如 "12:30-12:31 (60s)"，无数据返回空 */

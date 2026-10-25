@@ -215,7 +215,7 @@ final class FocusNotify {
         // 统计行
         sb.append("↑").append(TokenHook.fmt(TokenHook.getLastIn()))
           .append(" ↓").append(TokenHook.fmt(TokenHook.getLastOut()))
-          .append("   hit:").append(TokenHook.getHitRate()).append("%\n");
+          .append("   hit:").append(String.format(java.util.Locale.US, "%.2f", TokenHook.getHitRate())).append("%\n");
         // ASCII 趋势图（用 token 历史生成柱状字符）
         String bars = buildAsciiChart();
         if (!bars.isEmpty()) sb.append(bars).append('\n');
@@ -297,7 +297,7 @@ final class FocusNotify {
             // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
             n.extras.putString("token_history", TokenHook.getHistoryJson());
             n.extras.putString("token_path", TokenHook.getHistoryPath(630, 110));
-            n.extras.putString("hit_rate", TokenHook.getHitRate() + "%");
+            n.extras.putString("hit_rate", String.format(java.util.Locale.US, "%.2f", TokenHook.getHitRate()) + "%");
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getPrevTotalIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getPrevTotalOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());

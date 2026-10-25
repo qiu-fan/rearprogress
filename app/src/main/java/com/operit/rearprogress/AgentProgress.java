@@ -83,7 +83,7 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("read_file_full", "ReadFull");
         TOOL_NAME_MAP.put("read_file_binary", "ReadBin");
         TOOL_NAME_MAP.put("create_file", "Create");
-        TOOL_NAME_MAP.put("edit_file", "Edit");
+        TOOL_NAME_MAP.put("edit_file", "edit_file");
         TOOL_NAME_MAP.put("delete_file", "Delete");
         TOOL_NAME_MAP.put("write_file", "WriteFile");
         TOOL_NAME_MAP.put("write_file_binary", "WriteFile");
@@ -500,8 +500,9 @@ final class AgentProgress {
                 StringBuilder sb = new StringBuilder();
                 for (int i = sRecent.size() - 1; i >= 0; i--) {
                     String[] r = sRecent.get(i);
+                    String d = (r[1] == null) ? "" : r[1].trim();
+                    if (d.isEmpty()) continue;  // 跳过空参数，避免多余的 — 占位线
                     if (sb.length() > 0) sb.append('\n');
-                    String d = (r[1] == null || r[1].isEmpty()) ? "—" : r[1];
                     sb.append(d);
                 }
                 return sb.toString();
