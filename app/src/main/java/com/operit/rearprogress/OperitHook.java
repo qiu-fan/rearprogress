@@ -20,6 +20,19 @@ final class OperitHook {
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
     /** 开关文件：存在=显示通知，不存在=隐藏通知 */
     private static final String ENABLED_FILE = "/data/local/tmp/agent_progress.enabled";
+    /**
+     * 模拟指令文件：测试按钮写入，本进程（Operit 进程）读取后逐行执行。
+     * 这样「模拟」走的是与真实 hook 完全相同的链路（同一个包、同一个 channel、
+     * 同一套 AgentProgress + FocusNotify 状态），通知栏看到的也是同一条卡片。
+     * 每行格式：工具名|参数摘要
+     */
+    private static final String SIM_FILE = "/data/local/tmp/agent_progress.sim";
+    /** 模拟文件上次处理的 mtime，用于去重（防止每秒重复执行导致通知闪烁） */
+    private static long sLastSimMtime = -1L;
+    /** 静默阈值：超过该时间无新推送则整条撤掉通知（含背屏 + 灵动岛） */
+    private static final long IDLE_THRESHOLD_MS = 60_000L;
+    /** 上次显示通知的时间戳，供 watcher 检测静默状态 */
+    private static volatile long sLastNotifyAt = 0L;
     /** Operit 数据库路径 */
     private static final String DB_PATH = "/data/data/com.ai.assistance.operit/databases/app_database";
 
@@ -539,6 +552,7 @@ final class OperitHook {
     private static void startEnabledWatcher() {
         Thread t = new Thread(() -> {
             boolean lastEnabled = false;
+            boolean idled = false;
             while (true) {
                 try {
                     Thread.sleep(1000L);
@@ -551,6 +565,50 @@ final class OperitHook {
                             enabled = false;
                             LogX.i(TAG, "auto-hide: deleted enabled file");
                         }
+                    }
+
+                    // 静默检测：上次推送距今超过阈值 → 整条撤掉，不留痕迹
+                    // 仅限"有真实活动"后才计时（sLastNotifyAt > 0，即 pushState 曾被调用）
+                    if (enabled && !idled && sLastNotifyAt > 0) {
+                        long lastAt = sLastNotifyAt;
+                        if (System.currentTimeMillis() - lastAt > IDLE_THRESHOLD_MS) {
+                            idled = true;
+                            FocusNotify.stop();
+                            boolean deleted = f.exists() && f.delete();
+                            enabled = false;
+                            LogX.i(TAG, "silent " + (IDLE_THRESHOLD_MS / 1000)
+                                    + "s -> notification removed, file deleted=" + deleted);
+                        }
+                    } else if (!enabled) {
+                        // 文件已消失，重置静默标志，允许下次有活动时重新显示
+                        idled = false;
+                    }
+
+                    // 模拟指令文件：测试按钮写入，这里按真实 hook 的链路执行
+                    // （同一个 Operit 包 / 同一个 channel / 同一套 AgentProgress 状态）
+                    // ⚠️ 必须防止重复执行：文件由 root 写入，Operit 进程删不掉，
+                    //    用 mtime 去重 + 尝试清空内容，否则每秒重跑一次导致通知疯狂闪烁。
+                    java.io.File sim = new java.io.File(SIM_FILE);
+                    if (sim.exists()) {
+                        long mt = sim.lastModified();
+                        if (mt != sLastSimMtime) {
+                            String content = readAll(sim);
+                            sLastSimMtime = mt;
+                            // 尽量清空，避免下次启动重复执行
+                            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(sim)) {
+                                fos.write(new byte[0]);
+                            } catch (Throwable ignored2) {
+                                sim.delete();
+                            }
+                            if (content != null && !content.trim().isEmpty()) {
+                                Thread st = new Thread(() -> runSimulation(content),
+                                        "RearProgressSimulate");
+                                st.setDaemon(true);
+                                st.start();
+                            }
+                        }
+                    } else {
+                        sLastSimMtime = -1L;
                     }
 
                     // 状态变化时触发
@@ -573,11 +631,45 @@ final class OperitHook {
         t.start();
     }
 
+    /**
+     * 执行模拟指令：逐行解析 "工具名|参数摘要"，按真实 hook 完全相同的调用链执行。
+     * 关键点：这里运行在 Operit 进程里，通知由 Operit 发出（同一个包/同一个 channel），
+     * 与真实 hook 产生的卡片没有任何区别。
+     */
+    private static void runSimulation(String content) {
+        try {
+            String[] lines = content.split("\n");
+            for (String line : lines) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                String name = line;
+                String detail = "";
+                int sep = line.indexOf('|');
+                if (sep >= 0) {
+                    name = line.substring(0, sep).trim();
+                    detail = line.substring(sep + 1).trim();
+                }
+                if (name.isEmpty()) continue;
+                // ↓↓↓ 与 executeTool hook 里完全一致的两步 ↓↓↓
+                AgentProgress.recordTool(name, detail, true);
+                FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                        AgentProgress.body(), AgentProgress.percent());
+                sLastNotifyAt = System.currentTimeMillis();
+                LogX.i(TAG, "simulate -> " + name);
+                Thread.sleep(1500L);
+            }
+            LogX.i(TAG, "simulation finished");
+        } catch (Throwable e) {
+            LogX.e(TAG, "runSimulation failed", e);
+        }
+    }
+
     /** 统一推送当前状态（标题 + 工具行 + 进度） */
     private static void pushState(String reason) {
         String title = AgentProgress.title();
         String body = AgentProgress.body();
         int pct = AgentProgress.percent();
+        sLastNotifyAt = System.currentTimeMillis();
         FocusNotify.pushRaw(title, body, pct);
         LogX.i(TAG, "push(" + reason + ") title=" + title);
     }

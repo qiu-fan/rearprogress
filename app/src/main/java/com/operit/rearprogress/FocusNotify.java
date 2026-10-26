@@ -36,13 +36,99 @@ final class FocusNotify {
     private static final int NOTIF_ID = 0x4147454E; // 'AGEN'
     private static final String ORDER_ID = "operit_agent_progress";
     private static final String TAG = "RearProgress";
+    /** Agent 卡片标记：标题以该前缀开头表示这是 Agent 卡片（模板据此前缀判断显示蓝色 "Agent"）。用 ASCII 箭头对，MAML 稳定支持 */
+    private static final String AGENT_MARK = "«";
 
     private static NotificationManager sNm;
     private static Context sCtx;
     private static long sSeq = 1L;
     private static String sLastTitle;
 
+    /** 转发广播：Operit 进程 → 副屏中心进程代发通知（绕过 MIUI 前台抑制） */
+    static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
+    static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
+    /** 副屏中心代发成功后回执（Operit 侧据此判断是否需要本地兜底） */
+    static final String ACTION_ACK = "com.operit.rearprogress.PUSH_ACK";
+    private static final String PKG_SCREEN = "com.xiaomi.subscreencenter";
+    private static final String PKG_OPERIT = "com.ai.assistance.operit";
+    /** 最近一次收到代发回执的时间戳 */
+    private static volatile long sLastAckAt = 0L;
+    private static volatile boolean sAckReceiverReady = false;
+
+    /** 注册回执接收器（Operit 进程用，判断代发是否生效） */
+    static void installAckReceiver() {
+        if (sAckReceiverReady) return;
+        try {
+            Context ctx = currentAppContext();
+            if (ctx == null) return;
+            android.content.BroadcastReceiver r = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, android.content.Intent i) {
+                    sLastAckAt = System.currentTimeMillis();
+                }
+            };
+            android.content.IntentFilter f = new android.content.IntentFilter(ACTION_ACK);
+            ctx.registerReceiver(r, f, Context.RECEIVER_EXPORTED);
+            sAckReceiverReady = true;
+            android.util.Log.i(TAG, "ack receiver ready");
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "installAckReceiver failed", t);
+        }
+    }
+
     private FocusNotify() {}
+
+    /** 当前是否运行在 Operit 进程里（需要转发给副屏中心代发） */
+    private static boolean isOperitProcess() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object app = at.getMethod("currentApplication").invoke(null);
+            if (app instanceof Context) {
+                return PKG_OPERIT.equals(((Context) app).getPackageName());
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    /** 取当前进程的 Application Context */
+    private static Context currentAppContext() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object app = at.getMethod("currentApplication").invoke(null);
+            if (app instanceof Context) return (Context) app;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /** 转发推送请求给副屏中心（由它用自己的包名发通知） */
+    private static void forwardPush(String title, String toolName, String body, int percent) {
+        try {
+            Context ctx = currentAppContext();
+            if (ctx == null) return;
+            android.content.Intent i = new android.content.Intent(ACTION_PUSH);
+            i.putExtra("title", title == null ? "" : title);
+            i.putExtra("tool", toolName == null ? "" : toolName);
+            i.putExtra("body", body == null ? "" : body);
+            i.putExtra("percent", percent);
+            i.setPackage(PKG_SCREEN);
+            ctx.sendBroadcast(i);
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "forwardPush failed", t);
+        }
+    }
+
+    /** 转发"撤掉通知"请求给副屏中心 */
+    private static void forwardStop() {
+        try {
+            Context ctx = currentAppContext();
+            if (ctx == null) return;
+            android.content.Intent i = new android.content.Intent(ACTION_STOP);
+            i.setPackage(PKG_SCREEN);
+            ctx.sendBroadcast(i);
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "forwardStop failed", t);
+        }
+    }
 
     /** 在副屏中心进程里初始化（借用它的 Context 发通知） */
     static void init(Context ctx) {
@@ -97,6 +183,16 @@ final class FocusNotify {
 
     /** 停止显示：撤掉这条常驻卡 */
     static void stop() {
+        // Operit 进程里转发给副屏中心执行
+        if (isOperitProcess()) {
+            forwardStop();
+            return;
+        }
+        stopLocal();
+    }
+
+    /** 真正撤掉通知（副屏中心进程执行） */
+    static void stopLocal() {
         try {
             if (sNm != null) sNm.cancel(NOTIF_ID);
             sLastTitle = null;
@@ -114,6 +210,58 @@ final class FocusNotify {
      *   percent   → 0-100 进度条，<0 表示不显示
      */
     static void pushState(String title, String toolName, String body, int percent) {
+        // READY 态（刚进软件 / 没有任何工具调用）不推送通知：
+        // 否则会闪一下「Agent"，右侧无内容」的岛，通知栏也多一条「已就绪」空卡片。
+        try {
+            if (AgentProgress.state() == AgentProgress.State.READY) {
+                String b = body == null ? "" : body.trim();
+                String t = toolName == null ? "" : toolName.trim();
+                if (t.isEmpty() || "已就绪".equals(b) || b.isEmpty()) {
+                    return;
+                }
+            }
+        } catch (Throwable ignored) {}
+        // 在 Operit 进程里：转发给副屏中心代发（用它的包名，绕过 MIUI 前台抑制）
+        // 用 ordered broadcast 同步回执：副屏中心成功代发会 setResultCode(1)，
+        // 收不到（比如副屏中心没在跑）才本地兜底发，避免重复通知。
+        if (isOperitProcess()) {
+            final String fT = title, fTool = toolName, fBody = body;
+            final int fPct = percent;
+            try {
+                Context ctx = currentAppContext();
+                if (ctx != null) {
+                    android.content.Intent i = new android.content.Intent(ACTION_PUSH);
+                    i.putExtra("title", title == null ? "" : title);
+                    i.putExtra("tool", toolName == null ? "" : toolName);
+                    i.putExtra("body", body == null ? "" : body);
+                    i.putExtra("percent", percent);
+                    i.setPackage(PKG_SCREEN);
+                    ctx.sendOrderedBroadcast(i, null, new android.content.BroadcastReceiver() {
+                        @Override
+                        public void onReceive(Context c, android.content.Intent it) {
+                            if (getResultCode() == 1) return;   // 代发成功
+                            android.util.Log.w(TAG, "delegate failed (code="
+                                    + getResultCode() + "), fallback to local");
+                            try {
+                                initFromActivityThread();
+                                pushStateLocal(fT, fTool, fBody, fPct);
+                            } catch (Throwable ignored) {}
+                        }
+                    }, null, 0, null, null);
+                    return;
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "forwardPush failed, fallback", t);
+            }
+            // 拿不到 context 时直接本地发
+            pushStateLocal(title, toolName, body, percent);
+            return;
+        }
+        pushStateLocal(title, toolName, body, percent);
+    }
+
+    /** 真正构建并发通知（由副屏中心进程执行，通知 pkg = com.xiaomi.subscreencenter） */
+    static void pushStateLocal(String title, String toolName, String body, int percent) {
         try {
             // 检查开关文件：不存在则不推送通知
             if (!isEnabled()) {
@@ -145,7 +293,10 @@ final class FocusNotify {
                 String tok = AgentProgress.toolName();
                 if (tok != null && tok.startsWith("↑")) toolName = tok;
             }
-            if (title.isEmpty() && body.isEmpty()) return;
+            // Agent 卡片标记：不前插标题（系统通知栏会原样显示），改由 buildNotification
+            // 把标记写进 bigText 末尾——背屏 MAML 读 lu_big_text 能拿到，
+            // 灵动岛展开态读的是 android.title，不受影响。
+            if (title.trim().isEmpty() && body.isEmpty()) return;
 
             String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
             if (key.equals(sLastTitle)) return;   // 完全没变就不发
@@ -188,11 +339,14 @@ final class FocusNotify {
     private static String shortenPaths(String text) {
         if (text == null || text.isEmpty()) return text;
         try {
-            // 工作区路径（精确，先处理）：.../files/workspace/<uuid>/ → 工作区/
+            // 工作区路径（精确，先处理）：.../files/workspace/<uuid>/ → WORKSPACE/
+            // 不区分大小写、uuid/id 都吃掉，避免出现 workspace/xxx 残留
             text = text.replaceAll(
-                "/data/user/0/com\\.ai\\.assistance\\.operit/files/workspace/[0-9a-f-]+/",
-                "工作区/"
+                "(?i)/data/user/0/com\\.ai\\.assistance\\.operit/files/workspace(/[^/\\s]*)?/?",
+                "WORKSPACE/"
             );
+            // 兜底：任何残留的 workspace 目录（其他路径形态）→ WORKSPACE/
+            text = text.replaceAll("(?i)(?<![\\w/])workspace/", "WORKSPACE/");
             // Operit data 路径（兜底）：/data/user/0/com.ai.assistance.operit/ → Operit//
             text = text.replaceAll(
                 "/data/user/0/com\\.ai\\.assistance\\.operit/",
@@ -275,7 +429,15 @@ final class FocusNotify {
         }
     }
 
-    /** 构建通知（无进度条样式） */
+    /**
+     * 构建通知（无进度条样式）。
+     *
+     * 展示位置：
+     *   收起态（灵动岛 / 背屏）  → title / toolName / body
+     *   展开态（下拉通知）      → 上面三行 + buildExpandedBody(body) 追加内容
+     *
+     * setContentText(body) 保持不变（背屏 MAML 读 extras.android.text）。
+     */
     @SuppressWarnings("deprecation")
     private static Notification buildNotification(Context ctx, String title, String toolName,
                                                   String body, int percent, boolean hasBar) {
@@ -291,6 +453,8 @@ final class FocusNotify {
         if (toolName != null && !toolName.isEmpty()) {
             b.setSubText(toolName);
         }
+        // 展开态正文：body 保持原样（背屏只读 extras.android.text），
+        // 展开态额外信息走 BigTextStyle（见下）。
         b.setContentText(body);
         b.setSmallIcon(android.R.drawable.stat_sys_download_done);
         b.setOngoing(true);
@@ -298,33 +462,13 @@ final class FocusNotify {
         b.setShowWhen(false);
         b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
 
-        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读 body，保持原样；展开态追加统计信息）
+        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读 bigText）
+        // ⚠️ bigText 必须只放 body：副屏中心会把 android.bigText 映射成 lu_big_text，
+        //    多放任何东西都会污染背屏消息区。
+        //    开头追加 Agent 标记 «：背屏模板据此显示蓝色 "Agent" 标签。
         try {
-            // 展开态内容：body + 统计信息（背屏只读 body，不受影响）
-            String expanded = body;
-            try {
-                StringBuilder extra = new StringBuilder();
-                String flow = AgentProgress.getToolFlow();
-                if (flow != null && !flow.isEmpty()) {
-                    extra.append("\n\n──── 工具流 ────\n").append(flow);
-                }
-                String taskTime = TokenHook.getTaskTime();
-                if (taskTime != null && !taskTime.isEmpty()) {
-                    extra.append("\n──── 任务 ────\n").append(taskTime);
-                }
-                double hitRate = TokenHook.getHitRate();
-                if (hitRate > 0) {
-                    extra.append(String.format(java.util.Locale.US,
-                            "\n──── 统计 ────\nhit:%.2f%%  ↑%s ↓%s",
-                            hitRate,
-                            TokenHook.fmt(TokenHook.getLastIn()),
-                            TokenHook.fmt(TokenHook.getLastOut())));
-                }
-                if (extra.length() > 0) expanded = body + extra.toString();
-            } catch (Throwable ignored) {}
-
             Notification.BigTextStyle bigText = new Notification.BigTextStyle()
-                    .bigText(expanded)
+                    .bigText(AGENT_MARK + body)
                     .setBigContentTitle(title)
                     .setSummaryText(toolName);
             b.setStyle(bigText);
@@ -334,6 +478,8 @@ final class FocusNotify {
         // 扩展 extras：供展开态 MAML 模板使用（副屏中心会映射成 lu_* 变量）
         try {
             // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
+            // Agent 标记：本通道专供 Agent 卡片使用（模板据此显示蓝色 Agent）。
+            n.extras.putString("agent_mark", "1");
             n.extras.putString("token_history", TokenHook.getHistoryJson());
             n.extras.putString("token_path", TokenHook.getHistoryPath(630, 110));
             // 命中率：无 token 数据时为空（背屏模板显示 ready，不显示 hit）
@@ -346,6 +492,78 @@ final class FocusNotify {
             n.extras.putString("time_range", TokenHook.getTimeRange());
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
+
+        // 灵动岛：按 HyperIsland 实机验证结构注入 miui.focus.param
+        //   param_island.smallIslandArea → 小岛（收起，只有图标）
+        //   param_island.bigIslandArea   → 大岛（展开，左标题 + 右工具名）
+        //   param_v2.iconTextInfo        → 焦点通知（下拉展开卡，独立内容）
+        // 字段严格照 ScreenRecorderHook + 官方模板库3.15：
+        //   protocol=1，没有 isShowNotification 这个字段，tickerPic 必填且要在 miui.focus.pics 里存在。
+        try {
+            String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
+            String flow = AgentProgress.getToolFlow();
+            if (flow == null) flow = "";
+            if (flow.length() > 40) flow = flow.substring(0, 40) + "…";
+            String tok = (toolName == null || toolName.isEmpty()) ? "" : toolName;
+            String bodyText = (body == null || body.isEmpty()) ? "" : body;
+
+            final String PIC_KEY = "operit_island_icon";
+
+            org.json.JSONObject picInfo = new org.json.JSONObject()
+                    .put("type", 1).put("pic", PIC_KEY);
+
+            // 焦点通知（下拉展开卡）：保持原标题+原正文，让通知看起来和以前一样
+            // （只有岛展开后的内容不同，由 param_island.bigIslandArea 提供）
+            org.json.JSONObject iconTextInfo = new org.json.JSONObject()
+                    .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
+                    .put("title", toolTitle)
+                    .put("content", bodyText.isEmpty() ? tok : bodyText)
+                    .put("subContent", tok);
+
+            // 大岛：左=图标+标题，右=token
+            org.json.JSONObject bigLeft = new org.json.JSONObject()
+                    .put("type", 1)
+                    .put("picInfo", picInfo)
+                    .put("textInfo", new org.json.JSONObject().put("title", toolTitle));
+            org.json.JSONObject bigRight = new org.json.JSONObject()
+                    .put("type", 2)
+                    .put("textInfo", new org.json.JSONObject().put("title", tok));
+            org.json.JSONObject bigArea = new org.json.JSONObject()
+                    .put("imageTextInfoLeft", bigLeft)
+                    .put("imageTextInfoRight", bigRight);
+
+            // 小岛：只有图标
+            org.json.JSONObject smallArea = new org.json.JSONObject().put("picInfo", picInfo);
+
+            org.json.JSONObject island = new org.json.JSONObject()
+                    .put("islandPriority", 1)
+                    .put("islandTimeout", Integer.MAX_VALUE)
+                    .put("islandProperty", 1)
+                    .put("bigIslandArea", bigArea)
+                    .put("smallIslandArea", smallArea);
+
+            org.json.JSONObject pv2 = new org.json.JSONObject()
+                    .put("protocol", 1)
+                    .put("business", "notification_island")
+                    .put("updatable", true)
+                    .put("enableFloat", false)
+                    .put("islandFirstFloat", false)
+                    .put("ticker", toolTitle)
+                    .put("tickerPic", PIC_KEY)
+                    .put("notifyId", "com.ai.assistance.operit" + NOTIF_ID)
+                    .put("param_island", island)
+                    .put("iconTextInfo", iconTextInfo);
+
+            n.extras.putString("miui.focus.param",
+                    new org.json.JSONObject().put("param_v2", pv2).toString());
+
+            // 图标：picInfo/tickerPic 引用的 key 必须在 miui.focus.pics 里存在
+            android.os.Bundle pics = new android.os.Bundle();
+            pics.putParcelable(PIC_KEY, android.graphics.drawable.Icon.createWithResource(
+                    ctx, android.R.drawable.stat_sys_download_done));
+            n.extras.putBundle("miui.focus.pics", pics);
+        } catch (Throwable ignored) {}
+
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
         n.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_ONLY_ALERT_ONCE;

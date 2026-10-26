@@ -1,6 +1,9 @@
 package com.operit.rearprogress;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -60,6 +63,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 申请通知权限（测试按钮要发通知，未授权时系统会静默丢弃）
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 33
+                    && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1001);
+            }
+        } catch (Throwable ignored) {}
         // 去掉窗口标题栏（避免占用顶部空间遮挡按钮）
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
 
@@ -112,6 +123,14 @@ public class MainActivity extends Activity {
         root.addView(btnRow(
                 makeButton("→ 布局参数（背屏）", v ->
                         startActivity(new Intent(this, LayoutConfigActivity.class)))));
+
+        // —— 测试通道：模拟"其他软件"的通知，验证背屏 Agent 标签过滤 ——
+        root.addView(btnRow(
+                makeButton("发测试通知(BigText)", v -> sendForeignTestNotification(true)),
+                makeButton("发测试通知(普通)", v -> sendForeignTestNotification(false))));
+        // —— 模拟 Operit：依次"调用"10 个工具（走 recordTool + pushState） ——
+        root.addView(btnRow(
+                makeButton("模拟10个工具", v -> simulateTenTools())));
 
         // 注册 AI 远程命令接收器
         registerCmdReceiver();
@@ -197,6 +216,82 @@ public class MainActivity extends Activity {
         }
         execSuSilent("echo '" + content.replace("'", "'\\''") + "' > " + PROGRESS_FILE);
         Toast.makeText(this, "已上传进度(" + (json ? "JSON" : "纯") + ")", Toast.LENGTH_SHORT).show();
+    }
+/**
+     * 模拟 Operit 依次调用 10 个工具。
+     * 做法：只往 /data/local/tmp/agent_progress.sim 写指令文件，
+     * 由 Operit 进程内的 hook 轮询读取并执行 —— 走的是和真实 hook 完全相同的
+     * 链路（同一个包、同一个 channel、同一条卡片），通知栏/岛/背屏表现完全一致。
+     */
+    private void simulateTenTools() {
+        final String[] tools = {
+                "Shell(root)|echo 'hello 来自模拟工具 1'",
+                "GrepCode|pattern=AgentProgress path=rearprogress",
+                "ReadPart|start_line=1 end_line=50 path=FocusNotify.java",
+                "EditFile|path=LayoutConfigActivity.java +12 -3",
+                "Proxy|tool_name=super_admin:shell command=ls /data/local/tmp",
+                "WriteFile|path=tpl/layout_config.json +8 -2",
+                "QueryMemory|query=背屏布局参数 hit=87.5%",
+                "TokenHook|token_in=980K token_out=2.1K hit=98.2%",
+                "CreateFile|path=test/mock.md content=模拟数据",
+                "VisitWeb|url=https://example.com 已就绪 模拟第10个"
+        };
+        new Thread(() -> {
+            try {
+                // 确保开关文件存在（否则 Operit 侧 pushState 会直接 return）
+                execSuSilent("touch " + ENABLED_FILE);
+                StringBuilder sb = new StringBuilder();
+                for (String t : tools) sb.append(t).append('\n');
+                // 写到临时文件再 mv，避免 Operit 侧读到半截内容
+                String tmp = "/data/local/tmp/.sim.tmp";
+                String escaped = sb.toString().replace("'", "'\\''");
+                execSuSilent("printf '%s' '" + escaped + "' > " + tmp
+                        + " && mv -f " + tmp + " /data/local/tmp/agent_progress.sim");
+                runOnUiThread(() -> Toast.makeText(this,
+                        "已下发 10 个模拟工具，Operit 侧开始执行",
+                        Toast.LENGTH_SHORT).show());
+            } catch (Throwable t) {
+                runOnUiThread(() -> Toast.makeText(this,
+                        "下发失败: " + t.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    /** 发送一条"其他软件"风格的测试通知（独立 channel，无 Agent 标记）。
+     * 用于验证背屏模板的 Agent 标签过滤：非 Agent 通知不应显示蓝色 Agent。
+     * bigText=true 时用 BigTextStyle（模拟常见 App 的大文本通知），否则普通文本。
+     */
+    private void sendForeignTestNotification(boolean bigText) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            String channelId = "foreign_test_channel";
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                NotificationChannel ch = new NotificationChannel(
+                        channelId, "其他软件测试", NotificationManager.IMPORTANCE_DEFAULT);
+                ch.setShowBadge(true);
+                nm.createNotificationChannel(ch);
+            }
+            Notification.Builder b;
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                b = new Notification.Builder(this, channelId);
+            } else {
+                b = new Notification.Builder(this);
+            }
+            b.setContentTitle("微信");
+            b.setContentText("收到新消息：测试一下背屏显示");
+            b.setSmallIcon(android.R.drawable.stat_notify_chat);
+            b.setAutoCancel(true);
+            if (bigText) {
+                b.setStyle(new Notification.BigTextStyle()
+                        .bigText("这是来自「微信」的模拟通知内容，用于验证其他应用的通知是否会被误打 Agent 标签。\n第二行：路径 /storage/emulated/0/Download/test.txt 1234567890")
+                        .setBigContentTitle("微信")
+                        .setSummaryText("新消息"));
+            }
+            nm.notify(9911, b.build());
+            Toast.makeText(this, "已发测试通知(" + (bigText ? "BigText" : "普通") + ")", Toast.LENGTH_SHORT).show();
+        } catch (Throwable t) {
+            Toast.makeText(this, "发测试通知失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private final Runnable refreshRunnable = new Runnable() {
@@ -371,6 +466,14 @@ public class MainActivity extends Activity {
                             break;
                         case "status":
                             writeResult("status", collectStatus());
+                            break;
+                        case "simulate10":
+                            simulateTenTools();
+                            writeResult("simulate10", "已开始模拟10个工具");
+                            break;
+                        case "foreign_notify":
+                            sendForeignTestNotification(true);
+                            writeResult("foreign_notify", "已发非Operit测试通知");
                             break;
                         default:
                             writeResult(cmd, "未知命令: " + cmd);
