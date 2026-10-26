@@ -71,6 +71,22 @@ cd ~/rpb_xinghui && rm -rf build app/build && chmod +x gradlew
 `http://127.0.0.1:7788`，文件 `/sdcard/Android/code/agent_bus/bus.jsonl`
 用法：`bash /sdcard/Android/code/agent_bus/msg.sh send|recv|peek`
 
+## 分支流程（用户定的规矩）
+
+```
+feature/xxx  →  做功能  →  完整可用后合 dev  →  删 feature 分支
+```
+
+- **半成品/测试代码必须在 feature 分支**，永远不碰 dev/main
+- 做完功能、验证可用后才合 dev
+- 合完删 feature 分支，不留垃圾
+- main 只放稳定版本（打 tag）
+
+当前分支状态：
+- `main` → 稳定版（v1.2.2 + docs）
+- `feature/expanded-slots` → 星回，展开态槽位标注测试（半成品，不合并）
+- `fix-quiet-channel` → Forge，换新通道方案（等 HIGH 方案验证结果再决定去留）
+
 ## 协作规矩
 
 1. 谁要动同一个文件，先在总线喊一声"我接了 XX"，等 1 分钟没回再动手（防撞车，已撞过一次）
