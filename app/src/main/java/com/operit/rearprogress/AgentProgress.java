@@ -234,6 +234,7 @@ final class AgentProgress {
 
     static void markReady() {
         sState = State.READY;
+        sLastToolAt = System.currentTimeMillis();  // 就绪计时的起点，供 1 分钟静默自动清除使用
     }
 
     /** 每次工具调用：READY → RUNNING（从 DONE 回到 RUNNING 表示新任务开始） */
@@ -315,6 +316,12 @@ final class AgentProgress {
         return sLastToolAt;
     }
 
+    /** 距离最后一次工具调用是否已超过指定毫秒（无活动） */
+    static boolean isIdleFor(long ms) {
+        if (sLastToolAt == 0L) return false;
+        return System.currentTimeMillis() - sLastToolAt > ms;
+    }
+
     // ---------------------------------------------------------------- AI 上传
 
     static synchronized void setAiProgress(String title, int percent) {
@@ -380,6 +387,8 @@ final class AgentProgress {
     private static final long sProcessStartMs = android.os.SystemClock.elapsedRealtime();
     /** 启动窗口：进程启动后此毫秒内的工具调用视为启动扫描（如安装新模块时的 copy_file），不记录不显示 */
     private static final long STARTUP_WINDOW_MS = 5000L;
+    /** 模拟模式开关：测试按钮触发时不走启动窗口过滤 */
+    private static volatile boolean sSimulateMode = false;
     static {
         HIDDEN_TOOLS.add("execute_hidden_terminal_command");
         HIDDEN_TOOLS.add("execute_shell");
@@ -406,7 +415,9 @@ final class AgentProgress {
             return;
         }
         // 启动窗口内的工具调用（如安装新模块时 Operit 自己跑的 copy_file/read_file）：不记录不显示
-        if (android.os.SystemClock.elapsedRealtime() - sProcessStartMs < STARTUP_WINDOW_MS) {
+        // 但模拟模式（测试按钮）例外，否则进程刚启动时点击会被全部吞掉
+        if (!sSimulateMode
+                && android.os.SystemClock.elapsedRealtime() - sProcessStartMs < STARTUP_WINDOW_MS) {
             return;
         }
 
@@ -465,7 +476,8 @@ final class AgentProgress {
                 return "已完成";
             case READY:
             default:
-                return "Agent";  // 初始标题固定 Agent
+                return "Agent";  // 正面岛必须显示 Agent 文字；
+                                 // 背屏白字重复由模板 title_display 过滤掉
         }
     }
 
@@ -560,6 +572,20 @@ final class AgentProgress {
     }
 
     // ---------------------------------------------------------------- 终端历史
+
+    /**
+     * 模拟一次工具调用（测试按钮用）：直接走 recordTool + pushState，
+     * 复刻 OperitHook 里 executeTool 拦截后做的事。
+     */
+    static void simulateTool(String name, String detail, boolean success) {
+        // 模拟不受启动窗口限制：置开关位，绕过 STARTUP_WINDOW_MS 过滤
+        sSimulateMode = true;
+        AgentProgress.recordTool(name, detail, success);
+        sSimulateMode = false;
+        FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                AgentProgress.body(), AgentProgress.percent());
+        LogX.i("RearProgress", "simulateTool -> " + name);
+    }
 
     /** 记录终端命令 */
     static synchronized void recordCommand(String command) {

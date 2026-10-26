@@ -39,6 +39,7 @@ public class MainHook extends XposedModule {
     private static final String TAG = "RearProgress";
     private static final String PKG_SCREEN = "com.xiaomi.subscreencenter";
     private static final String PKG_OPERIT = "com.ai.assistance.operit";
+    private static final String PKG_SYSTEMUI = "com.android.systemui";
 
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
     private static final String MARKER = "[AGENT]";
@@ -79,6 +80,12 @@ public class MainHook extends XposedModule {
                 OperitHook.install(this, param.getClassLoader());
                 return;
             }
+            if (PKG_SYSTEMUI.equals(pkg)) {
+                mCl = param.getClassLoader();
+                log(android.util.Log.INFO, TAG, "systemui ready: watch plugin loader");
+                installHotDex();
+                return;
+            }
             if (!PKG_SCREEN.equals(pkg)) return;
 
             mCl = param.getClassLoader();
@@ -93,8 +100,142 @@ public class MainHook extends XposedModule {
             installRenderHook();
             resolveAppContext();
             startPoller();
+            registerNotifyForwarder();
         } catch (Throwable t) {
             log(android.util.Log.ERROR, TAG, "onPackageReady failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ SystemUI 热更新引导器
+
+    /** 外挂 dex：改 hook 逻辑只需替换这个文件 + 重启 SystemUI，不用重装模块、不用重启设备 */
+    private static final String HOT_DEX = "/data/local/tmp/rp/rp_hook.dex";
+    private static final String HOT_CLASS = "com.operit.rearprogress.hot.SysUiHot";
+
+    /**
+     * 加载 /data/local/tmp/rp/rp_hook.dex，调用其中的 SysUiHot.install(this, systemUiClassLoader)。
+     * dex 的 parent 用模块自己的 ClassLoader，这样外挂代码可以访问 libxposed API。
+     *
+     * 注意：这里不做任何 hook 判断，全部逻辑都在外挂 dex 里，方便热替换。
+     */
+    private void installHotDex() {
+        try {
+            java.io.File f = new java.io.File(HOT_DEX);
+            if (!f.exists()) {
+                log(android.util.Log.WARN, TAG, "hot dex missing: " + HOT_DEX);
+                return;
+            }
+            dalvik.system.DexClassLoader dcl = new dalvik.system.DexClassLoader(
+                    HOT_DEX, null, null, getClass().getClassLoader());
+            Class<?> c = Class.forName(HOT_CLASS, true, dcl);
+            java.lang.reflect.Method m = c.getMethod("install",
+                    XposedModule.class, ClassLoader.class);
+            log(android.util.Log.INFO, TAG, "hot dex loaded, invoking install()");
+            m.invoke(null, this, mCl);
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installHotDex failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ 通知代发
+
+    private volatile boolean sForwarderRegistered;
+
+    /**
+     * 注册"通知代发"广播接收器。
+     *
+     * Operit 进程的 FocusNotify 不再自己发通知，而是发广播到这里；
+     * 由本进程（com.xiaomi.subscreencenter）用系统应用的包名发，
+     * 这样 MIUI 不会因为"源头应用在前台"而抑制灵动岛。
+     */
+    private void registerNotifyForwarder() {
+        if (sForwarderRegistered) return;
+        // 后台重试：进程刚起时 Application 可能还没 attach，直接注册会拿到 null
+        Thread t = new Thread(() -> {
+            for (int i = 0; i < 40 && !sForwarderRegistered; i++) {
+                try {
+                    android.content.Context ctx = reliableAppContext();
+                    if (ctx != null) {
+                        if (registerForwarderWith(ctx)) return;
+                    }
+                    Thread.sleep(1500L);
+                } catch (Throwable ignored) {}
+            }
+            log(android.util.Log.WARN, TAG, "notify forwarder gave up");
+        }, "RearProgressForwarderReg");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** 多路兜底拿 Application Context（副屏中心里 ActivityThread 可能还没就绪） */
+    private android.content.Context reliableAppContext() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object o = at.getMethod("currentApplication").invoke(null);
+            if (o instanceof android.content.Context) return (android.content.Context) o;
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> h = Class.forName("android.app.AndroidAppHelper");
+            Object o = h.getMethod("currentApplication").invoke(null);
+            if (o instanceof android.content.Context) return (android.content.Context) o;
+        } catch (Throwable ignored) {}
+        try {
+            if (sAppContext == null) resolveAppContext();
+            if (sAppContext != null) return sAppContext;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private boolean registerForwarderWith(android.content.Context ctx) {
+        try {
+            final android.content.Context app = ctx.getApplicationContext() != null
+                    ? ctx.getApplicationContext() : ctx;
+            android.content.BroadcastReceiver r = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(android.content.Context c, android.content.Intent intent) {
+                    try {
+                        String action = intent.getAction();
+                        FocusNotify.init(app);
+                        if (FocusNotify.ACTION_MIRROR.equals(action)) {
+                            // 镜像：只发"带 param"的那条，负责前台灵动岛
+                            FocusNotify.pushMirrorLocal(
+                                    intent.getStringExtra("title"),
+                                    intent.getStringExtra("tool"),
+                                    intent.getStringExtra("body"),
+                                    intent.getIntExtra("percent", -1));
+                            setResultCode(1);
+                            return;
+                        }
+                        if (FocusNotify.ACTION_STOP.equals(action)) {
+                            FocusNotify.stopLocal();
+                            log(android.util.Log.INFO, TAG, "forward: stop");
+                            setResultCode(1);
+                            return;
+                        }
+                        FocusNotify.pushStateLocal(
+                                intent.getStringExtra("title"),
+                                intent.getStringExtra("tool"),
+                                intent.getStringExtra("body"),
+                                intent.getIntExtra("percent", -1));
+                        // 同步回执：告诉 Operit 侧"已代发"，它就不会再本地发一遍
+                        setResultCode(1);
+                    } catch (Throwable t) {
+                        log(android.util.Log.WARN, TAG, "notify forward receive failed", t);
+                    }
+                }
+            };
+            android.content.IntentFilter f = new android.content.IntentFilter();
+            f.addAction(FocusNotify.ACTION_PUSH);
+            f.addAction(FocusNotify.ACTION_MIRROR);
+            f.addAction(FocusNotify.ACTION_STOP);
+            app.registerReceiver(r, f, android.content.Context.RECEIVER_EXPORTED);
+            sForwarderRegistered = true;
+            log(android.util.Log.INFO, TAG, "notify forwarder registered, pkg="
+                    + app.getPackageName());
+            return true;
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "registerForwarderWith failed", t);
+            return false;
         }
     }
 

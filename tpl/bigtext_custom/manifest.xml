@@ -11,7 +11,7 @@
 
   <!-- 内容区域：顶部对齐右侧时间组件上部，底部避让边界线 -->
   <Var name="area_top" type="number" expression="(12 * #scale)"/>
-  <Var name="area_bottom" type="number" expression="((213 - 20 - 12 - 1.8) * #scale)"/>
+  <Var name="area_bottom" type="number" expression="((213 - 20 - 12 - 3.6) * #scale)"/>
   <Var name="area_h" type="number" expression="(#area_bottom - #area_top)"/>
 
   <!-- 上方文字下移偏移量（用于调节间距）：Agent 独立、标题独立 -->
@@ -120,11 +120,21 @@
     <VariableCommand name="lu_tool_flow" expression="jsonGetString($data, 'lu_tool_flow')" type="string"/>
     <VariableCommand name="lu_time_range" expression="jsonGetString($data, 'lu_time_range')" type="string"/>
     <VariableCommand name="lu_task_time" expression="jsonGetString($data, 'lu_task_time')" type="string"/>
-    <!-- Agent 标签只在 Operit 包的卡片上显示（其他应用通知不显示该标签） -->
-    <VariableCommand name="show_agent_label" expression="ifelse(eq(@lu_package_name, 'com.ai.assistance.operit'), 1, 0)" type="number"/>
-    <VariableCommand name="has_bigtext" expression="(len(@lu_big_text) } 0)" type="number"/>
-    <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
-    <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
+    <!-- Agent 标签判断：不用 subString（MAML 不支持），改用 len 差值。
+         只有 Agent 卡片的 lu_big_text 里带一个 «，去掉后长度少 1。 -->
+     <VariableCommand name="show_agent_label" expression="ifelse(eq((len(@lu_big_text) - len(strReplaceAll(@lu_big_text, '«', ''))), 1), 1, 0)" type="number"/>
+<!-- 判断完标记后从正文里去掉它，避免影响排版 -->
+     <VariableCommand name="lu_big_text" expression="strReplaceAll(@lu_big_text, '«', '')" type="string"/>
+     <!-- has_bigtext：Agent 卡片强制为 1（始终预留消息区高度），避免 body 空/非空
+          导致 text_block_h 变化 → content_start_y 跳动 → Agent 标签位置漂移
+          （表现为「Agent 文字一会有一会没有」）。 -->
+     <VariableCommand name="has_bigtext" expression="ifelse(eq(#show_agent_label, 1), 1, (len(@lu_big_text) } 0))" type="number"/>
+<VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
+     <!-- 背屏白字标题：Agent 卡片上如果标题就是 "Agent"（READY 态），
+          顶部已有蓝色 Agent 标签，这里留空避免重复。
+          注意：只影响背屏显示，通知标题仍是 "Agent"（正面岛靠它显示文字）。 -->
+     <VariableCommand name="title_display" expression="ifelse(eq(#show_agent_label, 1) * eq(@lu_title, 'Agent'), '', @lu_title)" type="string"/>
+     <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
     <FunctionCommand target="remove_rich_text"/>
   </Function>
 
@@ -188,7 +198,7 @@
   <Var name="subtext_max_lines" type="number" expression="(#base_sub + #extra_sub)"/>
 
   <!-- ==================== 受限测量（用于计算实际高度和垂直居中） ==================== -->
-  <Text x="0" y="0" size="#title_size" textExp="@lu_title" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#title_size" textExp="@title_display" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" width="#text_w" name="text_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true" alpha="0"/>
 
@@ -204,9 +214,12 @@
   <Var name="time_h" type="number" expression="(16 * #scale)"/>
   <Var name="agent_h" type="number" expression="(20 * #scale)"/>
   <Var name="text_block_h" type="number" expression="(#agent_h + (4 * #scale) + #title_measure.text_height + (#has_subtext * (#title_gap + #subtext_measure.text_height)) + (#has_bigtext * (ifelse(#has_subtext, 0, #title_gap) + (2 * #subtext_measure.text_height))) + (#has_stats * (#title_gap + #chart_h + (4 * #scale) + #stats_h)))"/>
+  <!-- 非 Operit 应用通知：整体上移 80px（这类卡片没有 Agent 标签/统计，可上移显示更多）
+        80px ÷ scale(≈4.6) ≈ 17.4 -->
+  <Var name="foreign_shift" type="number" expression="(ifelse(eq(#show_agent_label, 0), 17.4 * #scale, 0))"/>
   <Var name="total_content_h" type="number" expression="(#icon_size + #icon_text_gap + #text_block_h)"/>
-  <!-- 在 area_top ~ area_bottom 之间垂直居中 -->
-  <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2))"/>
+  <!-- 在 area_top ~ area_bottom 之间垂直居中；非 Agent 卡片整体再上移 80px -->
+  <Var name="content_start_y" type="number" expression="(#area_top + ((#area_h - #total_content_h) / 2) - #foreign_shift)"/>
 
   <!-- "Agent" 文字标签（仅 Operit 包显示），顶部对齐安全区上沿（10*scale） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
@@ -215,7 +228,7 @@
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
   <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale) + #head_offset)"/>
-  <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
+  <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@title_display" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
 
   <!-- SubText（第二行：token + hit率）—— token_offset 控制 token 行独立上移，不影响 A/B/C/D -->
   <Var name="token_offset" type="number" expression="(5.2 * #scale)"/>
