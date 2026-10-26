@@ -578,7 +578,7 @@ final class FocusNotify {
             b = new Notification.Builder(ctx);
         }
         // 【槽位测试】全部写死标注，用户看哪个槽位在哪个位置
-        final boolean SLOT_TEST = true;
+        final boolean SLOT_TEST = false;
         String t1 = SLOT_TEST ? "【1-通知标题】" : title;
         String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
         String t3 = SLOT_TEST ? "【3-通知正文】" : body;
