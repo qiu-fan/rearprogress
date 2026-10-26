@@ -33,6 +33,10 @@ final class FocusNotify {
 
     private static final String CHANNEL_ID = "agent_rear_progress";
     private static final String CHANNEL_NAME = "Agent 进度";
+    /** 静默通道：主通知走这条 → 通知栏里看不到它，但 NLS 仍会收到，背屏照常取数。
+     *  （通知栏里只留镜像那条"焦点通知"，避免出现两条重复） */
+    private static final String CHANNEL_ID_QUIET = "agent_rear_progress_quiet";
+    private static final String CHANNEL_NAME_QUIET = "Agent 后台数据";
     private static final int NOTIF_ID = 0x4147454E; // 'AGEN'
     private static final String ORDER_ID = "operit_agent_progress";
     private static final String TAG = "RearProgress";
@@ -44,7 +48,73 @@ final class FocusNotify {
     private static long sSeq = 1L;
     private static String sLastTitle;
 
-    /** 转发广播：Operit 进程 → 副屏中心进程代发通知（绕过 MIUI 前台抑制） */
+    /** 是否由副屏中心代发通知。
+     *  实测结论：代发能让前台也显示岛，但通知包名变成 com.xiaomi.subscreencenter 后，
+     *  副屏中心按 (pkg, business) 查模板时报 "No widget path for: com.xiaomi.subscreencenter"，
+     *  背屏会完全空白。所以默认关闭，仍由 Operit 自己发（背屏模板链路依赖 Operit 包名）。 */
+    static final boolean USE_DELEGATE = false;
+
+    /** 镜像通知标记：副屏中心进程发的那条"带 param"的通知（只为前台灵动岛服务，
+     *  主通知仍由 Operit 自己发、不带 param，保证背屏模板按 Operit 包名正常命中）。 */
+    static volatile boolean sForceParam = false;
+    static final String ACTION_MIRROR = "com.operit.rearprogress.MIRROR";
+    /** 是否注入 miui.focus.param（岛展开态差异）。
+     *  实测：注入后系统生成 rear_paramv2，副屏中心走 OS2,3 新分支按 (pkg,business)
+     *  查模板，报 "No widget path ... business: notification_island" → 背屏整条丢弃变空白，
+     *  同时前台岛被抑制。所以默认关闭，通知交回系统自动生成岛。 */
+    static final boolean INJECT_ISLAND_PARAM = false;
+    /** 运行时热开关：/data/local/tmp/agent_param.enabled 存在即开启 param 注入 */
+    static boolean injParam() {
+        try {
+            return new java.io.File("/data/local/tmp/agent_param.enabled").exists();
+        } catch (Throwable t) {
+            return INJECT_ISLAND_PARAM;
+        }
+    }
+
+    /** 运行时热配置 business（文件首行），默认 notification_island */
+    static String injBusiness() {
+        try {
+            java.io.File f = new java.io.File("/data/local/tmp/agent_param.business");
+            if (f.exists()) {
+                java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
+                String s = r.readLine();
+                r.close();
+                if (s != null && !s.trim().isEmpty()) return s.trim();
+            }
+        } catch (Throwable ignored) {}
+        return "notification_island";
+    }
+
+    /**
+     * 运行时 param 覆写：/data/local/tmp/agent_param.json 里的顶层 key
+     * 会覆盖 param_v2 的默认字段，改完下一次通知刷新即生效（无需重启）。
+     * 例：{"protocol":3,"business":"notification_island","islandFirstFloat":true}
+     */
+    static void applyParamOverrides(org.json.JSONObject pv2) {
+        try {
+            java.io.File f = new java.io.File("/data/local/tmp/agent_param.json");
+            if (!f.exists()) return;
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line);
+            r.close();
+            org.json.JSONObject ov = new org.json.JSONObject(sb.toString());
+            java.util.Iterator<String> it = ov.keys();
+            int n = 0;
+            while (it.hasNext()) {
+                String k = it.next();
+                Object v = ov.opt(k);
+                if (v == null || v == org.json.JSONObject.NULL) continue;
+                pv2.put(k, v);
+                n++;
+            }
+            android.util.Log.i("RearProgress", "param override applied: " + n + " keys");
+        } catch (Throwable t) {
+            android.util.Log.w("RearProgress", "param override failed", t);
+        }
+    }
     static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
     static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
     /** 副屏中心代发成功后回执（Operit 侧据此判断是否需要本地兜底） */
@@ -167,6 +237,15 @@ final class FocusNotify {
             ch.enableVibration(false);
             ch.setSound(null, null);
             sNm.createNotificationChannel(ch);
+            // 静默通道：MIN 重要性 → 通知栏不显示，但 NLS 仍会派发（背屏取数用）
+            NotificationChannel quiet = new NotificationChannel(
+                    CHANNEL_ID_QUIET, CHANNEL_NAME_QUIET, NotificationManager.IMPORTANCE_MIN);
+            quiet.setShowBadge(false);
+            quiet.enableLights(false);
+            quiet.enableVibration(false);
+            quiet.setSound(null, null);
+            quiet.setShowBadge(false);
+            sNm.createNotificationChannel(quiet);
         } catch (Throwable ignored) {}
     }
 
@@ -181,10 +260,14 @@ final class FocusNotify {
         pushRaw(text, "", progress);
     }
 
-    /** 停止显示：撤掉这条常驻卡 */
+    /** 停止显示：撤掉这条常驻卡（本地 + 镜像两条都要撤） */
     static void stop() {
-        // Operit 进程里转发给副屏中心执行
         if (isOperitProcess()) {
+            stopLocal();
+            forwardStop();
+            return;
+        }
+        if (USE_DELEGATE && isOperitProcess()) {
             forwardStop();
             return;
         }
@@ -224,7 +307,7 @@ final class FocusNotify {
         // 在 Operit 进程里：转发给副屏中心代发（用它的包名，绕过 MIUI 前台抑制）
         // 用 ordered broadcast 同步回执：副屏中心成功代发会 setResultCode(1)，
         // 收不到（比如副屏中心没在跑）才本地兜底发，避免重复通知。
-        if (isOperitProcess()) {
+        if (USE_DELEGATE && isOperitProcess()) {
             final String fT = title, fTool = toolName, fBody = body;
             final int fPct = percent;
             try {
@@ -258,6 +341,41 @@ final class FocusNotify {
             return;
         }
         pushStateLocal(title, toolName, body, percent);
+        // 双通知解耦：再让副屏中心代发一条"带 param"的镜像通知。
+        //   主通知（Operit 自己发、不带 param）→ 背屏模板按 Operit 包名命中，正常显示
+        //   镜像通知（副屏中心包名、带 param）→ 它不是前台应用，MIUI 不抑制 → 前台也有岛
+        if (isOperitProcess()) forwardMirror(title, toolName, body, percent);
+    }
+
+    /** 让副屏中心代发"带 param"的镜像通知（只为前台灵动岛 + 展开态差异服务） */
+    private static void forwardMirror(String title, String toolName, String body, int percent) {
+        try {
+            Context ctx = currentAppContext();
+            if (ctx == null) return;
+            android.content.Intent i = new android.content.Intent(ACTION_MIRROR);
+            i.putExtra("title", title == null ? "" : title);
+            i.putExtra("tool", toolName == null ? "" : toolName);
+            i.putExtra("body", body == null ? "" : body);
+            i.putExtra("percent", percent);
+            i.setPackage(PKG_SCREEN);
+            ctx.sendBroadcast(i);
+            android.util.Log.i(TAG, "forwardMirror sent: tool=" + toolName);
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "forwardMirror failed", t);
+        }
+    }
+
+    /** 副屏中心进程里：发镜像通知（强制注入 param） */
+    static void pushMirrorLocal(String title, String toolName, String body, int percent) {
+        boolean old = sForceParam;
+        sForceParam = true;
+        try {
+            pushStateLocal(title, toolName, body, percent);
+            android.util.Log.i(TAG, "mirror notify sent (pkg="
+                    + (sCtx == null ? "?" : sCtx.getPackageName()) + ")");
+        } finally {
+            sForceParam = old;
+        }
     }
 
     /** 真正构建并发通知（由副屏中心进程执行，通知 pkg = com.xiaomi.subscreencenter） */
@@ -443,7 +561,7 @@ final class FocusNotify {
                                                   String body, int percent, boolean hasBar) {
         Notification.Builder b;
         if (android.os.Build.VERSION.SDK_INT >= 26) {
-            b = new Notification.Builder(ctx, CHANNEL_ID);
+            b = new Notification.Builder(ctx, sForceParam ? CHANNEL_ID : CHANNEL_ID_QUIET);
         } else {
             b = new Notification.Builder(ctx);
         }
@@ -501,7 +619,10 @@ final class FocusNotify {
         //   protocol=1，没有 isShowNotification 这个字段，tickerPic 必填且要在 miui.focus.pics 里存在。
         try {
             String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
-            String flow = AgentProgress.getToolFlow();
+            String flow0 = AgentProgress.getToolFlow();
+            boolean isMirror = sForceParam;
+            if (injParam() || isMirror) {
+            String flow = flow0;
             if (flow == null) flow = "";
             if (flow.length() > 40) flow = flow.substring(0, 40) + "…";
             String tok = (toolName == null || toolName.isEmpty()) ? "" : toolName;
@@ -544,15 +665,17 @@ final class FocusNotify {
 
             org.json.JSONObject pv2 = new org.json.JSONObject()
                     .put("protocol", 1)
-                    .put("business", "notification_island")
+                    .put("business", injBusiness())
                     .put("updatable", true)
                     .put("enableFloat", false)
                     .put("islandFirstFloat", false)
                     .put("ticker", toolTitle)
                     .put("tickerPic", PIC_KEY)
-                    .put("notifyId", "com.ai.assistance.operit" + NOTIF_ID)
+                    .put("notifyId", (isMirror && sCtx != null
+                            ? sCtx.getPackageName() : "com.ai.assistance.operit") + NOTIF_ID)
                     .put("param_island", island)
                     .put("iconTextInfo", iconTextInfo);
+            applyParamOverrides(pv2);
 
             n.extras.putString("miui.focus.param",
                     new org.json.JSONObject().put("param_v2", pv2).toString());
@@ -562,6 +685,7 @@ final class FocusNotify {
             pics.putParcelable(PIC_KEY, android.graphics.drawable.Icon.createWithResource(
                     ctx, android.R.drawable.stat_sys_download_done));
             n.extras.putBundle("miui.focus.pics", pics);
+            }
         } catch (Throwable ignored) {}
 
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，

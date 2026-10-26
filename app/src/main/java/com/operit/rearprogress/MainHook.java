@@ -39,6 +39,7 @@ public class MainHook extends XposedModule {
     private static final String TAG = "RearProgress";
     private static final String PKG_SCREEN = "com.xiaomi.subscreencenter";
     private static final String PKG_OPERIT = "com.ai.assistance.operit";
+    private static final String PKG_SYSTEMUI = "com.android.systemui";
 
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
     private static final String MARKER = "[AGENT]";
@@ -79,6 +80,12 @@ public class MainHook extends XposedModule {
                 OperitHook.install(this, param.getClassLoader());
                 return;
             }
+            if (PKG_SYSTEMUI.equals(pkg)) {
+                mCl = param.getClassLoader();
+                log(android.util.Log.INFO, TAG, "systemui ready: watch plugin loader");
+                installHotDex();
+                return;
+            }
             if (!PKG_SCREEN.equals(pkg)) return;
 
             mCl = param.getClassLoader();
@@ -96,6 +103,37 @@ public class MainHook extends XposedModule {
             registerNotifyForwarder();
         } catch (Throwable t) {
             log(android.util.Log.ERROR, TAG, "onPackageReady failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ SystemUI 热更新引导器
+
+    /** 外挂 dex：改 hook 逻辑只需替换这个文件 + 重启 SystemUI，不用重装模块、不用重启设备 */
+    private static final String HOT_DEX = "/data/local/tmp/rp/rp_hook.dex";
+    private static final String HOT_CLASS = "com.operit.rearprogress.hot.SysUiHot";
+
+    /**
+     * 加载 /data/local/tmp/rp/rp_hook.dex，调用其中的 SysUiHot.install(this, systemUiClassLoader)。
+     * dex 的 parent 用模块自己的 ClassLoader，这样外挂代码可以访问 libxposed API。
+     *
+     * 注意：这里不做任何 hook 判断，全部逻辑都在外挂 dex 里，方便热替换。
+     */
+    private void installHotDex() {
+        try {
+            java.io.File f = new java.io.File(HOT_DEX);
+            if (!f.exists()) {
+                log(android.util.Log.WARN, TAG, "hot dex missing: " + HOT_DEX);
+                return;
+            }
+            dalvik.system.DexClassLoader dcl = new dalvik.system.DexClassLoader(
+                    HOT_DEX, null, null, getClass().getClassLoader());
+            Class<?> c = Class.forName(HOT_CLASS, true, dcl);
+            java.lang.reflect.Method m = c.getMethod("install",
+                    XposedModule.class, ClassLoader.class);
+            log(android.util.Log.INFO, TAG, "hot dex loaded, invoking install()");
+            m.invoke(null, this, mCl);
+        } catch (Throwable t) {
+            log(android.util.Log.ERROR, TAG, "installHotDex failed", t);
         }
     }
 
@@ -158,6 +196,16 @@ public class MainHook extends XposedModule {
                     try {
                         String action = intent.getAction();
                         FocusNotify.init(app);
+                        if (FocusNotify.ACTION_MIRROR.equals(action)) {
+                            // 镜像：只发"带 param"的那条，负责前台灵动岛
+                            FocusNotify.pushMirrorLocal(
+                                    intent.getStringExtra("title"),
+                                    intent.getStringExtra("tool"),
+                                    intent.getStringExtra("body"),
+                                    intent.getIntExtra("percent", -1));
+                            setResultCode(1);
+                            return;
+                        }
                         if (FocusNotify.ACTION_STOP.equals(action)) {
                             FocusNotify.stopLocal();
                             log(android.util.Log.INFO, TAG, "forward: stop");
@@ -178,6 +226,7 @@ public class MainHook extends XposedModule {
             };
             android.content.IntentFilter f = new android.content.IntentFilter();
             f.addAction(FocusNotify.ACTION_PUSH);
+            f.addAction(FocusNotify.ACTION_MIRROR);
             f.addAction(FocusNotify.ACTION_STOP);
             app.registerReceiver(r, f, android.content.Context.RECEIVER_EXPORTED);
             sForwarderRegistered = true;
