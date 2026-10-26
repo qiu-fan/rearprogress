@@ -35,7 +35,7 @@ final class FocusNotify {
     private static final String CHANNEL_NAME = "Agent 进度";
     /** 静默通道：主通知走这条 → 通知栏里看不到它，但 NLS 仍会收到，背屏照常取数。
      *  （通知栏里只留镜像那条"焦点通知"，避免出现两条重复） */
-    private static final String CHANNEL_ID_QUIET = "agent_rear_progress_quiet";
+    private static final String CHANNEL_ID_QUIET = "agent_rear_progress_data";
     private static final String CHANNEL_NAME_QUIET = "Agent 后台数据";
     private static final int NOTIF_ID = 0x4147454E; // 'AGEN'
     private static final String ORDER_ID = "operit_agent_progress";
