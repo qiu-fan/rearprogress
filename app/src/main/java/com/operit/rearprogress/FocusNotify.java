@@ -632,11 +632,11 @@ final class FocusNotify {
                     .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
                     // title  → 状态标题（工具名）；SLOT_TEST 时显示槽位测试文案
                     // 注意：不能用 toolName，它实际是 token 用量（102bd62 修的 bug 根因）
-                    .put("title",    SLOT_TEST ? "【7-焦点卡标题】" : toolTitle)
+                    .put("title",    SLOT_TEST ? "【7-焦点卡标题】" : (tok + " " + TokenHook.getRate10s()))
                     // content → 命令正文；多行会被 MIUI 折叠成一行，所以显式用 · 连接
-                    .put("content",  SLOT_TEST ? "【8-焦点卡内容】多行示例·用·连接" : (bodyText.isEmpty() ? tok : bodyText.replace("\n", " · ")))
+                    .put("content",  SLOT_TEST ? "【8-焦点卡内容】多行示例·用·连接" : TokenHook.getSparkline(16))
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
-                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : (tok + hitSuffix()));
+                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : toolTitle);
 
             // 大岛：左=工具名（10），右=token 数（11）——用户指定
             org.json.JSONObject bigLeft = new org.json.JSONObject()
