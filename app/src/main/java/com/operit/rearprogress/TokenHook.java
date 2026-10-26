@@ -62,6 +62,7 @@ final class TokenHook {
     private static final int HISTORY_SIZE = 40;
     private static final long[] sHistIn = new long[HISTORY_SIZE];
     private static final long[] sHistOut = new long[HISTORY_SIZE];
+    private static final long[] sHistAt = new long[HISTORY_SIZE];
     private static volatile int sHistCount = 0;
     private static volatile int sHistHead = 0;
     /** 历史首/末时间戳（算图表时间段） */
@@ -80,6 +81,7 @@ final class TokenHook {
         sHistLastAt = now;
         sHistIn[sHistHead] = in;
         sHistOut[sHistHead] = out;
+        sHistAt[sHistHead] = now;
         sHistHead = (sHistHead + 1) % HISTORY_SIZE;
         if (sHistCount < HISTORY_SIZE) sHistCount++;
     }
@@ -143,6 +145,85 @@ final class TokenHook {
     static long getLastIn() { return Math.max(0, sLastIn); }
     /** 最近一次 output token */
     static long getLastOut() { return Math.max(0, sLastOut); }
+
+    /**
+     * 过去 N 秒的 token 速率（tokens/s，一位小数）。
+     * 从环形缓冲里找最接近 now-N 秒的快照，算 in+out 增量 / 实际秒数。
+     * 数据不足时返回 "—"。
+     */
+    static String getRate10s() {
+        return getRate(10_000L);
+    }
+
+    /** 通用速率计算：过去 windowMs 毫秒的 tokens/s */
+    static String getRate(long windowMs) {
+        int n = sHistCount;
+        if (n < 2) return "--.-/s";
+        int head = sHistHead;
+        // 最新快照
+        int lastIdx = (head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+        long lastIn = sHistIn[lastIdx], lastOut = sHistOut[lastIdx];
+        long lastAt = sHistAt[lastIdx];
+        if (lastAt <= 0) return "--.-/s";
+        long target = lastAt - windowMs;
+        // 从旧往新找第一个时间戳 >= target 的快照作为基准
+        int start = (head - n + HISTORY_SIZE) % HISTORY_SIZE;
+        int baseIdx = -1;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (sHistAt[idx] >= target) { baseIdx = idx; break; }
+        }
+        if (baseIdx < 0) baseIdx = start;  // 全部早于窗口，用最旧的
+        long baseIn = sHistIn[baseIdx], baseOut = sHistOut[baseIdx];
+        long baseAt = sHistAt[baseIdx];
+        long dTok = (lastIn + lastOut) - (baseIn + baseOut);
+        long dMs = lastAt - baseAt;
+        if (dMs <= 0) return "--.-/s";
+        double rate = dTok * 1000.0 / dMs;
+        return String.format(java.util.Locale.US, "%.1f/s", rate);
+    }
+
+    /**
+     * 文字化图表（sparkline）：把 token 历史映射到 Unicode 块字符。
+     * 每个字符 = 一个快照的 in 增量（每段新增量，不是累计值），
+     * 归一化到 8 级：▁▂▃▄▅▆▇█。宽度固定 width 个字符（等距重采样）。
+     */
+    static String getSparkline(int width) {
+        int n = sHistCount;
+        if (n < 2) {
+            // 占位：铺满最低块字符，固定宽度避免文本跳动
+            StringBuilder ph = new StringBuilder();
+            for (int i = 0; i < width; i++) ph.append('\u2581');
+            return ph.toString();
+        }
+        int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        // 每段增量
+        long[] delta = new long[n];
+        long maxD = 1;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            int prevIdx = (start + Math.max(0, i - 1)) % HISTORY_SIZE;
+            long d = sHistIn[idx] - sHistIn[prevIdx];
+            if (d < 0) d = 0;
+            delta[i] = d;
+            if (d > maxD) maxD = d;
+        }
+        // Unicode 块字符：8 级
+        final char[] BLOCKS = {'\u2581', '\u2582', '\u2583', '\u2584',
+                               '\u2585', '\u2586', '\u2587', '\u2588'};
+        StringBuilder sb = new StringBuilder();
+        for (int w = 0; w < width; w++) {
+            // 等距重采样：把 n 个点压缩到 width 个
+            int i = (int) ((long) w * (n - 1) / Math.max(1, width - 1));
+            int level = (int) (delta[i] * 8 / maxD);
+            if (level > 7) level = 7;
+            if (level < 0) level = 0;
+            // 全 0 时也给最低一格，避免空白
+            if (delta[i] == 0 && maxD > 0) level = 0;
+            sb.append(BLOCKS[level]);
+        }
+        return sb.toString();
+    }
 
     /**
      * 生成 token 趋势的 SVG path（Java 侧算好，MAML 直接 Path 画，零解析）。
