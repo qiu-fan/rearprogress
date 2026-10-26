@@ -347,12 +347,12 @@ final class FocusNotify {
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
 
-        // 灵动岛：按系统自己生成的扁平结构写 miui.focus.param
-        //   参考 dumpsys 里系统生成的 param：没有 param_v2 外壳，字段直接在顶层。
-        //   param_island.bigIslandArea   → 大岛（展开）：左标题 + 右 token
-        //   param_island.smallIslandArea → 小岛（收起）：只有图标
-        //   iconTextInfo                 → 通知栏卡片（下拉/焦点）：保持原标题+原文，
-        //                                  这样通知看起来和以前一样，只有岛展开后不同。
+        // 灵动岛：按 HyperIsland 实机验证结构注入 miui.focus.param
+        //   param_island.smallIslandArea → 小岛（收起，只有图标）
+        //   param_island.bigIslandArea   → 大岛（展开，左标题 + 右工具名）
+        //   param_v2.iconTextInfo        → 焦点通知（下拉展开卡，独立内容）
+        // 字段严格照 ScreenRecorderHook + 官方模板库3.15：
+        //   protocol=1，没有 isShowNotification 这个字段，tickerPic 必填且要在 miui.focus.pics 里存在。
         try {
             String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
             String flow = AgentProgress.getToolFlow();
@@ -366,53 +366,50 @@ final class FocusNotify {
             org.json.JSONObject picInfo = new org.json.JSONObject()
                     .put("type", 1).put("pic", PIC_KEY);
 
-            // 大岛（展开）：左边标题，右边工具流详情（与卡片内容不同）
-            org.json.JSONObject bigLeft = new org.json.JSONObject()
-                    .put("type", 1)
-                    .put("picInfo", picInfo)
-                    .put("textInfo", new org.json.JSONObject()
-                            .put("title", toolTitle)
-                            .put("showHighlightColor", false));
-            org.json.JSONObject bigRight = new org.json.JSONObject()
-                    .put("type", 2)
-                    .put("textInfo", new org.json.JSONObject()
-                            .put("title", flow.isEmpty() ? tok : flow)
-                            .put("showHighlightColor", false));
-            org.json.JSONObject bigArea = new org.json.JSONObject()
-                    .put("imageTextInfoLeft", bigLeft)
-                    .put("imageTextInfoRight", bigRight);
-
-            // 小岛（收起）：只有图标
-            org.json.JSONObject smallArea = new org.json.JSONObject().put("picInfo", picInfo);
-
-            org.json.JSONObject islandParam = new org.json.JSONObject()
-                    .put("islandOrder", true)
-                    .put("dismissIsland", false)
-                    .put("bigIslandArea", bigArea)
-                    .put("smallIslandArea", smallArea);
-
-            // 通知栏卡片内容 = 原标题 + 原正文（方案②：卡片看起来和以前一样）
+            // 焦点通知（下拉展开卡）：保持原标题+原正文，让通知看起来和以前一样
+            // （只有岛展开后的内容不同，由 param_island.bigIslandArea 提供）
             org.json.JSONObject iconTextInfo = new org.json.JSONObject()
                     .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
                     .put("title", toolTitle)
                     .put("content", bodyText.isEmpty() ? tok : bodyText)
                     .put("subContent", tok);
 
-            org.json.JSONObject p = new org.json.JSONObject()
+            // 大岛：左=图标+标题，右=token
+            org.json.JSONObject bigLeft = new org.json.JSONObject()
+                    .put("type", 1)
+                    .put("picInfo", picInfo)
+                    .put("textInfo", new org.json.JSONObject().put("title", toolTitle));
+            org.json.JSONObject bigRight = new org.json.JSONObject()
+                    .put("type", 2)
+                    .put("textInfo", new org.json.JSONObject().put("title", tok));
+            org.json.JSONObject bigArea = new org.json.JSONObject()
+                    .put("imageTextInfoLeft", bigLeft)
+                    .put("imageTextInfoRight", bigRight);
+
+            // 小岛：只有图标
+            org.json.JSONObject smallArea = new org.json.JSONObject().put("picInfo", picInfo);
+
+            org.json.JSONObject island = new org.json.JSONObject()
+                    .put("islandPriority", 1)
+                    .put("islandTimeout", Integer.MAX_VALUE)
+                    .put("islandProperty", 1)
+                    .put("bigIslandArea", bigArea)
+                    .put("smallIslandArea", smallArea);
+
+            org.json.JSONObject pv2 = new org.json.JSONObject()
                     .put("protocol", 1)
                     .put("business", "notification_island")
                     .put("updatable", true)
                     .put("enableFloat", false)
                     .put("islandFirstFloat", false)
-                    .put("sequence", System.currentTimeMillis())
-                    .put("title", toolTitle)
-                    .put("content", bodyText)
                     .put("ticker", toolTitle)
                     .put("tickerPic", PIC_KEY)
-                    .put("param_island", islandParam)
+                    .put("notifyId", "com.ai.assistance.operit" + NOTIF_ID)
+                    .put("param_island", island)
                     .put("iconTextInfo", iconTextInfo);
 
-            n.extras.putString("miui.focus.param", p.toString());
+            n.extras.putString("miui.focus.param",
+                    new org.json.JSONObject().put("param_v2", pv2).toString());
 
             // 图标：picInfo/tickerPic 引用的 key 必须在 miui.focus.pics 里存在
             android.os.Bundle pics = new android.os.Bundle();
