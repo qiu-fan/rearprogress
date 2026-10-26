@@ -158,13 +158,13 @@ final class TokenHook {
     /** 通用速率计算：过去 windowMs 毫秒的 tokens/s */
     static String getRate(long windowMs) {
         int n = sHistCount;
-        if (n < 2) return "—";
+        if (n < 2) return "--.-/s";
         int head = sHistHead;
         // 最新快照
         int lastIdx = (head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
         long lastIn = sHistIn[lastIdx], lastOut = sHistOut[lastIdx];
         long lastAt = sHistAt[lastIdx];
-        if (lastAt <= 0) return "—";
+        if (lastAt <= 0) return "--.-/s";
         long target = lastAt - windowMs;
         // 从旧往新找第一个时间戳 >= target 的快照作为基准
         int start = (head - n + HISTORY_SIZE) % HISTORY_SIZE;
@@ -178,7 +178,7 @@ final class TokenHook {
         long baseAt = sHistAt[baseIdx];
         long dTok = (lastIn + lastOut) - (baseIn + baseOut);
         long dMs = lastAt - baseAt;
-        if (dMs <= 0) return "—";
+        if (dMs <= 0) return "--.-/s";
         double rate = dTok * 1000.0 / dMs;
         return String.format(java.util.Locale.US, "%.1f/s", rate);
     }
@@ -190,7 +190,12 @@ final class TokenHook {
      */
     static String getSparkline(int width) {
         int n = sHistCount;
-        if (n < 2) return "";
+        if (n < 2) {
+            // 占位：铺满最低块字符，固定宽度避免文本跳动
+            StringBuilder ph = new StringBuilder();
+            for (int i = 0; i < width; i++) ph.append('\u2581');
+            return ph.toString();
+        }
         int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
         // 每段增量
         long[] delta = new long[n];
