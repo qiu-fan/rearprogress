@@ -127,6 +127,8 @@
     <VariableCommand name="has_bigtext" expression="(len(@lu_big_text) } 0)" type="number"/>
     <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
     <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
+    <!-- Agent 卡片标记：bigText 开头含 «（在 remove_rich_text 清掉之前判断） -->
+    <VariableCommand name="has_agent_mark" expression="ifelse(((len(@lu_big_text) - len(strReplaceAll(@lu_big_text,'«',''))) } 0), 1, 0)" type="number"/>
     <FunctionCommand target="remove_rich_text"/>
   </Function>
 
@@ -212,7 +214,7 @@
 
   <!-- "Agent" 文字标签（仅 Operit 包显示），顶部对齐安全区上沿（10*scale） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset - ifelse(#bigtext_natural_lines > 3, 10.9 * #scale, 0) + 40"/>
+  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset - ifelse(eq(#has_agent_mark, 1), 0, ifelse(#bigtext_natural_lines > 3, 10.9 * #scale, 0))"/>
   <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
