@@ -76,6 +76,36 @@ final class FocusNotify {
         } catch (Throwable ignored) {}
         return "notification_island";
     }
+
+    /**
+     * 运行时 param 覆写：/data/local/tmp/agent_param.json 里的顶层 key
+     * 会覆盖 param_v2 的默认字段，改完下一次通知刷新即生效（无需重启）。
+     * 例：{"protocol":3,"business":"notification_island","islandFirstFloat":true}
+     */
+    static void applyParamOverrides(org.json.JSONObject pv2) {
+        try {
+            java.io.File f = new java.io.File("/data/local/tmp/agent_param.json");
+            if (!f.exists()) return;
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line);
+            r.close();
+            org.json.JSONObject ov = new org.json.JSONObject(sb.toString());
+            java.util.Iterator<String> it = ov.keys();
+            int n = 0;
+            while (it.hasNext()) {
+                String k = it.next();
+                Object v = ov.opt(k);
+                if (v == null || v == org.json.JSONObject.NULL) continue;
+                pv2.put(k, v);
+                n++;
+            }
+            android.util.Log.i("RearProgress", "param override applied: " + n + " keys");
+        } catch (Throwable t) {
+            android.util.Log.w("RearProgress", "param override failed", t);
+        }
+    }
     static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
     static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
     /** 副屏中心代发成功后回执（Operit 侧据此判断是否需要本地兜底） */
@@ -579,13 +609,14 @@ final class FocusNotify {
                     .put("protocol", 1)
                     .put("business", injBusiness())
                     .put("updatable", true)
-                    .put("enableFloat", false)
-                    .put("islandFirstFloat", false)
+                    .put("enableFloat", true)
+                    .put("islandFirstFloat", true)
                     .put("ticker", toolTitle)
                     .put("tickerPic", PIC_KEY)
                     .put("notifyId", "com.ai.assistance.operit" + NOTIF_ID)
                     .put("param_island", island)
                     .put("iconTextInfo", iconTextInfo);
+            applyParamOverrides(pv2);
 
             n.extras.putString("miui.focus.param",
                     new org.json.JSONObject().put("param_v2", pv2).toString());
