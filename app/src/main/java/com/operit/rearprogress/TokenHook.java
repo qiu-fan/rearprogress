@@ -176,7 +176,7 @@ final class TokenHook {
         if (baseIdx < 0) baseIdx = start;  // 全部早于窗口，用最旧的
         long baseIn = sHistIn[baseIdx], baseOut = sHistOut[baseIdx];
         long baseAt = sHistAt[baseIdx];
-        long dTok = (lastIn + lastOut) - (baseIn + baseOut);
+        long dTok = lastOut - baseOut;  // 只统计下载（out）token
         long dMs = lastAt - baseAt;
         if (dMs <= 0) return "--.-/s";
         double rate = dTok * 1000.0 / dMs;
