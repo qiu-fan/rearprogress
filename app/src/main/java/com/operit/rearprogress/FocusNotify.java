@@ -573,48 +573,40 @@ final class FocusNotify {
                                                   String body, int percent, boolean hasBar) {
         Notification.Builder b;
         if (android.os.Build.VERSION.SDK_INT >= 26) {
-            b = new Notification.Builder(ctx, sForceParam ? CHANNEL_ID : CHANNEL_ID_QUIET);
-            // 主通知用 IMPORTANCE_LOW 静默通道（B 实测：MIUI 对 IMPORTANCE_MIN 第三方通知直接不投递）
-            // LOW 通道本身就不响铃不震动，NLS 仍会派发 → 背屏数据源存活
+            b = new Notification.Builder(ctx, CHANNEL_ID);
         } else {
             b = new Notification.Builder(ctx);
         }
-        b.setContentTitle(title);
-        // 工具名走 subText，副屏中心 m2.b.c() 会把 extras 的
-        // android.subText 映射成 lu_sub_text，正好对应模板第二行
-        if (toolName != null && !toolName.isEmpty()) {
-            b.setSubText(toolName);
+        // 【槽位测试】全部写死标注，用户看哪个槽位在哪个位置
+        final boolean SLOT_TEST = true;
+        String t1 = SLOT_TEST ? "【1-通知标题】" : title;
+        String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
+        String t3 = SLOT_TEST ? "【3-通知正文】" : body;
+
+        b.setContentTitle(t1);
+        if (t2 != null && !t2.isEmpty()) {
+            b.setSubText(t2);
         }
-        // 展开态正文：body 保持原样（背屏只读 extras.android.text），
-        // 展开态额外信息走 BigTextStyle（见下）。
-        b.setContentText(body);
+        b.setContentText(t3);
         b.setSmallIcon(android.R.drawable.stat_sys_download_done);
         b.setOngoing(true);
         b.setOnlyAlertOnce(true);
         b.setShowWhen(false);
-        b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
+        b.setPriority(Notification.PRIORITY_HIGH);
 
-        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读 bigText）
-        // ⚠️ bigText 必须只放 body：副屏中心会把 android.bigText 映射成 lu_big_text，
-        //    多放任何东西都会污染背屏消息区。
-        //    开头追加 Agent 标记 «：背屏模板据此显示蓝色 "Agent" 标签。
         try {
             Notification.BigTextStyle bigText = new Notification.BigTextStyle()
-                    .bigText(AGENT_MARK + body)
-                    .setBigContentTitle(title)
-                    .setSummaryText(toolName);
+                    .bigText(SLOT_TEST ? "【4-展开大文本】多行示例\n第二行\n第三行" : AGENT_MARK + body)
+                    .setBigContentTitle(SLOT_TEST ? "【5-展开大标题】" : title)
+                    .setSummaryText(SLOT_TEST ? "【6-展开摘要】" : toolName);
             b.setStyle(bigText);
         } catch (Throwable ignored) {}
 
         Notification n = b.build();
-        // 扩展 extras：供展开态 MAML 模板使用（副屏中心会映射成 lu_* 变量）
         try {
-            // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
-            // Agent 标记：本通道专供 Agent 卡片使用（模板据此显示蓝色 Agent）。
             n.extras.putString("agent_mark", "1");
             n.extras.putString("token_history", TokenHook.getHistoryJson());
             n.extras.putString("token_path", TokenHook.getHistoryPath(630, 110));
-            // 命中率：无 token 数据时为空（背屏模板显示 ready，不显示 hit）
             String hitRate = AgentProgress.toolName().equals("ready") ? ""
                     : String.format(java.util.Locale.US, "%.2f", TokenHook.getHitRate()) + "%";
             n.extras.putString("hit_rate", hitRate);
@@ -625,38 +617,24 @@ final class FocusNotify {
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
 
-        // 灵动岛：按 HyperIsland 实机验证结构注入 miui.focus.param
-        //   param_island.smallIslandArea → 小岛（收起，只有图标）
-        //   param_island.bigIslandArea   → 大岛（展开，左标题 + 右工具名）
-        //   param_v2.iconTextInfo        → 焦点通知（下拉展开卡，独立内容）
-        // 字段严格照 ScreenRecorderHook + 官方模板库3.15：
-        //   protocol=1，没有 isShowNotification 这个字段，tickerPic 必填且要在 miui.focus.pics 里存在。
         try {
             String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
-            String flow0 = AgentProgress.getToolFlow();
             boolean isMirror = sForceParam;
             if (injParam() || isMirror) {
-            String flow = flow0;
-            if (flow == null) flow = "";
-            if (flow.length() > 40) flow = flow.substring(0, 40) + "…";
-            String tok = (toolName == null || toolName.isEmpty()) ? "" : toolName;
-            String bodyText = (body == null || body.isEmpty()) ? "" : body;
-
             final String PIC_KEY = "operit_island_icon";
-
             org.json.JSONObject picInfo = new org.json.JSONObject()
                     .put("type", 1).put("pic", PIC_KEY);
 
-            // 焦点通知（下拉展开卡）：保持原标题+原正文，让通知看起来和以前一样
-            // （只有岛展开后的内容不同，由 param_island.bigIslandArea 提供）
+            // 焦点通知展开卡（下拉岛后看到的卡）
             org.json.JSONObject iconTextInfo = new org.json.JSONObject()
                     .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
-                    // title  → 工具名（CopyFile / read_file …），没有工具名时回落到状态标题
-                    .put("title", toolTitle)
+                    // title  → 状态标题（工具名）；SLOT_TEST 时显示槽位测试文案
+                    // 注意：不能用 toolName，它实际是 token 用量（102bd62 修的 bug 根因）
+                    .put("title",    SLOT_TEST ? "【7-焦点卡标题】" : toolTitle)
                     // content → 命令正文；多行会被 MIUI 折叠成一行，所以显式用 · 连接
-                    .put("content", bodyText.isEmpty() ? tok : bodyText.replace("\n", " · "))
+                    .put("content",  SLOT_TEST ? "【8-焦点卡内容】多行示例·用·连接" : (bodyText.isEmpty() ? tok : bodyText.replace("\n", " · ")))
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
-                    .put("subContent", tok + hitSuffix());
+                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : (tok + hitSuffix()));
 
             // 大岛：左=动作标签（BUILD / INSTALL / GIT ...，识别不到回落工具名）
             //       右=版本号（v1.2.4，识别不到回落 token）
@@ -666,16 +644,16 @@ final class FocusNotify {
                     .put("type", 1)
                     .put("picInfo", picInfo)
                     .put("textInfo", new org.json.JSONObject()
-                            .put("title", act.isEmpty() ? toolTitle : act));
+                            .put("title", SLOT_TEST ? "【10-大岛左标题】" : (act.isEmpty() ? toolTitle : act)));
             org.json.JSONObject bigRight = new org.json.JSONObject()
                     .put("type", 2)
                     .put("textInfo", new org.json.JSONObject()
-                            .put("title", ver.isEmpty() ? tok : ver));
+                            .put("title", SLOT_TEST ? "【11-大岛右标题】" : (ver.isEmpty() ? tok : ver)));
             org.json.JSONObject bigArea = new org.json.JSONObject()
                     .put("imageTextInfoLeft", bigLeft)
                     .put("imageTextInfoRight", bigRight);
 
-            // 小岛：只有图标
+            // 小岛：只有图标，无文字槽位
             org.json.JSONObject smallArea = new org.json.JSONObject().put("picInfo", picInfo);
 
             org.json.JSONObject island = new org.json.JSONObject()
@@ -691,7 +669,7 @@ final class FocusNotify {
                     .put("updatable", true)
                     .put("enableFloat", false)
                     .put("islandFirstFloat", false)
-                    .put("ticker", toolTitle)
+                    .put("ticker", SLOT_TEST ? "【12-ticker】" : toolTitle)
                     .put("tickerPic", PIC_KEY)
                     .put("notifyId", (isMirror && sCtx != null
                             ? sCtx.getPackageName() : "com.ai.assistance.operit") + NOTIF_ID)
@@ -702,7 +680,6 @@ final class FocusNotify {
             n.extras.putString("miui.focus.param",
                     new org.json.JSONObject().put("param_v2", pv2).toString());
 
-            // 图标：picInfo/tickerPic 引用的 key 必须在 miui.focus.pics 里存在
             android.os.Bundle pics = new android.os.Bundle();
             pics.putParcelable(PIC_KEY, android.graphics.drawable.Icon.createWithResource(
                     ctx, android.R.drawable.stat_sys_download_done));
