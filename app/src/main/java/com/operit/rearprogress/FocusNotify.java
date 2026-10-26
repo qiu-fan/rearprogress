@@ -619,6 +619,8 @@ final class FocusNotify {
 
         try {
             String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
+            String bodyText = (body == null || body.isEmpty()) ? "" : body;
+            String tok = (toolName == null || toolName.isEmpty()) ? "" : toolName;
             boolean isMirror = sForceParam;
             if (injParam() || isMirror) {
             final String PIC_KEY = "operit_island_icon";
