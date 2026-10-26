@@ -44,7 +44,11 @@ final class FocusNotify {
     private static long sSeq = 1L;
     private static String sLastTitle;
 
-    /** 转发广播：Operit 进程 → 副屏中心进程代发通知（绕过 MIUI 前台抑制） */
+    /** 是否由副屏中心代发通知。
+     *  实测结论：代发能让前台也显示岛，但通知包名变成 com.xiaomi.subscreencenter 后，
+     *  副屏中心按 (pkg, business) 查模板时报 "No widget path for: com.xiaomi.subscreencenter"，
+     *  背屏会完全空白。所以默认关闭，仍由 Operit 自己发（背屏模板链路依赖 Operit 包名）。 */
+    static final boolean USE_DELEGATE = false;
     static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
     static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
     /** 副屏中心代发成功后回执（Operit 侧据此判断是否需要本地兜底） */
@@ -184,7 +188,7 @@ final class FocusNotify {
     /** 停止显示：撤掉这条常驻卡 */
     static void stop() {
         // Operit 进程里转发给副屏中心执行
-        if (isOperitProcess()) {
+        if (USE_DELEGATE && isOperitProcess()) {
             forwardStop();
             return;
         }
@@ -224,7 +228,7 @@ final class FocusNotify {
         // 在 Operit 进程里：转发给副屏中心代发（用它的包名，绕过 MIUI 前台抑制）
         // 用 ordered broadcast 同步回执：副屏中心成功代发会 setResultCode(1)，
         // 收不到（比如副屏中心没在跑）才本地兜底发，避免重复通知。
-        if (isOperitProcess()) {
+        if (USE_DELEGATE && isOperitProcess()) {
             final String fT = title, fTool = toolName, fBody = body;
             final int fPct = percent;
             try {
