@@ -347,9 +347,75 @@ final class FocusNotify {
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
 
-        // 灵动岛：完全交给 MIUI 自动从通知生成（notification_island 业务），
-        // 不再注入自定义 miui.focus.param —— 自定义 param 会覆盖系统行为导致岛消失。
-        // 岛展开/收起差异等原始需求，拿到 hyperisland 源码后按正统实现重做。
+        // 灵动岛：按 HyperIsland 实机验证结构注入 miui.focus.param
+        //   param_island.smallIslandArea → 小岛（收起，只有图标）
+        //   param_island.bigIslandArea   → 大岛（展开，左标题 + 右工具名）
+        //   param_v2.iconTextInfo        → 焦点通知（下拉展开卡，独立内容）
+        // 字段严格照 ScreenRecorderHook + 官方模板库3.15：
+        //   protocol=1，没有 isShowNotification 这个字段，tickerPic 必填且要在 miui.focus.pics 里存在。
+        try {
+            String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
+            String flow = AgentProgress.getToolFlow();
+            if (flow == null) flow = "";
+            if (flow.length() > 40) flow = flow.substring(0, 40) + "…";
+            String tok = (toolName == null || toolName.isEmpty()) ? "" : toolName;
+            String bodyText = (body == null || body.isEmpty()) ? "" : body;
+
+            final String PIC_KEY = "operit_island_icon";
+
+            org.json.JSONObject picInfo = new org.json.JSONObject()
+                    .put("type", 1).put("pic", PIC_KEY);
+
+            // 焦点通知（下拉展开卡）：标题=工具名，正文=工具流，副正文=token
+            org.json.JSONObject iconTextInfo = new org.json.JSONObject()
+                    .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
+                    .put("title", toolTitle)
+                    .put("content", flow.isEmpty() ? bodyText : flow)
+                    .put("subContent", tok);
+
+            // 大岛：左=图标+标题，右=token
+            org.json.JSONObject bigLeft = new org.json.JSONObject()
+                    .put("type", 1)
+                    .put("picInfo", picInfo)
+                    .put("textInfo", new org.json.JSONObject().put("title", toolTitle));
+            org.json.JSONObject bigRight = new org.json.JSONObject()
+                    .put("type", 2)
+                    .put("textInfo", new org.json.JSONObject().put("title", tok));
+            org.json.JSONObject bigArea = new org.json.JSONObject()
+                    .put("imageTextInfoLeft", bigLeft)
+                    .put("imageTextInfoRight", bigRight);
+
+            // 小岛：只有图标
+            org.json.JSONObject smallArea = new org.json.JSONObject().put("picInfo", picInfo);
+
+            org.json.JSONObject island = new org.json.JSONObject()
+                    .put("islandPriority", 1)
+                    .put("islandTimeout", Integer.MAX_VALUE)
+                    .put("islandProperty", 1)
+                    .put("bigIslandArea", bigArea)
+                    .put("smallIslandArea", smallArea);
+
+            org.json.JSONObject pv2 = new org.json.JSONObject()
+                    .put("protocol", 1)
+                    .put("business", "notification_island")
+                    .put("updatable", true)
+                    .put("enableFloat", false)
+                    .put("islandFirstFloat", false)
+                    .put("ticker", toolTitle)
+                    .put("tickerPic", PIC_KEY)
+                    .put("notifyId", "com.ai.assistance.operit" + NOTIF_ID)
+                    .put("param_island", island)
+                    .put("iconTextInfo", iconTextInfo);
+
+            n.extras.putString("miui.focus.param",
+                    new org.json.JSONObject().put("param_v2", pv2).toString());
+
+            // 图标：picInfo/tickerPic 引用的 key 必须在 miui.focus.pics 里存在
+            android.os.Bundle pics = new android.os.Bundle();
+            pics.putParcelable(PIC_KEY, android.graphics.drawable.Icon.createWithResource(
+                    ctx, android.R.drawable.stat_sys_download_done));
+            n.extras.putBundle("miui.focus.pics", pics);
+        } catch (Throwable ignored) {}
 
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
