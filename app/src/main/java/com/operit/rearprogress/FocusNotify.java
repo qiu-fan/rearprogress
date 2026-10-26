@@ -57,11 +57,7 @@ final class FocusNotify {
 
     /**
      * 在 Operit 进程里（跨进程使用）自愈初始化：
-     * 优先借用 rearprogress 自己的包上下文发通知 —— 这样通知的 pkg 是
-     * com.operit.rearprogress 而不是 com.ai.assistance.operit。
-     * 原因：MIUI 对「源头应用自己在前台」的焦点通知有抑制策略，
-     * 用 Operit 的包名发，Operit 在前台时岛就不显示；换成 rearprogress 包名可绕开。
-     * 拿不到就退回本进程 Context（旧行为）。
+     * 通过 ActivityThread.currentApplication() 拿到本进程的 Context。
      */
     private static synchronized void initFromActivityThread() {
         if (sNm != null && sCtx != null) return;
@@ -69,19 +65,8 @@ final class FocusNotify {
             Class<?> at = Class.forName("android.app.ActivityThread");
             Object app = at.getMethod("currentApplication").invoke(null);
             if (app instanceof Context) {
-                Context base = (Context) app;
-                Context notifCtx = null;
-                try {
-                    notifCtx = base.createPackageContext(
-                            "com.operit.rearprogress",
-                            Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
-                    android.util.Log.i(TAG, "FocusNotify using rearprogress package context");
-                } catch (Throwable t2) {
-                    android.util.Log.w(TAG, "createPackageContext failed, fallback to self", t2);
-                }
-                init(notifCtx != null ? notifCtx : base);
-                android.util.Log.i(TAG, "FocusNotify self-init from ActivityThread"
-                        + (notifCtx != null ? " (pkg=rearprogress)" : " (pkg=self)"));
+                init((Context) app);
+                android.util.Log.i(TAG, "FocusNotify self-init from ActivityThread");
             }
         } catch (Throwable t) {
             android.util.Log.w(TAG, "initFromActivityThread failed", t);
