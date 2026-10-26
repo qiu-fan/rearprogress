@@ -239,7 +239,7 @@ final class FocusNotify {
             sNm.createNotificationChannel(ch);
             // 静默通道：MIN 重要性 → 通知栏不显示，但 NLS 仍会派发（背屏取数用）
             NotificationChannel quiet = new NotificationChannel(
-                    CHANNEL_ID_QUIET, CHANNEL_NAME_QUIET, NotificationManager.IMPORTANCE_MIN);
+                    CHANNEL_ID_QUIET, CHANNEL_NAME_QUIET, NotificationManager.IMPORTANCE_LOW);
             quiet.setShowBadge(false);
             quiet.enableLights(false);
             quiet.enableVibration(false);
@@ -574,6 +574,8 @@ final class FocusNotify {
         Notification.Builder b;
         if (android.os.Build.VERSION.SDK_INT >= 26) {
             b = new Notification.Builder(ctx, sForceParam ? CHANNEL_ID : CHANNEL_ID_QUIET);
+            // 主通知用 IMPORTANCE_LOW 静默通道（B 实测：MIUI 对 IMPORTANCE_MIN 第三方通知直接不投递）
+            // LOW 通道本身就不响铃不震动，NLS 仍会派发 → 背屏数据源存活
         } else {
             b = new Notification.Builder(ctx);
         }
