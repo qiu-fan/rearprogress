@@ -46,6 +46,7 @@
   <Var name="lu_token_in" type="string" expression="''" const="true"/>
   <Var name="lu_token_out" type="string" expression="''" const="true"/>
   <Var name="lu_tool_flow" type="string" expression="''" const="true"/>
+  <Var name="lu_tool_name" type="string" expression="''" const="true"/>
   <Var name="lu_time_range" type="string" expression="''" const="true"/>
   <Var name="lu_task_time" type="string" expression="''" const="true"/>
 
@@ -118,6 +119,7 @@
     <VariableCommand name="lu_token_in" expression="jsonGetString($data, 'lu_token_in')" type="string"/>
     <VariableCommand name="lu_token_out" expression="jsonGetString($data, 'lu_token_out')" type="string"/>
     <VariableCommand name="lu_tool_flow" expression="jsonGetString($data, 'lu_tool_flow')" type="string"/>
+    <VariableCommand name="lu_tool_name" expression="jsonGetString($data, 'lu_tool_name')" type="string"/>
     <VariableCommand name="lu_time_range" expression="jsonGetString($data, 'lu_time_range')" type="string"/>
     <VariableCommand name="lu_task_time" expression="jsonGetString($data, 'lu_task_time')" type="string"/>
     <!-- Agent 标签判断：不用 subString（MAML 不支持），改用 len 差值。
@@ -167,7 +169,7 @@
   <!-- ==================== 自然测量（用单行宽度估算行数） ==================== -->
   <Text x="0" y="0" size="#title_size" textExp="@lu_title" name="title_natural" fontFamily="mipro-semibold" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" name="bigtext_natural" fontFamily="mipro-medium" alpha="0"/>
-  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" name="subtext_natural" fontFamily="mipro-medium" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" name="subtext_natural" fontFamily="LG1056-Regular" alpha="0"/>
 
   <!-- 用单行宽度除以可用宽度，向上取整得到自然行数 -->
   <Var name="title_natural_lines" type="number" expression="max(1, ceil(#title_natural.text_width / max(1, #text_w)))"/>
@@ -199,7 +201,7 @@
 
   <!-- ==================== 受限测量（用于计算实际高度和垂直居中） ==================== -->
   <Text x="0" y="0" size="#title_size" textExp="@title_display" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
-  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="LG1056-Regular" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" width="#text_w" name="text_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true" alpha="0"/>
 
   <!-- ==================== 垂直居中计算 ==================== -->
@@ -225,6 +227,7 @@
   <Var name="icon_y" type="number" expression="#content_start_y"/>
   <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset"/>
   <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
+  <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#FFFFFF" textExp="'   ' + @lu_tool_name" width="#text_w" name="tool_name_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
   <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale) + #head_offset)"/>
@@ -233,7 +236,7 @@
   <!-- SubText（第二行：token + hit率）—— token_offset 控制 token 行独立上移，不影响 A/B/C/D -->
   <Var name="token_offset" type="number" expression="(5.2 * #scale)"/>
   <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap - #token_offset)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text + '   ' + @lu_hit_rate" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text + '   ' + @lu_hit_rate" width="#text_w" name="content_subtext" fontFamily="LG1056-Regular" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- BigText（第三行，可选）—— 消息区整体按 body_offset 上移，不带动上方标题 -->
   <Var name="text_y" type="number" expression="(ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap)) - #body_offset)"/>

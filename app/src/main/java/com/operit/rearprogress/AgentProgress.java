@@ -516,6 +516,14 @@ final class AgentProgress {
      *   AI 上传工具名 → 优先显示
      *   否则 → token 数量
      */
+    /** 最近一次工具名（供背屏 extras tool_name 用） */
+    static String getLastToolName() {
+        try {
+            if (!sRecent.isEmpty()) return sRecent.get(sRecent.size() - 1)[0];
+        } catch (Throwable ignored) {}
+        return "";
+    }
+
     static String toolName() {
         // 1. AI 上传的工具名优先
         if (hasAiTool()) return sAiTool;

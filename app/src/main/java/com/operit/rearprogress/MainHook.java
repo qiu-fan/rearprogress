@@ -209,6 +209,7 @@ public class MainHook extends XposedModule {
                             return;
                         }
                         if (FocusNotify.ACTION_STOP.equals(action)) {
+                            log(android.util.Log.INFO, TAG, "ACTION_STOP received, cancelling mirror notification");
                             FocusNotify.stopLocal();
                             log(android.util.Log.INFO, TAG, "forward: stop");
                             setResultCode(1);
