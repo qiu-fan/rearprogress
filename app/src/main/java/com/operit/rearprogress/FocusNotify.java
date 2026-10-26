@@ -54,6 +54,28 @@ final class FocusNotify {
      *  查模板，报 "No widget path ... business: notification_island" → 背屏整条丢弃变空白，
      *  同时前台岛被抑制。所以默认关闭，通知交回系统自动生成岛。 */
     static final boolean INJECT_ISLAND_PARAM = false;
+    /** 运行时热开关：/data/local/tmp/agent_param.enabled 存在即开启 param 注入 */
+    static boolean injParam() {
+        try {
+            return new java.io.File("/data/local/tmp/agent_param.enabled").exists();
+        } catch (Throwable t) {
+            return INJECT_ISLAND_PARAM;
+        }
+    }
+
+    /** 运行时热配置 business（文件首行），默认 notification_island */
+    static String injBusiness() {
+        try {
+            java.io.File f = new java.io.File("/data/local/tmp/agent_param.business");
+            if (f.exists()) {
+                java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
+                String s = r.readLine();
+                r.close();
+                if (s != null && !s.trim().isEmpty()) return s.trim();
+            }
+        } catch (Throwable ignored) {}
+        return "notification_island";
+    }
     static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
     static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
     /** 副屏中心代发成功后回执（Operit 侧据此判断是否需要本地兜底） */
@@ -511,7 +533,7 @@ final class FocusNotify {
         try {
             String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
             String flow0 = AgentProgress.getToolFlow();
-            if (INJECT_ISLAND_PARAM) {
+            if (injParam()) {
             String flow = flow0;
             if (flow == null) flow = "";
             if (flow.length() > 40) flow = flow.substring(0, 40) + "…";
@@ -555,7 +577,7 @@ final class FocusNotify {
 
             org.json.JSONObject pv2 = new org.json.JSONObject()
                     .put("protocol", 1)
-                    .put("business", "notification_island")
+                    .put("business", injBusiness())
                     .put("updatable", true)
                     .put("enableFloat", false)
                     .put("islandFirstFloat", false)
