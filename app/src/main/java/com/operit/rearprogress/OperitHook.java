@@ -27,6 +27,8 @@ final class OperitHook {
      * 每行格式：工具名|参数摘要
      */
     private static final String SIM_FILE = "/data/local/tmp/agent_progress.sim";
+    /** 模拟文件上次处理的 mtime，用于去重（防止每秒重复执行导致通知闪烁） */
+    private static long sLastSimMtime = -1L;
     /** 静默阈值：超过该时间无新推送则整条撤掉通知（含背屏 + 灵动岛） */
     private static final long IDLE_THRESHOLD_MS = 60_000L;
     /** 上次显示通知的时间戳，供 watcher 检测静默状态 */
@@ -584,16 +586,29 @@ final class OperitHook {
 
                     // 模拟指令文件：测试按钮写入，这里按真实 hook 的链路执行
                     // （同一个 Operit 包 / 同一个 channel / 同一套 AgentProgress 状态）
+                    // ⚠️ 必须防止重复执行：文件由 root 写入，Operit 进程删不掉，
+                    //    用 mtime 去重 + 尝试清空内容，否则每秒重跑一次导致通知疯狂闪烁。
                     java.io.File sim = new java.io.File(SIM_FILE);
                     if (sim.exists()) {
-                        String content = readAll(sim);
-                        if (sim.exists()) sim.delete();
-                        if (content != null && !content.trim().isEmpty()) {
-                            Thread st = new Thread(() -> runSimulation(content),
-                                    "RearProgressSimulate");
-                            st.setDaemon(true);
-                            st.start();
+                        long mt = sim.lastModified();
+                        if (mt != sLastSimMtime) {
+                            String content = readAll(sim);
+                            sLastSimMtime = mt;
+                            // 尽量清空，避免下次启动重复执行
+                            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(sim)) {
+                                fos.write(new byte[0]);
+                            } catch (Throwable ignored2) {
+                                sim.delete();
+                            }
+                            if (content != null && !content.trim().isEmpty()) {
+                                Thread st = new Thread(() -> runSimulation(content),
+                                        "RearProgressSimulate");
+                                st.setDaemon(true);
+                                st.start();
+                            }
                         }
+                    } else {
+                        sLastSimMtime = -1L;
                     }
 
                     // 状态变化时触发
