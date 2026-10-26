@@ -49,6 +49,11 @@ final class FocusNotify {
      *  副屏中心按 (pkg, business) 查模板时报 "No widget path for: com.xiaomi.subscreencenter"，
      *  背屏会完全空白。所以默认关闭，仍由 Operit 自己发（背屏模板链路依赖 Operit 包名）。 */
     static final boolean USE_DELEGATE = false;
+    /** 是否注入 miui.focus.param（岛展开态差异）。
+     *  实测：注入后系统生成 rear_paramv2，副屏中心走 OS2,3 新分支按 (pkg,business)
+     *  查模板，报 "No widget path ... business: notification_island" → 背屏整条丢弃变空白，
+     *  同时前台岛被抑制。所以默认关闭，通知交回系统自动生成岛。 */
+    static final boolean INJECT_ISLAND_PARAM = false;
     static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
     static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
     /** 副屏中心代发成功后回执（Operit 侧据此判断是否需要本地兜底） */
@@ -505,7 +510,9 @@ final class FocusNotify {
         //   protocol=1，没有 isShowNotification 这个字段，tickerPic 必填且要在 miui.focus.pics 里存在。
         try {
             String toolTitle = (title == null || title.isEmpty()) ? "Agent" : title;
-            String flow = AgentProgress.getToolFlow();
+            String flow0 = AgentProgress.getToolFlow();
+            if (INJECT_ISLAND_PARAM) {
+            String flow = flow0;
             if (flow == null) flow = "";
             if (flow.length() > 40) flow = flow.substring(0, 40) + "…";
             String tok = (toolName == null || toolName.isEmpty()) ? "" : toolName;
@@ -566,6 +573,7 @@ final class FocusNotify {
             pics.putParcelable(PIC_KEY, android.graphics.drawable.Icon.createWithResource(
                     ctx, android.R.drawable.stat_sys_download_done));
             n.extras.putBundle("miui.focus.pics", pics);
+            }
         } catch (Throwable ignored) {}
 
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
