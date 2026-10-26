@@ -65,6 +65,20 @@ public final class SysUiHot {
             wlog("HOT direct hook threw: " + t);
         }
         wlog("HOT direct hook = " + direct);
+        // 让"应用在前台就屏蔽岛"的判定永远为 false
+        try {
+            hookBlockTopActivity(sysUiCl);
+        } catch (Throwable t) {
+            wlog("HOT block hook threw: " + t);
+        }
+        // 让"应用内/小窗时也要有岛"的请求返回 true
+        try {
+            hookForceBoolean(sysUiCl,
+                    "com.android.systemui.statusbar.notification.DynamicIslandPluginController",
+                    "requestHasIslandInAppOrMiniWindow", true);
+        } catch (Throwable t) {
+            wlog("HOT request hook threw: " + t);
+        }
         if (!direct) {
             try {
                 hookPluginFactory(sysUiCl);
@@ -144,6 +158,81 @@ public final class SysUiHot {
 
         if (hooked) sHooked.add(cl);
         wlog("HOT whitelist hooked=" + hooked + " loader=" + cl.getClass().getName());
+        if (hooked) {
+            // 应用内/小窗也允许岛（真正的判定点在这个 Coordinator 上）
+            hookForceBoolean(cl,
+                    "miui.systemui.dynamicisland.event.DynamicIslandEventCoordinator",
+                    "requestHasIslandInAppOrMiniWindow", true);
+        }
         return hooked;
+    }
+
+    /** 通用：把名字含 keyword 的 boolean 方法强制返回 value */
+    private static void hookForceBoolean(ClassLoader cl, String cls, String keyword, boolean value) {
+        try {
+            Class<?> c = Class.forName(cls, false, cl);
+            int n = 0;
+            for (Method m : c.getDeclaredMethods()) {
+                if (!m.getName().contains(keyword)) continue;
+                if (m.getReturnType() != boolean.class
+                        && !m.getReturnType().getName().equals("java.lang.Boolean")) continue;
+                try {
+                    sModule.hook(m).intercept(chain -> value);
+                    n++;
+                    wlog("HOT hooked " + m.getName() + " -> " + value);
+                } catch (Throwable t) {
+                    wlog("HOT hook " + m.getName() + " failed: " + t);
+                }
+            }
+            wlog("HOT " + keyword + " hooks=" + n);
+        } catch (Throwable t) {
+            wlog("HOT " + cls + " missing: " + t);
+        }
+    }
+
+    /** 把"应用在前台就屏蔽岛"的判定改成 false */
+    private static void hookBlockTopActivity(ClassLoader cl) {
+        try {
+            Class<?> c = Class.forName(
+                    "com.android.systemui.statusbar.notification.DynamicIslandSceneHandler",
+                    false, cl);
+            int n = 0;
+            for (Method m : c.getDeclaredMethods()) {
+                String nm = m.getName();
+                if (!nm.contains("shouldBlockTopActivity")) continue;
+                if (m.getReturnType() != boolean.class) continue;
+                try {
+                    sModule.hook(m).intercept(chain -> false);
+                    n++;
+                    wlog("HOT hooked " + nm + " -> false");
+                } catch (Throwable t) {
+                    wlog("HOT hook " + nm + " failed: " + t);
+                }
+            }
+            wlog("HOT shouldBlockTopActivity hooks=" + n);
+        } catch (Throwable t) {
+            wlog("HOT SceneHandler missing: " + t);
+        }
+    }
+
+    /** 只打印方法签名，不做任何改写（探针，安全） */
+    private static void probeClass(ClassLoader cl, String cls) {
+        try {
+            Class<?> c = Class.forName(cls, false, cl);
+            Method[] ms = c.getDeclaredMethods();
+            wlog("HOT PROBE " + cls + " methods=" + ms.length);
+            for (Method m : ms) {
+                StringBuilder line = new StringBuilder("HOT M " + m.getName() + "(");
+                Class<?>[] ps = m.getParameterTypes();
+                for (int i = 0; i < ps.length; i++) {
+                    if (i > 0) line.append(',');
+                    line.append(ps[i].getSimpleName());
+                }
+                line.append(") -> ").append(m.getReturnType().getSimpleName());
+                wlog(line.toString());
+            }
+        } catch (Throwable t) {
+            wlog("HOT probe miss " + cls + ": " + t);
+        }
     }
 }

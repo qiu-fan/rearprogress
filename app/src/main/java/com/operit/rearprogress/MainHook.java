@@ -196,6 +196,16 @@ public class MainHook extends XposedModule {
                     try {
                         String action = intent.getAction();
                         FocusNotify.init(app);
+                        if (FocusNotify.ACTION_MIRROR.equals(action)) {
+                            // 镜像：只发"带 param"的那条，负责前台灵动岛
+                            FocusNotify.pushMirrorLocal(
+                                    intent.getStringExtra("title"),
+                                    intent.getStringExtra("tool"),
+                                    intent.getStringExtra("body"),
+                                    intent.getIntExtra("percent", -1));
+                            setResultCode(1);
+                            return;
+                        }
                         if (FocusNotify.ACTION_STOP.equals(action)) {
                             FocusNotify.stopLocal();
                             log(android.util.Log.INFO, TAG, "forward: stop");
@@ -216,6 +226,7 @@ public class MainHook extends XposedModule {
             };
             android.content.IntentFilter f = new android.content.IntentFilter();
             f.addAction(FocusNotify.ACTION_PUSH);
+            f.addAction(FocusNotify.ACTION_MIRROR);
             f.addAction(FocusNotify.ACTION_STOP);
             app.registerReceiver(r, f, android.content.Context.RECEIVER_EXPORTED);
             sForwarderRegistered = true;
