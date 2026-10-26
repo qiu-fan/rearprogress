@@ -675,6 +675,7 @@ final class FocusNotify {
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getPrevTotalIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getPrevTotalOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());
+            n.extras.putString("tool_name", AgentProgress.getLastToolName());
             n.extras.putString("time_range", TokenHook.getTimeRange());
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
