@@ -637,7 +637,7 @@ final class FocusNotify {
         final boolean SLOT_TEST = false;
         String t1 = SLOT_TEST ? "【1-通知标题】" : title;
         String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
-        String t3 = "【3-通知正文】";  // 用户指定：通知正文固定占位
+        String t3 = "任务 #" + AgentProgress.toolCount();  // 用户指定：通知正文显示任务数
 
         b.setContentTitle(t1);
         if (t2 != null && !t2.isEmpty()) {
