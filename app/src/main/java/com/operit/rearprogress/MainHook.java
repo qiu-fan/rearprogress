@@ -83,7 +83,7 @@ public class MainHook extends XposedModule {
             if (PKG_SYSTEMUI.equals(pkg)) {
                 mCl = param.getClassLoader();
                 log(android.util.Log.INFO, TAG, "systemui ready: watch plugin loader");
-                installPluginLoaderWatcher();
+                installHotDex();
                 return;
             }
             if (!PKG_SCREEN.equals(pkg)) return;
@@ -106,148 +106,35 @@ public class MainHook extends XposedModule {
         }
     }
 
-    // ------------------------------------------------------------ SystemUI 插件层（谨慎版）
+    // ------------------------------------------------------------ SystemUI 热更新引导器
+
+    /** 外挂 dex：改 hook 逻辑只需替换这个文件 + 重启 SystemUI，不用重装模块、不用重启设备 */
+    private static final String HOT_DEX = "/data/local/tmp/rp/rp_hook.dex";
+    private static final String HOT_CLASS = "com.operit.rearprogress.hot.SysUiHot";
 
     /**
-     * 只做一件事：在插件类加载时记下那个 ClassLoader。
+     * 加载 /data/local/tmp/rp/rp_hook.dex，调用其中的 SysUiHot.install(this, systemUiClassLoader)。
+     * dex 的 parent 用模块自己的 ClassLoader，这样外挂代码可以访问 libxposed API。
      *
-     * 注意：这里处于 ClassLoader.findClass 的关键路径上，
-     * 绝对不能在这里做任何类加载 / 反射 / 重活，否则会让 SystemUI 启动期死锁或崩溃。
-     * 所以只做「赋值 + 投递到主线程」，真正的 hook 在 schedulePluginHooks 里做。
+     * 注意：这里不做任何 hook 判断，全部逻辑都在外挂 dex 里，方便热替换。
      */
-    private void installPluginLoaderWatcher() {
+    private void installHotDex() {
         try {
-            Class<?> filter = Class.forName(
-                    "com.android.systemui.shared.plugins.PluginInstance$ClassLoaderFilter",
-                    false, mCl);
-            for (Method m : filter.getDeclaredMethods()) {
-                if (!"findClass".equals(m.getName())) continue;
-                if (m.getParameterCount() != 1) continue;
-                try {
-                    hook(m).intercept(chain -> {
-                        try {
-                            Object self = chain.getThisObject();
-                            if (self != null && sTriedFilters.add(self)) {
-                                schedulePluginHooks(self);
-                            }
-                        } catch (Throwable ignored) {}
-                        return chain.proceed();
-                    });
-                    log(android.util.Log.INFO, TAG, "plugin loader watcher installed");
-                } catch (Throwable ignored) {}
+            java.io.File f = new java.io.File(HOT_DEX);
+            if (!f.exists()) {
+                log(android.util.Log.WARN, TAG, "hot dex missing: " + HOT_DEX);
+                return;
             }
+            dalvik.system.DexClassLoader dcl = new dalvik.system.DexClassLoader(
+                    HOT_DEX, null, null, getClass().getClassLoader());
+            Class<?> c = Class.forName(HOT_CLASS, true, dcl);
+            java.lang.reflect.Method m = c.getMethod("install",
+                    XposedModule.class, ClassLoader.class);
+            log(android.util.Log.INFO, TAG, "hot dex loaded, invoking install()");
+            m.invoke(null, this, mCl);
         } catch (Throwable t) {
-            log(android.util.Log.WARN, TAG, "installPluginLoaderWatcher failed: " + t);
+            log(android.util.Log.ERROR, TAG, "installHotDex failed", t);
         }
-        // 诊断：10 秒后报告捕获到多少个 filter、内部 loader 是什么
-        // 注意：onPackageReady 阶段主线程 Looper 可能尚未就绪，不能用 Handler，改用一次性线程。
-        try {
-            new Thread(() -> {
-                try {
-                    Thread.sleep(10000);
-                    StringBuilder sb = new StringBuilder();
-                    int i = 0;
-                    for (Object o : sTriedFilters) {
-                        if (i++ >= 4) break;
-                        for (ClassLoader cl : collectLoaders(o)) {
-                            sb.append(cl.getClass().getSimpleName()).append('@')
-                              .append(Integer.toHexString(System.identityHashCode(cl))).append(',');
-                        }
-                    }
-                    log(android.util.Log.INFO, TAG, "watcher diag: filters="
-                            + sTriedFilters.size() + " loaders=" + sb);
-                } catch (Throwable ignored) {}
-            }, "rp-watchdiag").start();
-        } catch (Throwable ignored) {}
-    }
-
-    /** 已处理过的 filter 实例（findClass 可能在多线程并发，必须用线程安全集合） */
-    private final java.util.Set<Object> sTriedFilters =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
-
-    /** 离开类加载路径后，在一次性后台线程里做具体 hook（不依赖主线程 Looper） */
-    private void schedulePluginHooks(final Object filterObj) {
-        try {
-            new Thread(() -> {
-                try {
-                    Thread.sleep(300);
-                    installPluginFocusHooks(filterObj);
-                } catch (Throwable ignored) {}
-            }, "rp-plugin-hook").start();
-        } catch (Throwable t) {
-            log(android.util.Log.WARN, TAG, "schedulePluginHooks failed: " + t);
-        }
-    }
-
-    /**
-     * ClassLoaderFilter 只是一个白名单过滤层，真正的 loader 是它内部持有的字段，
-     * 所以这里把 filter 自身 + 它所有 ClassLoader 类型字段都作为候选试一遍。
-     *
-     * 这一版只观察 MIUI 插件里焦点通知的两个授权判定，不做任何改写：
-     *   NotificationSettingsManager.canCustomFocus(pkg)       —— 自定义焦点通知白名单
-     *   NotificationSettingsManager.canPassXMSPermission(pkg) —— XMS 授权名单
-     */
-    private void installPluginFocusHooks(Object filterObj) {
-        String target = "miui.systemui.notification.NotificationSettingsManager";
-        Class<?> cls = null;
-        String used = "none";
-        for (ClassLoader cl : collectLoaders(filterObj)) {
-            try {
-                cls = Class.forName(target, true, cl);
-                used = cl.getClass().getName();
-                break;
-            } catch (Throwable ignored) {}
-        }
-        if (cls == null) return;
-        int n = 0;
-        for (Method m : cls.getDeclaredMethods()) {
-            String nm = m.getName();
-            if (!"canCustomFocus".equals(nm) && !"canPassXMSPermission".equals(nm)) continue;
-            try {
-                hook(m).intercept(chain -> {
-                    Object r;
-                    try {
-                        r = chain.proceed();
-                    } catch (Throwable t2) {
-                        r = "EX:" + t2.getClass().getSimpleName();
-                    }
-                    try {
-                        String arg = "";
-                        try {
-                            Object a = chain.getArg(1);
-                            if (a instanceof CharSequence) arg = a.toString();
-                        } catch (Throwable ignored) {}
-                        log(android.util.Log.INFO, TAG,
-                                "PLUGFOCUS " + nm + "(" + arg + ") -> " + r);
-                    } catch (Throwable ignored) {}
-                    return r;
-                });
-                n++;
-            } catch (Throwable ignored) {}
-        }
-        log(android.util.Log.INFO, TAG, "plugin focus hooks installed: " + n + " via " + used);
-    }
-
-    private List<ClassLoader> collectLoaders(Object filterObj) {
-        List<ClassLoader> out = new ArrayList<>();
-        try {
-            if (filterObj instanceof ClassLoader) out.add((ClassLoader) filterObj);
-        } catch (Throwable ignored) {}
-        try {
-            Class<?> c = filterObj.getClass();
-            while (c != null && c != Object.class) {
-                for (Field f : c.getDeclaredFields()) {
-                    try {
-                        if (!ClassLoader.class.isAssignableFrom(f.getType())) continue;
-                        f.setAccessible(true);
-                        Object v = f.get(filterObj);
-                        if (v instanceof ClassLoader && !out.contains(v)) out.add((ClassLoader) v);
-                    } catch (Throwable ignored) {}
-                }
-                c = c.getSuperclass();
-            }
-        } catch (Throwable ignored) {}
-        return out;
     }
 
     // ------------------------------------------------------------ 通知代发
