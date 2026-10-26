@@ -568,6 +568,38 @@ final class FocusNotify {
         }
     }
 
+/**
+     * 终端风格图标 ">_" —— 程序化绘制，不用图片资源，任何分辨率都清晰。
+     * 用等宽字体 + 加粗 + 居中，白色透明底（通知小图标要求单色）。
+     */
+    private static android.graphics.drawable.Icon sTermIcon;
+    private static android.graphics.drawable.Icon terminalIcon(Context ctx) {
+        if (sTermIcon != null) return sTermIcon;
+        try {
+            int size = 144;
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                    size, size, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+            android.graphics.Paint p = new android.graphics.Paint();
+            p.setColor(0xFFFFFFFF);                       // 白色
+            p.setTextSize(size * 0.48f);                   // 字号约占 48%
+            p.setTypeface(android.graphics.Typeface.MONOSPACE);
+            p.setFakeBoldText(true);
+            p.setAntiAlias(true);
+            p.setTextAlign(android.graphics.Paint.Align.CENTER);
+            // 垂直居中：用 ascent/descent 计算基线偏移
+            float cx = size / 2f;
+            float cy = size / 2f - (p.descent() + p.ascent()) / 2f;
+            canvas.drawText(">_", cx, cy, p);
+            sTermIcon = android.graphics.drawable.Icon.createWithBitmap(bmp);
+        } catch (Throwable t) {
+            // 兜底：万一绘制失败，用系统自带图标
+            sTermIcon = android.graphics.drawable.Icon.createWithResource(
+                    ctx, android.R.drawable.stat_sys_download_done);
+        }
+        return sTermIcon;
+    }
+
     @SuppressWarnings("deprecation")
     private static Notification buildNotification(Context ctx, String title, String toolName,
                                                   String body, int percent, boolean hasBar) {
@@ -588,7 +620,7 @@ final class FocusNotify {
             b.setSubText(t2);
         }
         b.setContentText(t3);
-        b.setSmallIcon(android.R.drawable.stat_sys_download_done);
+        b.setSmallIcon(terminalIcon(ctx));
         b.setOngoing(true);
         b.setOnlyAlertOnce(true);
         b.setShowWhen(false);
@@ -680,8 +712,7 @@ final class FocusNotify {
                     new org.json.JSONObject().put("param_v2", pv2).toString());
 
             android.os.Bundle pics = new android.os.Bundle();
-            pics.putParcelable(PIC_KEY, android.graphics.drawable.Icon.createWithResource(
-                    ctx, android.R.drawable.stat_sys_download_done));
+            pics.putParcelable(PIC_KEY, terminalIcon(ctx));
             n.extras.putBundle("miui.focus.pics", pics);
             }
         } catch (Throwable ignored) {}
