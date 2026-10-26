@@ -43,6 +43,8 @@ final class AgentProgress {
     private static final List<String[]> sRecent = new ArrayList<>();
     /** 本任务工具调用计数 */
     private static volatile int sToolCount = 0;
+    /** 最近一次工具名（volatile 保证可见性，供 extras tool_name 用） */
+    private static volatile String sLastToolName = "";
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
     /** 最近一次 AI 响应的 token 数据 */
@@ -441,6 +443,7 @@ final class AgentProgress {
 
         markRunning();
         sToolCount++;
+        if (name != null && !name.isEmpty()) sLastToolName = name;
         sLastToolAt = System.currentTimeMillis();
 
         // 映射到短名：先精确匹配；带包前缀的长名（如 workflow:get_workflow）
@@ -518,10 +521,7 @@ final class AgentProgress {
      */
     /** 最近一次工具名（供背屏 extras tool_name 用） */
     static String getLastToolName() {
-        try {
-            if (!sRecent.isEmpty()) return sRecent.get(sRecent.size() - 1)[0];
-        } catch (Throwable ignored) {}
-        return "";
+        return sLastToolName;
     }
 
     static String toolName() {
