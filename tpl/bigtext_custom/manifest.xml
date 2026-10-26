@@ -129,8 +129,12 @@
           导致 text_block_h 变化 → content_start_y 跳动 → Agent 标签位置漂移
           （表现为「Agent 文字一会有一会没有」）。 -->
      <VariableCommand name="has_bigtext" expression="ifelse(eq(#show_agent_label, 1), 1, (len(@lu_big_text) } 0))" type="number"/>
-    <VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
-    <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
+<VariableCommand name="has_subtext" expression="(len(@lu_sub_text) } 0)" type="number"/>
+     <!-- 背屏白字标题：Agent 卡片上如果标题就是 "Agent"（READY 态），
+          顶部已有蓝色 Agent 标签，这里留空避免重复。
+          注意：只影响背屏显示，通知标题仍是 "Agent"（正面岛靠它显示文字）。 -->
+     <VariableCommand name="title_display" expression="ifelse(eq(#show_agent_label, 1) * eq(@lu_title, 'Agent'), '', @lu_title)" type="string"/>
+     <VariableCommand name="has_stats" expression="(len(@lu_token_path) } 0)" type="number"/>
     <FunctionCommand target="remove_rich_text"/>
   </Function>
 
@@ -194,7 +198,7 @@
   <Var name="subtext_max_lines" type="number" expression="(#base_sub + #extra_sub)"/>
 
   <!-- ==================== 受限测量（用于计算实际高度和垂直居中） ==================== -->
-  <Text x="0" y="0" size="#title_size" textExp="@lu_title" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#title_size" textExp="@title_display" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" width="#text_w" name="text_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true" alpha="0"/>
 
@@ -224,7 +228,7 @@
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
   <Var name="title_y" type="number" expression="(#agent_label_y + #agent_h + (4 * #scale) + #head_offset)"/>
-  <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@lu_title" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
+  <Text x="#text_x" y="#title_y" size="#title_size" color="#FFFFFF" textExp="@title_display" width="#text_w" name="title" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true"/>
 
   <!-- SubText（第二行：token + hit率）—— token_offset 控制 token 行独立上移，不影响 A/B/C/D -->
   <Var name="token_offset" type="number" expression="(5.2 * #scale)"/>

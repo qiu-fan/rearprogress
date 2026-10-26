@@ -476,8 +476,8 @@ final class AgentProgress {
                 return "已完成";
             case READY:
             default:
-                return "";  // 通知标题留空：背屏只用蓝色 "Agent" 标签，避免白字重复。
-                            // 正面岛的 "Agent" 文字由 miui.focus.param 的 islandTitle 提供。
+                return "Agent";  // 正面岛必须显示 Agent 文字；
+                                 // 背屏白字重复由模板 title_display 过滤掉
         }
     }
 
