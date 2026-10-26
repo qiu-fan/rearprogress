@@ -61,13 +61,6 @@ final class AgentProgress {
         // 内部工具（Operit 内置）
         TOOL_NAME_MAP.put("execute_hidden_terminal_command", "HiddenCmd");
         TOOL_NAME_MAP.put("execute_shell", "Shell");
-        // 定时唤醒 / 工作流内部动作（自唤醒心跳会频繁出现在岛上，给短名）
-        TOOL_NAME_MAP.put("send_message_to_ai", "Heartbeat");
-        TOOL_NAME_MAP.put("start_chat_service", "ChatBoot");
-        TOOL_NAME_MAP.put("delete_workflow", "DelFlow");
-        TOOL_NAME_MAP.put("trigger_workflow", "RunFlow");
-        TOOL_NAME_MAP.put("schedule_one_time_task", "Timer");
-        TOOL_NAME_MAP.put("daily_life:schedule_one_time_task", "Timer");
         TOOL_NAME_MAP.put("find_chat", "FindChat");
         TOOL_NAME_MAP.put("get_chat_messages", "Chat");
         TOOL_NAME_MAP.put("list_character_cards", "Cards");
@@ -233,6 +226,24 @@ final class AgentProgress {
         TOOL_NAME_MAP.put("rea:inspect_android_package", "REA");
         TOOL_NAME_MAP.put("rea:inspect_apk", "REA");
         TOOL_NAME_MAP.put("rea:inspect", "REA");
+        // 带包前缀工具的冒号尾部短名（fallback 会取冒号后部分查这里）
+        TOOL_NAME_MAP.put("create_memory", "MemNew");
+        TOOL_NAME_MAP.put("get_memory", "MemGet");
+        TOOL_NAME_MAP.put("update_memory", "MemEdit");
+        TOOL_NAME_MAP.put("delete_memory", "MemDel");
+        TOOL_NAME_MAP.put("query_memory", "MemQuery");
+        TOOL_NAME_MAP.put("create_memory_with_links", "MemNewL");
+        TOOL_NAME_MAP.put("get_memory_links", "MemLinks");
+        TOOL_NAME_MAP.put("link_memory", "MemLink");
+        TOOL_NAME_MAP.put("get_workflow", "FlowGet");
+        TOOL_NAME_MAP.put("list_workflows", "FlowList");
+        TOOL_NAME_MAP.put("create_workflow", "FlowNew");
+        TOOL_NAME_MAP.put("update_workflow", "FlowEdit");
+        TOOL_NAME_MAP.put("delete_workflow", "FlowDel");
+        TOOL_NAME_MAP.put("trigger_workflow", "FlowRun");
+        TOOL_NAME_MAP.put("schedule_one_time_task", "Timer");
+        TOOL_NAME_MAP.put("send_message_to_ai", "ToAI");
+        TOOL_NAME_MAP.put("start_chat_service", "ChatBoot");
     }
 
     private AgentProgress() {}
@@ -432,8 +443,20 @@ final class AgentProgress {
         sToolCount++;
         sLastToolAt = System.currentTimeMillis();
 
-        // 映射到短名
-        name = TOOL_NAME_MAP.getOrDefault(name, name);
+        // 映射到短名：先精确匹配；带包前缀的长名（如 workflow:get_workflow）
+        // 再拿冒号后的部分匹配一次，仍没有就截短，避免岛上显示被截断的长串
+        String shortName = TOOL_NAME_MAP.getOrDefault(name, name);
+        if (!shortName.equals(name) || !name.contains(":")) {
+            name = shortName;
+        } else {
+            String tail = name.substring(name.lastIndexOf(':') + 1);
+            String mapped = TOOL_NAME_MAP.getOrDefault(tail, null);
+            if (mapped != null) {
+                name = mapped;
+            } else {
+                name = tail.length() > 14 ? tail.substring(0, 14) + "…" : tail;
+            }
+        }
         String d = detail == null ? "" : detail.trim().replaceAll("\\s+", " ");
         if (d.length() > 64) d = d.substring(0, 64) + "…";
 

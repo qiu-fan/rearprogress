@@ -35,7 +35,7 @@ final class FocusNotify {
     private static final String CHANNEL_NAME = "Agent 进度";
     /** 静默通道：主通知走这条 → 通知栏里看不到它，但 NLS 仍会收到，背屏照常取数。
      *  （通知栏里只留镜像那条"焦点通知"，避免出现两条重复） */
-    private static final String CHANNEL_ID_QUIET = "agent_rear_progress_quiet";
+    private static final String CHANNEL_ID_QUIET = "agent_rear_progress_data";
     private static final String CHANNEL_NAME_QUIET = "Agent 后台数据";
     private static final int NOTIF_ID = 0x4147454E; // 'AGEN'
     private static final String ORDER_ID = "operit_agent_progress";
@@ -652,20 +652,25 @@ final class FocusNotify {
             org.json.JSONObject iconTextInfo = new org.json.JSONObject()
                     .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
                     // title  → 工具名（CopyFile / read_file …），没有工具名时回落到状态标题
-                    .put("title", (toolName == null || toolName.isEmpty()) ? toolTitle : toolName)
+                    .put("title", toolTitle)
                     // content → 命令正文；多行会被 MIUI 折叠成一行，所以显式用 · 连接
                     .put("content", bodyText.isEmpty() ? tok : bodyText.replace("\n", " · "))
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
                     .put("subContent", tok + hitSuffix());
 
-            // 大岛：左=图标+标题，右=token
+            // 大岛：左=动作标签（BUILD / INSTALL / GIT ...，识别不到回落工具名）
+            //       右=版本号（v1.2.4，识别不到回落 token）
+            String act = CommandInsight.action(bodyText);
+            String ver = CommandInsight.meta(sCtx, act, bodyText);
             org.json.JSONObject bigLeft = new org.json.JSONObject()
                     .put("type", 1)
                     .put("picInfo", picInfo)
-                    .put("textInfo", new org.json.JSONObject().put("title", toolTitle));
+                    .put("textInfo", new org.json.JSONObject()
+                            .put("title", act.isEmpty() ? toolTitle : act));
             org.json.JSONObject bigRight = new org.json.JSONObject()
                     .put("type", 2)
-                    .put("textInfo", new org.json.JSONObject().put("title", tok));
+                    .put("textInfo", new org.json.JSONObject()
+                            .put("title", ver.isEmpty() ? tok : ver));
             org.json.JSONObject bigArea = new org.json.JSONObject()
                     .put("imageTextInfoLeft", bigLeft)
                     .put("imageTextInfoRight", bigRight);
