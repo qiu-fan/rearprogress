@@ -347,89 +347,9 @@ final class FocusNotify {
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
 
-        // 灵动岛：注入 miui.focus.param，让展开态（大岛）与收起态（小岛）显示不同内容。
-        // 结构取自系统自动生成的 notification_island 业务（见 NLS_RECV 日志），
-        // 这里把 bigIslandArea 的右侧文本换成工具流详情（收起只看 token）。
-        try {
-            String token = (toolName == null || toolName.isEmpty()) ? "" : toolName;
-            // 岛标题：通知标题为空（READY 态）时用 "Agent"，保证正面岛始终有 Agent 文字
-            String islandTitle = (title == null || title.isEmpty()) ? "Agent" : title;
-            String flow = AgentProgress.getToolFlow();
-            if (flow == null || flow.isEmpty()) flow = body;
-            if (flow == null) flow = "";
-            if (flow.length() > 60) flow = flow.substring(0, 60) + "…";
-
-            org.json.JSONObject island = new org.json.JSONObject();
-            island.put("islandProperty", 1);
-            island.put("islandPriority", 2);
-            island.put("islandTimeout", 10);
-            island.put("islandOrder", false);
-            island.put("dismissIsland", false);
-            island.put("maxSize", false);
-            island.put("needCloseAnimation", true);
-
-            org.json.JSONObject bigLeft = new org.json.JSONObject();
-            bigLeft.put("type", 1);
-            org.json.JSONObject bigPic = new org.json.JSONObject();
-            bigPic.put("type", 1);
-            bigPic.put("pic", "miui.focus.pic_key_notification_island_island");
-            bigPic.put("loop", false);
-            bigPic.put("autoplay", false);
-            bigPic.put("number", 0);
-            bigLeft.put("picInfo", bigPic);
-            org.json.JSONObject bigText = new org.json.JSONObject();
-            bigText.put("title", islandTitle);
-            bigText.put("showHighlightColor", false);
-            bigText.put("narrowFont", false);
-            bigLeft.put("textInfo", bigText);
-
-            org.json.JSONObject bigRight = new org.json.JSONObject();
-            bigRight.put("type", 2);
-            org.json.JSONObject bigRightText = new org.json.JSONObject();
-            bigRightText.put("title", flow);   // 展开态右侧显示工具流详情
-            bigRightText.put("showHighlightColor", false);
-            bigRightText.put("narrowFont", false);
-            bigRight.put("textInfo", bigRightText);
-
-            org.json.JSONObject bigArea = new org.json.JSONObject();
-            bigArea.put("imageTextInfoLeft", bigLeft);
-            bigArea.put("imageTextInfoRight", bigRight);
-
-            org.json.JSONObject smallArea = new org.json.JSONObject();
-            org.json.JSONObject smallPic = new org.json.JSONObject();
-            smallPic.put("type", 1);
-            smallPic.put("pic", "miui.focus.pic_key_notification_island_island");
-            smallPic.put("loop", false);
-            smallPic.put("autoplay", false);
-            smallPic.put("number", 0);
-            smallArea.put("picInfo", smallPic);
-
-            island.put("bigIslandArea", bigArea);
-            island.put("smallIslandArea", smallArea);
-
-            org.json.JSONObject param = new org.json.JSONObject();
-            param.put("param_v2", new org.json.JSONObject()
-                    .put("protocol", 3)
-                    .put("business", "notification_island")
-                    .put("updatable", true)
-                    .put("ticker", islandTitle)
-                    .put("enableFloat", false)
-                    .put("isShowNotification", false)  // 必须是 false：true 会变成普通通知，岛不显示
-                    .put("islandFirstFloat", false)
-                    .put("param_island", island)
-                    .put("iconTextInfo", new org.json.JSONObject()
-                            .put("animIconInfo", new org.json.JSONObject()
-                                    .put("type", 0)
-                                    .put("src", "miui.focus.pic_key_notification_island_focus")
-                                    .put("loop", true)
-                                    .put("autoplay", true))
-                            .put("title", islandTitle)
-                            .put("content", token))
-                    .put("aodTitle", token)
-                    .put("aodPic", "miui.focus.pic_aod"));
-
-            n.extras.putString("miui.focus.param", param.toString());
-        } catch (Throwable ignored) {}
+        // 灵动岛：完全交给 MIUI 自动从通知生成（notification_island 业务），
+        // 不再注入自定义 miui.focus.param —— 自定义 param 会覆盖系统行为导致岛消失。
+        // 岛展开/收起差异等原始需求，拿到 hyperisland 源码后按正统实现重做。
 
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
