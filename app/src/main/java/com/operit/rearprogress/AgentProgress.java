@@ -61,6 +61,13 @@ final class AgentProgress {
         // 内部工具（Operit 内置）
         TOOL_NAME_MAP.put("execute_hidden_terminal_command", "HiddenCmd");
         TOOL_NAME_MAP.put("execute_shell", "Shell");
+        // 定时唤醒 / 工作流内部动作（自唤醒心跳会频繁出现在岛上，给短名）
+        TOOL_NAME_MAP.put("send_message_to_ai", "Heartbeat");
+        TOOL_NAME_MAP.put("start_chat_service", "ChatBoot");
+        TOOL_NAME_MAP.put("delete_workflow", "DelFlow");
+        TOOL_NAME_MAP.put("trigger_workflow", "RunFlow");
+        TOOL_NAME_MAP.put("schedule_one_time_task", "Timer");
+        TOOL_NAME_MAP.put("daily_life:schedule_one_time_task", "Timer");
         TOOL_NAME_MAP.put("find_chat", "FindChat");
         TOOL_NAME_MAP.put("get_chat_messages", "Chat");
         TOOL_NAME_MAP.put("list_character_cards", "Cards");
