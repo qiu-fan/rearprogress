@@ -161,7 +161,7 @@
   <!-- ==================== 自然测量（用单行宽度估算行数） ==================== -->
   <Text x="0" y="0" size="#title_size" textExp="@lu_title" name="title_natural" fontFamily="mipro-semibold" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" name="bigtext_natural" fontFamily="mipro-medium" alpha="0"/>
-  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" name="subtext_natural" fontFamily="mipro-medium" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" name="subtext_natural" fontPath="etc/rp_leica_mono.otf" alpha="0"/>
 
   <!-- 用单行宽度除以可用宽度，向上取整得到自然行数 -->
   <Var name="title_natural_lines" type="number" expression="max(1, ceil(#title_natural.text_width / max(1, #text_w)))"/>
@@ -193,7 +193,7 @@
 
   <!-- ==================== 受限测量（用于计算实际高度和垂直居中） ==================== -->
   <Text x="0" y="0" size="#title_size" textExp="@lu_title" width="#text_w" name="title_measure" fontFamily="mipro-semibold" multiLine="true" lineClamp="#title_max_lines" ellipsis="true" alpha="0"/>
-  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
+  <Text x="0" y="0" size="#text_size" textExp="@lu_sub_text" width="#text_w" name="subtext_measure" fontPath="etc/rp_leica_mono.otf" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true" alpha="0"/>
   <Text x="0" y="0" size="#text_size" textExp="@lu_big_text" width="#text_w" name="text_measure" fontFamily="mipro-medium" multiLine="true" lineClamp="#text_max_lines" ellipsis="true" alpha="0"/>
 
   <!-- ==================== 垂直居中计算 ==================== -->
@@ -224,7 +224,7 @@
   <!-- SubText（第二行：token + hit率）—— token_offset 控制 token 行独立上移，不影响 A/B/C/D -->
   <Var name="token_offset" type="number" expression="(5.2 * #scale)"/>
   <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap - #token_offset)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontFamily="mipro-medium" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text" width="#text_w" name="content_subtext" fontPath="etc/rp_leica_mono.otf" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- BigText（第三行，可选）—— 消息区整体按 body_offset 上移，不带动上方标题 -->
   <Var name="text_y" type="number" expression="(ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap)) - #body_offset)"/>
