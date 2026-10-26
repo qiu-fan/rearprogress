@@ -93,8 +93,60 @@ public class MainHook extends XposedModule {
             installRenderHook();
             resolveAppContext();
             startPoller();
+            registerNotifyForwarder();
         } catch (Throwable t) {
             log(android.util.Log.ERROR, TAG, "onPackageReady failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ 通知代发
+
+    private volatile boolean sForwarderRegistered;
+
+    /**
+     * 注册"通知代发"广播接收器。
+     *
+     * Operit 进程的 FocusNotify 不再自己发通知，而是发广播到这里；
+     * 由本进程（com.xiaomi.subscreencenter）用系统应用的包名发，
+     * 这样 MIUI 不会因为"源头应用在前台"而抑制灵动岛。
+     */
+    private void registerNotifyForwarder() {
+        if (sForwarderRegistered) return;
+        try {
+            if (sAppContext == null) resolveAppContext();
+            if (sAppContext == null) {
+                log(android.util.Log.WARN, TAG, "no context, notify forwarder skipped");
+                return;
+            }
+            android.content.BroadcastReceiver r = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                    try {
+                        String action = intent.getAction();
+                        FocusNotify.init(ctx.getApplicationContext());
+                        if (FocusNotify.ACTION_STOP.equals(action)) {
+                            FocusNotify.stopLocal();
+                            log(android.util.Log.INFO, TAG, "forward: stop");
+                        } else {
+                            FocusNotify.pushStateLocal(
+                                    intent.getStringExtra("title"),
+                                    intent.getStringExtra("tool"),
+                                    intent.getStringExtra("body"),
+                                    intent.getIntExtra("percent", -1));
+                        }
+                    } catch (Throwable t) {
+                        log(android.util.Log.WARN, TAG, "notify forward receive failed", t);
+                    }
+                }
+            };
+            android.content.IntentFilter f = new android.content.IntentFilter();
+            f.addAction(FocusNotify.ACTION_PUSH);
+            f.addAction(FocusNotify.ACTION_STOP);
+            sAppContext.registerReceiver(r, f, android.content.Context.RECEIVER_EXPORTED);
+            sForwarderRegistered = true;
+            log(android.util.Log.INFO, TAG, "notify forwarder registered");
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "registerNotifyForwarder failed", t);
         }
     }
 

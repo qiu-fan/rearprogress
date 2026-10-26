@@ -44,7 +44,65 @@ final class FocusNotify {
     private static long sSeq = 1L;
     private static String sLastTitle;
 
+    /** 转发广播：Operit 进程 → 副屏中心进程代发通知（绕过 MIUI 前台抑制） */
+    static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
+    static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
+    private static final String PKG_SCREEN = "com.xiaomi.subscreencenter";
+    private static final String PKG_OPERIT = "com.ai.assistance.operit";
+
     private FocusNotify() {}
+
+    /** 当前是否运行在 Operit 进程里（需要转发给副屏中心代发） */
+    private static boolean isOperitProcess() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object app = at.getMethod("currentApplication").invoke(null);
+            if (app instanceof Context) {
+                return PKG_OPERIT.equals(((Context) app).getPackageName());
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    /** 取当前进程的 Application Context */
+    private static Context currentAppContext() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object app = at.getMethod("currentApplication").invoke(null);
+            if (app instanceof Context) return (Context) app;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /** 转发推送请求给副屏中心（由它用自己的包名发通知） */
+    private static void forwardPush(String title, String toolName, String body, int percent) {
+        try {
+            Context ctx = currentAppContext();
+            if (ctx == null) return;
+            android.content.Intent i = new android.content.Intent(ACTION_PUSH);
+            i.putExtra("title", title == null ? "" : title);
+            i.putExtra("tool", toolName == null ? "" : toolName);
+            i.putExtra("body", body == null ? "" : body);
+            i.putExtra("percent", percent);
+            i.setPackage(PKG_SCREEN);
+            ctx.sendBroadcast(i);
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "forwardPush failed", t);
+        }
+    }
+
+    /** 转发"撤掉通知"请求给副屏中心 */
+    private static void forwardStop() {
+        try {
+            Context ctx = currentAppContext();
+            if (ctx == null) return;
+            android.content.Intent i = new android.content.Intent(ACTION_STOP);
+            i.setPackage(PKG_SCREEN);
+            ctx.sendBroadcast(i);
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "forwardStop failed", t);
+        }
+    }
 
     /** 在副屏中心进程里初始化（借用它的 Context 发通知） */
     static void init(Context ctx) {
@@ -99,6 +157,16 @@ final class FocusNotify {
 
     /** 停止显示：撤掉这条常驻卡 */
     static void stop() {
+        // Operit 进程里转发给副屏中心执行
+        if (isOperitProcess()) {
+            forwardStop();
+            return;
+        }
+        stopLocal();
+    }
+
+    /** 真正撤掉通知（副屏中心进程执行） */
+    static void stopLocal() {
         try {
             if (sNm != null) sNm.cancel(NOTIF_ID);
             sLastTitle = null;
@@ -116,6 +184,16 @@ final class FocusNotify {
      *   percent   → 0-100 进度条，<0 表示不显示
      */
     static void pushState(String title, String toolName, String body, int percent) {
+        // 在 Operit 进程里：转发给副屏中心代发（用它的包名，绕过 MIUI 前台抑制）
+        if (isOperitProcess()) {
+            forwardPush(title, toolName, body, percent);
+            return;
+        }
+        pushStateLocal(title, toolName, body, percent);
+    }
+
+    /** 真正构建并发通知（由副屏中心进程执行，通知 pkg = com.xiaomi.subscreencenter） */
+    static void pushStateLocal(String title, String toolName, String body, int percent) {
         try {
             // 检查开关文件：不存在则不推送通知
             if (!isEnabled()) {
