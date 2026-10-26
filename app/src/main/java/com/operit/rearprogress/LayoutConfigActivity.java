@@ -45,6 +45,8 @@ public class LayoutConfigActivity extends Activity {
             {"area_top",        "12",    "顶部安全边距"},
             {"area_bottom_sub", "1.8",   "底部边距(整体垂直居中微调)"},
             {"agent_offset",    "11.8",  "A Agent蓝字位置"},
+            {"base_shift",    "2",    "整体上移量(scale)"},
+            {"agent_shift",   "10.9",  "长内容上移量(仅无标记,scale)"},
             {"head_offset",     "2",     "B 工具名相对A偏移"},
             {"token_offset",    "5.2",   "token行(B下C上)上移"},
             {"body_offset",     "0",     "C 消息偏移"},
