@@ -112,35 +112,69 @@ public class MainHook extends XposedModule {
      */
     private void registerNotifyForwarder() {
         if (sForwarderRegistered) return;
+        // 后台重试：进程刚起时 Application 可能还没 attach，直接注册会拿到 null
+        Thread t = new Thread(() -> {
+            for (int i = 0; i < 40 && !sForwarderRegistered; i++) {
+                try {
+                    android.content.Context ctx = reliableAppContext();
+                    if (ctx != null) {
+                        if (registerForwarderWith(ctx)) return;
+                    }
+                    Thread.sleep(1500L);
+                } catch (Throwable ignored) {}
+            }
+            log(android.util.Log.WARN, TAG, "notify forwarder gave up");
+        }, "RearProgressForwarderReg");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** 多路兜底拿 Application Context（副屏中心里 ActivityThread 可能还没就绪） */
+    private android.content.Context reliableAppContext() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object o = at.getMethod("currentApplication").invoke(null);
+            if (o instanceof android.content.Context) return (android.content.Context) o;
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> h = Class.forName("android.app.AndroidAppHelper");
+            Object o = h.getMethod("currentApplication").invoke(null);
+            if (o instanceof android.content.Context) return (android.content.Context) o;
+        } catch (Throwable ignored) {}
         try {
             if (sAppContext == null) resolveAppContext();
-            if (sAppContext == null) {
-                log(android.util.Log.WARN, TAG, "no context, notify forwarder skipped");
-                return;
-            }
+            if (sAppContext != null) return sAppContext;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private boolean registerForwarderWith(android.content.Context ctx) {
+        try {
+            final android.content.Context app = ctx.getApplicationContext() != null
+                    ? ctx.getApplicationContext() : ctx;
             android.content.BroadcastReceiver r = new android.content.BroadcastReceiver() {
                 @Override
-                public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                public void onReceive(android.content.Context c, android.content.Intent intent) {
                     try {
                         String action = intent.getAction();
-                        FocusNotify.init(ctx.getApplicationContext());
+                        FocusNotify.init(app);
                         if (FocusNotify.ACTION_STOP.equals(action)) {
                             FocusNotify.stopLocal();
                             log(android.util.Log.INFO, TAG, "forward: stop");
-                        } else {
-                            FocusNotify.pushStateLocal(
-                                    intent.getStringExtra("title"),
-                                    intent.getStringExtra("tool"),
-                                    intent.getStringExtra("body"),
-                                    intent.getIntExtra("percent", -1));
-                            // 回执：告诉 Operit 侧"已代发"，避免它本地兜底重复发
-                            try {
-                                android.content.Intent ack =
-                                        new android.content.Intent(FocusNotify.ACTION_ACK);
-                                ack.setPackage("com.ai.assistance.operit");
-                                ctx.sendBroadcast(ack);
-                            } catch (Throwable ignored) {}
+                            return;
                         }
+                        FocusNotify.pushStateLocal(
+                                intent.getStringExtra("title"),
+                                intent.getStringExtra("tool"),
+                                intent.getStringExtra("body"),
+                                intent.getIntExtra("percent", -1));
+                        // 回执：告诉 Operit 侧"已代发"，避免它本地兜底重复发
+                        try {
+                            android.content.Intent ack =
+                                    new android.content.Intent(FocusNotify.ACTION_ACK);
+                            ack.setPackage("com.ai.assistance.operit");
+                            app.sendBroadcast(ack);
+                        } catch (Throwable ignored) {}
                     } catch (Throwable t) {
                         log(android.util.Log.WARN, TAG, "notify forward receive failed", t);
                     }
@@ -149,11 +183,14 @@ public class MainHook extends XposedModule {
             android.content.IntentFilter f = new android.content.IntentFilter();
             f.addAction(FocusNotify.ACTION_PUSH);
             f.addAction(FocusNotify.ACTION_STOP);
-            sAppContext.registerReceiver(r, f, android.content.Context.RECEIVER_EXPORTED);
+            app.registerReceiver(r, f, android.content.Context.RECEIVER_EXPORTED);
             sForwarderRegistered = true;
-            log(android.util.Log.INFO, TAG, "notify forwarder registered");
+            log(android.util.Log.INFO, TAG, "notify forwarder registered, pkg="
+                    + app.getPackageName());
+            return true;
         } catch (Throwable t) {
-            log(android.util.Log.WARN, TAG, "registerNotifyForwarder failed", t);
+            log(android.util.Log.WARN, TAG, "registerForwarderWith failed", t);
+            return false;
         }
     }
 
