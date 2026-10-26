@@ -414,7 +414,7 @@ final class FocusNotify {
                     .put("updatable", true)
                     .put("ticker", islandTitle)
                     .put("enableFloat", false)
-                    .put("isShowNotification", true)
+                    .put("isShowNotification", false)  // 必须是 false：true 会变成普通通知，岛不显示
                     .put("islandFirstFloat", false)
                     .put("param_island", island)
                     .put("iconTextInfo", new org.json.JSONObject()

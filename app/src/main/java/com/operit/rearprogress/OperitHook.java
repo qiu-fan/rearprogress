@@ -20,6 +20,13 @@ final class OperitHook {
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
     /** 开关文件：存在=显示通知，不存在=隐藏通知 */
     private static final String ENABLED_FILE = "/data/local/tmp/agent_progress.enabled";
+    /**
+     * 模拟指令文件：测试按钮写入，本进程（Operit 进程）读取后逐行执行。
+     * 这样「模拟」走的是与真实 hook 完全相同的链路（同一个包、同一个 channel、
+     * 同一套 AgentProgress + FocusNotify 状态），通知栏看到的也是同一条卡片。
+     * 每行格式：工具名|参数摘要
+     */
+    private static final String SIM_FILE = "/data/local/tmp/agent_progress.sim";
     /** 静默阈值：超过该时间无新推送则整条撤掉通知（含背屏 + 灵动岛） */
     private static final long IDLE_THRESHOLD_MS = 60_000L;
     /** 上次显示通知的时间戳，供 watcher 检测静默状态 */
@@ -575,6 +582,20 @@ final class OperitHook {
                         idled = false;
                     }
 
+                    // 模拟指令文件：测试按钮写入，这里按真实 hook 的链路执行
+                    // （同一个 Operit 包 / 同一个 channel / 同一套 AgentProgress 状态）
+                    java.io.File sim = new java.io.File(SIM_FILE);
+                    if (sim.exists()) {
+                        String content = readAll(sim);
+                        if (sim.exists()) sim.delete();
+                        if (content != null && !content.trim().isEmpty()) {
+                            Thread st = new Thread(() -> runSimulation(content),
+                                    "RearProgressSimulate");
+                            st.setDaemon(true);
+                            st.start();
+                        }
+                    }
+
                     // 状态变化时触发
                     if (enabled != lastEnabled) {
                         lastEnabled = enabled;
@@ -593,6 +614,39 @@ final class OperitHook {
         }, "RearProgressEnabledWatcher");
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * 执行模拟指令：逐行解析 "工具名|参数摘要"，按真实 hook 完全相同的调用链执行。
+     * 关键点：这里运行在 Operit 进程里，通知由 Operit 发出（同一个包/同一个 channel），
+     * 与真实 hook 产生的卡片没有任何区别。
+     */
+    private static void runSimulation(String content) {
+        try {
+            String[] lines = content.split("\n");
+            for (String line : lines) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                String name = line;
+                String detail = "";
+                int sep = line.indexOf('|');
+                if (sep >= 0) {
+                    name = line.substring(0, sep).trim();
+                    detail = line.substring(sep + 1).trim();
+                }
+                if (name.isEmpty()) continue;
+                // ↓↓↓ 与 executeTool hook 里完全一致的两步 ↓↓↓
+                AgentProgress.recordTool(name, detail, true);
+                FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                        AgentProgress.body(), AgentProgress.percent());
+                sLastNotifyAt = System.currentTimeMillis();
+                LogX.i(TAG, "simulate -> " + name);
+                Thread.sleep(1500L);
+            }
+            LogX.i(TAG, "simulation finished");
+        } catch (Throwable e) {
+            LogX.e(TAG, "runSimulation failed", e);
+        }
     }
 
     /** 统一推送当前状态（标题 + 工具行 + 进度） */

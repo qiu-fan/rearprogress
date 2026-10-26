@@ -217,34 +217,43 @@ public class MainActivity extends Activity {
         execSuSilent("echo '" + content.replace("'", "'\\''") + "' > " + PROGRESS_FILE);
         Toast.makeText(this, "已上传进度(" + (json ? "JSON" : "纯") + ")", Toast.LENGTH_SHORT).show();
     }
-
 /**
-     * 模拟 Operit 依次调用 10 个工具（测试展开态/背屏/灵动岛用）。
-     * 走 AgentProgress.simulateTool → recordTool + pushState，完全复刻 Hook 链路。
+     * 模拟 Operit 依次调用 10 个工具。
+     * 做法：只往 /data/local/tmp/agent_progress.sim 写指令文件，
+     * 由 Operit 进程内的 hook 轮询读取并执行 —— 走的是和真实 hook 完全相同的
+     * 链路（同一个包、同一个 channel、同一条卡片），通知栏/岛/背屏表现完全一致。
      */
     private void simulateTenTools() {
+        final String[] tools = {
+                "Shell(root)|echo 'hello 来自模拟工具 1'",
+                "GrepCode|pattern=AgentProgress path=rearprogress",
+                "ReadPart|start_line=1 end_line=50 path=FocusNotify.java",
+                "EditFile|path=LayoutConfigActivity.java +12 -3",
+                "Proxy|tool_name=super_admin:shell command=ls /data/local/tmp",
+                "WriteFile|path=tpl/layout_config.json +8 -2",
+                "QueryMemory|query=背屏布局参数 hit=87.5%",
+                "TokenHook|token_in=980K token_out=2.1K hit=98.2%",
+                "CreateFile|path=test/mock.md content=模拟数据",
+                "VisitWeb|url=https://example.com 已就绪 模拟第10个"
+        };
         new Thread(() -> {
-            String[][] tools = {
-                    {"Shell(root)", "echo 'hello 来自模拟工具 1'"},
-                    {"GrepCode", "pattern=AgentProgress path=rearprogress"},
-                    {"ReadPart", "start_line=1 end_line=50 path=FocusNotify.java"},
-                    {"EditFile", "path=LayoutConfigActivity.java +12 -3"},
-                    {"Proxy", "tool_name=super_admin:shell command=ls /data/local/tmp"},
-                    {"WriteFile", "path=tpl/layout_config.json +8 -2"},
-                    {"QueryMemory", "query=背屏布局参数 hit=87.5%"},
-                    {"TokenHook", "token_in=980K token_out=2.1K hit=98.2%"},
-                    {"CreateFile", "path=test/mock.md content=模拟数据"},
-                    {"VisitWeb", "url=https://example.com 已就绪 模拟第10个"}
-            };
-            for (int i = 0; i < tools.length; i++) {
-                final int idx = i;
-                AgentProgress.simulateTool(tools[i][0], tools[i][1], true);
+            try {
+                // 确保开关文件存在（否则 Operit 侧 pushState 会直接 return）
+                execSuSilent("touch " + ENABLED_FILE);
+                StringBuilder sb = new StringBuilder();
+                for (String t : tools) sb.append(t).append('\n');
+                // 写到临时文件再 mv，避免 Operit 侧读到半截内容
+                String tmp = "/data/local/tmp/.sim.tmp";
+                String escaped = sb.toString().replace("'", "'\\''");
+                execSuSilent("printf '%s' '" + escaped + "' > " + tmp
+                        + " && mv -f " + tmp + " /data/local/tmp/agent_progress.sim");
                 runOnUiThread(() -> Toast.makeText(this,
-                        "模拟工具 " + (idx + 1) + "/10: " + tools[idx][0],
+                        "已下发 10 个模拟工具，Operit 侧开始执行",
                         Toast.LENGTH_SHORT).show());
-                try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
+            } catch (Throwable t) {
+                runOnUiThread(() -> Toast.makeText(this,
+                        "下发失败: " + t.getMessage(), Toast.LENGTH_LONG).show());
             }
-            runOnUiThread(() -> Toast.makeText(this, "模拟10个工具完成 ✅", Toast.LENGTH_SHORT).show());
         }).start();
     }
 
