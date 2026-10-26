@@ -47,8 +47,34 @@ final class FocusNotify {
     /** 转发广播：Operit 进程 → 副屏中心进程代发通知（绕过 MIUI 前台抑制） */
     static final String ACTION_PUSH = "com.operit.rearprogress.PUSH_STATE";
     static final String ACTION_STOP = "com.operit.rearprogress.STOP_NOTIFY";
+    /** 副屏中心代发成功后回执（Operit 侧据此判断是否需要本地兜底） */
+    static final String ACTION_ACK = "com.operit.rearprogress.PUSH_ACK";
     private static final String PKG_SCREEN = "com.xiaomi.subscreencenter";
     private static final String PKG_OPERIT = "com.ai.assistance.operit";
+    /** 最近一次收到代发回执的时间戳 */
+    private static volatile long sLastAckAt = 0L;
+    private static volatile boolean sAckReceiverReady = false;
+
+    /** 注册回执接收器（Operit 进程用，判断代发是否生效） */
+    static void installAckReceiver() {
+        if (sAckReceiverReady) return;
+        try {
+            Context ctx = currentAppContext();
+            if (ctx == null) return;
+            android.content.BroadcastReceiver r = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, android.content.Intent i) {
+                    sLastAckAt = System.currentTimeMillis();
+                }
+            };
+            android.content.IntentFilter f = new android.content.IntentFilter(ACTION_ACK);
+            ctx.registerReceiver(r, f, Context.RECEIVER_EXPORTED);
+            sAckReceiverReady = true;
+            android.util.Log.i(TAG, "ack receiver ready");
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "installAckReceiver failed", t);
+        }
+    }
 
     private FocusNotify() {}
 
@@ -185,8 +211,26 @@ final class FocusNotify {
      */
     static void pushState(String title, String toolName, String body, int percent) {
         // 在 Operit 进程里：转发给副屏中心代发（用它的包名，绕过 MIUI 前台抑制）
+        // 加兜底：若 700ms 内没收到副屏中心的回执，就本地自己发（保证通知不丢）
         if (isOperitProcess()) {
+            installAckReceiver();
+            final long before = System.currentTimeMillis();
             forwardPush(title, toolName, body, percent);
+            final String fT = title, fTool = toolName, fBody = body;
+            final int fPct = percent;
+            new Thread(() -> {
+                try {
+                    Thread.sleep(700L);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (sLastAckAt >= before) return;   // 代发成功，不兜底
+                android.util.Log.w(TAG, "no ack from subscreencenter, fallback to local");
+                try {
+                    initFromActivityThread();
+                    pushStateLocal(fT, fTool, fBody, fPct);
+                } catch (Throwable ignored) {}
+            }, "RearProgressFallback").start();
             return;
         }
         pushStateLocal(title, toolName, body, percent);

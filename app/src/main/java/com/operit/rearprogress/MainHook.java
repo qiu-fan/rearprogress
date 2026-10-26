@@ -133,6 +133,13 @@ public class MainHook extends XposedModule {
                                     intent.getStringExtra("tool"),
                                     intent.getStringExtra("body"),
                                     intent.getIntExtra("percent", -1));
+                            // 回执：告诉 Operit 侧"已代发"，避免它本地兜底重复发
+                            try {
+                                android.content.Intent ack =
+                                        new android.content.Intent(FocusNotify.ACTION_ACK);
+                                ack.setPackage("com.ai.assistance.operit");
+                                ctx.sendBroadcast(ack);
+                            } catch (Throwable ignored) {}
                         }
                     } catch (Throwable t) {
                         log(android.util.Log.WARN, TAG, "notify forward receive failed", t);
