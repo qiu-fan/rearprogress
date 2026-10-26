@@ -638,19 +638,16 @@ final class FocusNotify {
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
                     .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : (tok + hitSuffix()));
 
-            // 大岛：左=动作标签（BUILD / INSTALL / GIT ...，识别不到回落工具名）
-            //       右=版本号（v1.2.4，识别不到回落 token）
-            String act = CommandInsight.action(bodyText);
-            String ver = CommandInsight.meta(sCtx, act, bodyText);
+            // 大岛：左=工具名（10），右=token 数（11）——用户指定
             org.json.JSONObject bigLeft = new org.json.JSONObject()
                     .put("type", 1)
                     .put("picInfo", picInfo)
                     .put("textInfo", new org.json.JSONObject()
-                            .put("title", SLOT_TEST ? "【10-大岛左标题】" : (act.isEmpty() ? toolTitle : act)));
+                            .put("title", SLOT_TEST ? "【10-大岛左标题】" : toolTitle));
             org.json.JSONObject bigRight = new org.json.JSONObject()
                     .put("type", 2)
                     .put("textInfo", new org.json.JSONObject()
-                            .put("title", SLOT_TEST ? "【11-大岛右标题】" : (ver.isEmpty() ? tok : ver)));
+                            .put("title", SLOT_TEST ? "【11-大岛右标题】" : tok));
             org.json.JSONObject bigArea = new org.json.JSONObject()
                     .put("imageTextInfoLeft", bigLeft)
                     .put("imageTextInfoRight", bigRight);
