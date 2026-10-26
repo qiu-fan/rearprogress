@@ -106,6 +106,8 @@
     <VariableCommand name="lu_title" expression="strReplaceAll(@lu_title,'[\r\n]+',' ')" type="string"/>
     <VariableCommand name="lu_sub_text" expression="strReplaceAll(@lu_sub_text,'[\r\n]+',' ')" type="string"/>
     <VariableCommand name="lu_big_text" expression="strReplaceAll(@lu_big_text,'[\r\n]+',' ')" type="string"/>
+    <!-- 清理 Agent 标记 «（bigText 开头的识别符号，背屏不用显示） -->
+    <VariableCommand name="lu_big_text" expression="strReplaceAll(@lu_big_text,'«','')" type="string"/>
   </Function>
 
   <Function name="parseData">
