@@ -194,10 +194,14 @@ final class FocusNotify {
     private static void forwardStop() {
         try {
             Context ctx = currentAppContext();
-            if (ctx == null) return;
+            if (ctx == null) {
+                android.util.Log.w(TAG, "forwardStop: ctx is null, cannot cancel mirror");
+                return;
+            }
             android.content.Intent i = new android.content.Intent(ACTION_STOP);
             i.setPackage(PKG_SCREEN);
             ctx.sendBroadcast(i);
+            android.util.Log.i(TAG, "forwardStop: ACTION_STOP broadcast sent to subscreencenter");
         } catch (Throwable t) {
             android.util.Log.w(TAG, "forwardStop failed", t);
         }
@@ -280,6 +284,8 @@ final class FocusNotify {
     /** 真正撤掉通知（副屏中心进程执行） */
     static void stopLocal() {
         try {
+            android.util.Log.i(TAG, "stopLocal: sNm=" + (sNm != null ? "ok" : "null")
+                    + " pkg=" + (sCtx != null ? sCtx.getPackageName() : "?"));
             if (sNm != null) sNm.cancel(NOTIF_ID);
             sLastTitle = null;
             sLastBody = null;
@@ -637,7 +643,7 @@ final class FocusNotify {
         final boolean SLOT_TEST = false;
         String t1 = SLOT_TEST ? "【1-通知标题】" : title;
         String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
-        String t3 = "【3-通知正文】";  // 用户指定：通知正文固定占位
+        String t3 = "任务 #" + AgentProgress.toolCount();  // 用户指定：通知正文显示任务数
 
         b.setContentTitle(t1);
         if (t2 != null && !t2.isEmpty()) {

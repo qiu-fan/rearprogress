@@ -176,7 +176,7 @@ final class TokenHook {
         if (baseIdx < 0) baseIdx = start;  // 全部早于窗口，用最旧的
         long baseIn = sHistIn[baseIdx], baseOut = sHistOut[baseIdx];
         long baseAt = sHistAt[baseIdx];
-        long dTok = (lastIn + lastOut) - (baseIn + baseOut);
+        long dTok = lastOut - baseOut;  // 只统计下载（out）token
         long dMs = lastAt - baseAt;
         if (dMs <= 0) return "--.-/s";
         double rate = dTok * 1000.0 / dMs;
@@ -196,7 +196,31 @@ final class TokenHook {
             for (int i = 0; i < width; i++) ph.append('\u2581');
             return ph.toString();
         }
+        // 时间窗口：只取最近 10 秒内的快照
+        long cutoff = System.currentTimeMillis() - 10_000L;
         int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        // 找窗口内第一个快照
+        int winStart = start;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (sHistAt[idx] >= cutoff) { winStart = idx; break; }
+            winStart = (start + i + 1) % HISTORY_SIZE;
+        }
+        // 窗口内快照数
+        int winCount = 0;
+        int wi = winStart;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (sHistAt[idx] >= cutoff) winCount++;
+        }
+        if (winCount < 2) {
+            // 窗口内数据不足，铺满占位
+            StringBuilder ph = new StringBuilder();
+            for (int i = 0; i < width; i++) ph.append('\u2581');
+            return ph.toString();
+        }
+        start = winStart;
+        n = winCount;
         // 每段增量
         long[] delta = new long[n];
         long maxD = 1;
