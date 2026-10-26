@@ -20,6 +20,10 @@ final class OperitHook {
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
     /** 开关文件：存在=显示通知，不存在=隐藏通知 */
     private static final String ENABLED_FILE = "/data/local/tmp/agent_progress.enabled";
+    /** 静默阈值：超过该时间无新推送则整条撤掉通知（含背屏 + 灵动岛） */
+    private static final long IDLE_THRESHOLD_MS = 60_000L;
+    /** 上次显示通知的时间戳，供 watcher 检测静默状态 */
+    private static volatile long sLastNotifyAt = 0L;
     /** Operit 数据库路径 */
     private static final String DB_PATH = "/data/data/com.ai.assistance.operit/databases/app_database";
 
@@ -539,6 +543,7 @@ final class OperitHook {
     private static void startEnabledWatcher() {
         Thread t = new Thread(() -> {
             boolean lastEnabled = false;
+            boolean idled = false;
             while (true) {
                 try {
                     Thread.sleep(1000L);
@@ -551,6 +556,23 @@ final class OperitHook {
                             enabled = false;
                             LogX.i(TAG, "auto-hide: deleted enabled file");
                         }
+                    }
+
+                    // 静默检测：上次推送距今超过阈值 → 整条撤掉，不留痕迹
+                    // 仅限"有真实活动"后才计时（sLastNotifyAt > 0，即 pushState 曾被调用）
+                    if (enabled && !idled && sLastNotifyAt > 0) {
+                        long lastAt = sLastNotifyAt;
+                        if (System.currentTimeMillis() - lastAt > IDLE_THRESHOLD_MS) {
+                            idled = true;
+                            FocusNotify.stop();
+                            boolean deleted = f.exists() && f.delete();
+                            enabled = false;
+                            LogX.i(TAG, "silent " + (IDLE_THRESHOLD_MS / 1000)
+                                    + "s -> notification removed, file deleted=" + deleted);
+                        }
+                    } else if (!enabled) {
+                        // 文件已消失，重置静默标志，允许下次有活动时重新显示
+                        idled = false;
                     }
 
                     // 状态变化时触发
@@ -578,6 +600,7 @@ final class OperitHook {
         String title = AgentProgress.title();
         String body = AgentProgress.body();
         int pct = AgentProgress.percent();
+        sLastNotifyAt = System.currentTimeMillis();
         FocusNotify.pushRaw(title, body, pct);
         LogX.i(TAG, "push(" + reason + ") title=" + title);
     }

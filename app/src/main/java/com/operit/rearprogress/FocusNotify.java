@@ -36,6 +36,8 @@ final class FocusNotify {
     private static final int NOTIF_ID = 0x4147454E; // 'AGEN'
     private static final String ORDER_ID = "operit_agent_progress";
     private static final String TAG = "RearProgress";
+    /** Agent 卡片标记：标题以该前缀开头表示这是 Agent 卡片（模板据此前缀判断显示蓝色 "Agent"）。用 ASCII 箭头对，MAML 稳定支持 */
+    private static final String AGENT_MARK = "«";
 
     private static NotificationManager sNm;
     private static Context sCtx;
@@ -145,7 +147,10 @@ final class FocusNotify {
                 String tok = AgentProgress.toolName();
                 if (tok != null && tok.startsWith("↑")) toolName = tok;
             }
-            if (title.isEmpty() && body.isEmpty()) return;
+            // Agent 卡片标记：不前插标题（系统通知栏会原样显示），改由 buildNotification
+            // 把标记写进 bigText 末尾——背屏 MAML 读 lu_big_text 能拿到，
+            // 灵动岛展开态读的是 android.title，不受影响。
+            if (title.trim().isEmpty() && body.isEmpty()) return;
 
             String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
             if (key.equals(sLastTitle)) return;   // 完全没变就不发
@@ -188,11 +193,14 @@ final class FocusNotify {
     private static String shortenPaths(String text) {
         if (text == null || text.isEmpty()) return text;
         try {
-            // 工作区路径（精确，先处理）：.../files/workspace/<uuid>/ → 工作区/
+            // 工作区路径（精确，先处理）：.../files/workspace/<uuid>/ → WORKSPACE/
+            // 不区分大小写、uuid/id 都吃掉，避免出现 workspace/xxx 残留
             text = text.replaceAll(
-                "/data/user/0/com\\.ai\\.assistance\\.operit/files/workspace/[0-9a-f-]+/",
-                "工作区/"
+                "(?i)/data/user/0/com\\.ai\\.assistance\\.operit/files/workspace(/[^/\\s]*)?/?",
+                "WORKSPACE/"
             );
+            // 兜底：任何残留的 workspace 目录（其他路径形态）→ WORKSPACE/
+            text = text.replaceAll("(?i)(?<![\\w/])workspace/", "WORKSPACE/");
             // Operit data 路径（兜底）：/data/user/0/com.ai.assistance.operit/ → Operit//
             text = text.replaceAll(
                 "/data/user/0/com\\.ai\\.assistance\\.operit/",
@@ -275,7 +283,15 @@ final class FocusNotify {
         }
     }
 
-    /** 构建通知（无进度条样式） */
+    /**
+     * 构建通知（无进度条样式）。
+     *
+     * 展示位置：
+     *   收起态（灵动岛 / 背屏）  → title / toolName / body
+     *   展开态（下拉通知）      → 上面三行 + buildExpandedBody(body) 追加内容
+     *
+     * setContentText(body) 保持不变（背屏 MAML 读 extras.android.text）。
+     */
     @SuppressWarnings("deprecation")
     private static Notification buildNotification(Context ctx, String title, String toolName,
                                                   String body, int percent, boolean hasBar) {
@@ -291,6 +307,8 @@ final class FocusNotify {
         if (toolName != null && !toolName.isEmpty()) {
             b.setSubText(toolName);
         }
+        // 展开态正文：body 保持原样（背屏只读 extras.android.text），
+        // 展开态额外信息走 BigTextStyle（见下）。
         b.setContentText(body);
         b.setSmallIcon(android.R.drawable.stat_sys_download_done);
         b.setOngoing(true);
@@ -298,33 +316,13 @@ final class FocusNotify {
         b.setShowWhen(false);
         b.setPriority(Notification.PRIORITY_HIGH);  // 必须 HIGH，否则后台通知被降级，灵动岛不显示
 
-        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读 body，保持原样；展开态追加统计信息）
+        // 用 BigTextStyle 显示完整内容（背屏 lu_big_text 读 bigText）
+        // ⚠️ bigText 必须只放 body：副屏中心会把 android.bigText 映射成 lu_big_text，
+        //    多放任何东西都会污染背屏消息区。
+        //    开头追加 Agent 标记 «：背屏模板据此显示蓝色 "Agent" 标签。
         try {
-            // 展开态内容：body + 统计信息（背屏只读 body，不受影响）
-            String expanded = body;
-            try {
-                StringBuilder extra = new StringBuilder();
-                String flow = AgentProgress.getToolFlow();
-                if (flow != null && !flow.isEmpty()) {
-                    extra.append("\n\n──── 工具流 ────\n").append(flow);
-                }
-                String taskTime = TokenHook.getTaskTime();
-                if (taskTime != null && !taskTime.isEmpty()) {
-                    extra.append("\n──── 任务 ────\n").append(taskTime);
-                }
-                double hitRate = TokenHook.getHitRate();
-                if (hitRate > 0) {
-                    extra.append(String.format(java.util.Locale.US,
-                            "\n──── 统计 ────\nhit:%.2f%%  ↑%s ↓%s",
-                            hitRate,
-                            TokenHook.fmt(TokenHook.getLastIn()),
-                            TokenHook.fmt(TokenHook.getLastOut())));
-                }
-                if (extra.length() > 0) expanded = body + extra.toString();
-            } catch (Throwable ignored) {}
-
             Notification.BigTextStyle bigText = new Notification.BigTextStyle()
-                    .bigText(expanded)
+                    .bigText(AGENT_MARK + body)
                     .setBigContentTitle(title)
                     .setSummaryText(toolName);
             b.setStyle(bigText);
@@ -334,6 +332,8 @@ final class FocusNotify {
         // 扩展 extras：供展开态 MAML 模板使用（副屏中心会映射成 lu_* 变量）
         try {
             // 注意：副屏中心会自动给 extras 键加 lu_ 前缀，所以这里不带 lu_
+            // Agent 标记：本通道专供 Agent 卡片使用（模板据此显示蓝色 Agent）。
+            n.extras.putString("agent_mark", "1");
             n.extras.putString("token_history", TokenHook.getHistoryJson());
             n.extras.putString("token_path", TokenHook.getHistoryPath(630, 110));
             // 命中率：无 token 数据时为空（背屏模板显示 ready，不显示 hit）
@@ -346,6 +346,91 @@ final class FocusNotify {
             n.extras.putString("time_range", TokenHook.getTimeRange());
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}
+
+        // 灵动岛：注入 miui.focus.param，让展开态（大岛）与收起态（小岛）显示不同内容。
+        // 结构取自系统自动生成的 notification_island 业务（见 NLS_RECV 日志），
+        // 这里把 bigIslandArea 的右侧文本换成工具流详情（收起只看 token）。
+        try {
+            String token = (toolName == null || toolName.isEmpty()) ? "" : toolName;
+            // 岛标题：通知标题为空（READY 态）时用 "Agent"，保证正面岛始终有 Agent 文字
+            String islandTitle = (title == null || title.isEmpty()) ? "Agent" : title;
+            String flow = AgentProgress.getToolFlow();
+            if (flow == null || flow.isEmpty()) flow = body;
+            if (flow == null) flow = "";
+            if (flow.length() > 60) flow = flow.substring(0, 60) + "…";
+
+            org.json.JSONObject island = new org.json.JSONObject();
+            island.put("islandProperty", 1);
+            island.put("islandPriority", 2);
+            island.put("islandTimeout", 10);
+            island.put("islandOrder", false);
+            island.put("dismissIsland", false);
+            island.put("maxSize", false);
+            island.put("needCloseAnimation", true);
+
+            org.json.JSONObject bigLeft = new org.json.JSONObject();
+            bigLeft.put("type", 1);
+            org.json.JSONObject bigPic = new org.json.JSONObject();
+            bigPic.put("type", 1);
+            bigPic.put("pic", "miui.focus.pic_key_notification_island_island");
+            bigPic.put("loop", false);
+            bigPic.put("autoplay", false);
+            bigPic.put("number", 0);
+            bigLeft.put("picInfo", bigPic);
+            org.json.JSONObject bigText = new org.json.JSONObject();
+            bigText.put("title", islandTitle);
+            bigText.put("showHighlightColor", false);
+            bigText.put("narrowFont", false);
+            bigLeft.put("textInfo", bigText);
+
+            org.json.JSONObject bigRight = new org.json.JSONObject();
+            bigRight.put("type", 2);
+            org.json.JSONObject bigRightText = new org.json.JSONObject();
+            bigRightText.put("title", flow);   // 展开态右侧显示工具流详情
+            bigRightText.put("showHighlightColor", false);
+            bigRightText.put("narrowFont", false);
+            bigRight.put("textInfo", bigRightText);
+
+            org.json.JSONObject bigArea = new org.json.JSONObject();
+            bigArea.put("imageTextInfoLeft", bigLeft);
+            bigArea.put("imageTextInfoRight", bigRight);
+
+            org.json.JSONObject smallArea = new org.json.JSONObject();
+            org.json.JSONObject smallPic = new org.json.JSONObject();
+            smallPic.put("type", 1);
+            smallPic.put("pic", "miui.focus.pic_key_notification_island_island");
+            smallPic.put("loop", false);
+            smallPic.put("autoplay", false);
+            smallPic.put("number", 0);
+            smallArea.put("picInfo", smallPic);
+
+            island.put("bigIslandArea", bigArea);
+            island.put("smallIslandArea", smallArea);
+
+            org.json.JSONObject param = new org.json.JSONObject();
+            param.put("param_v2", new org.json.JSONObject()
+                    .put("protocol", 3)
+                    .put("business", "notification_island")
+                    .put("updatable", true)
+                    .put("ticker", islandTitle)
+                    .put("enableFloat", false)
+                    .put("isShowNotification", true)
+                    .put("islandFirstFloat", false)
+                    .put("param_island", island)
+                    .put("iconTextInfo", new org.json.JSONObject()
+                            .put("animIconInfo", new org.json.JSONObject()
+                                    .put("type", 0)
+                                    .put("src", "miui.focus.pic_key_notification_island_focus")
+                                    .put("loop", true)
+                                    .put("autoplay", true))
+                            .put("title", islandTitle)
+                            .put("content", token))
+                    .put("aodTitle", token)
+                    .put("aodPic", "miui.focus.pic_aod"));
+
+            n.extras.putString("miui.focus.param", param.toString());
+        } catch (Throwable ignored) {}
+
         // 关键：副屏中心 NLS 的 b() 判定 flags & 0x2 (FLAG_ONGOING_EVENT)，
         // 不满足就直接丢弃。这里在 build 后强制补上，防止 Style/recoverBuilder 丢掉。
         n.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_ONLY_ALERT_ONCE;
