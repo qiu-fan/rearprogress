@@ -39,6 +39,7 @@ public class MainHook extends XposedModule {
     private static final String TAG = "RearProgress";
     private static final String PKG_SCREEN = "com.xiaomi.subscreencenter";
     private static final String PKG_OPERIT = "com.ai.assistance.operit";
+    private static final String PKG_SYSTEMUI = "com.android.systemui";
 
     private static final String PROGRESS_FILE = "/data/local/tmp/agent_progress.txt";
     private static final String MARKER = "[AGENT]";
@@ -79,6 +80,12 @@ public class MainHook extends XposedModule {
                 OperitHook.install(this, param.getClassLoader());
                 return;
             }
+            if (PKG_SYSTEMUI.equals(pkg)) {
+                mCl = param.getClassLoader();
+                log(android.util.Log.INFO, TAG, "systemui ready: watch plugin loader");
+                installPluginLoaderWatcher();
+                return;
+            }
             if (!PKG_SCREEN.equals(pkg)) return;
 
             mCl = param.getClassLoader();
@@ -96,6 +103,105 @@ public class MainHook extends XposedModule {
             registerNotifyForwarder();
         } catch (Throwable t) {
             log(android.util.Log.ERROR, TAG, "onPackageReady failed", t);
+        }
+    }
+
+    // ------------------------------------------------------------ SystemUI 插件层（谨慎版）
+
+    /**
+     * 只做一件事：在插件类加载时记下那个 ClassLoader。
+     *
+     * 注意：这里处于 ClassLoader.findClass 的关键路径上，
+     * 绝对不能在这里做任何类加载 / 反射 / 重活，否则会让 SystemUI 启动期死锁或崩溃。
+     * 所以只做「赋值 + 投递到主线程」，真正的 hook 在 schedulePluginHooks 里做。
+     */
+    private void installPluginLoaderWatcher() {
+        try {
+            Class<?> filter = Class.forName(
+                    "com.android.systemui.shared.plugins.PluginInstance$ClassLoaderFilter",
+                    false, mCl);
+            for (Method m : filter.getDeclaredMethods()) {
+                if (!"findClass".equals(m.getName())) continue;
+                if (m.getParameterCount() != 1) continue;
+                try {
+                    hook(m).intercept(chain -> {
+                        try {
+                            Object self = chain.getThisObject();
+                            if (self instanceof ClassLoader
+                                    && self != sPluginCl
+                                    && sPluginTries.get() < 8) {
+                                sPluginCl = (ClassLoader) self;
+                                sPluginTries.incrementAndGet();
+                                schedulePluginHooks((ClassLoader) self);
+                            }
+                        } catch (Throwable ignored) {}
+                        return chain.proceed();
+                    });
+                    log(android.util.Log.INFO, TAG, "plugin loader watcher installed");
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "installPluginLoaderWatcher failed: " + t);
+        }
+    }
+
+    private volatile ClassLoader sPluginCl;
+    private final java.util.concurrent.atomic.AtomicInteger sPluginTries =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 离开类加载路径后，投递到主线程再做具体 hook */
+    private void schedulePluginHooks(final ClassLoader pl) {
+        try {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                try {
+                    installPluginFocusHooks(pl);
+                } catch (Throwable ignored) {}
+            });
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "schedulePluginHooks failed: " + t);
+        }
+    }
+
+    /**
+     * 这一版只观察 MIUI 插件里焦点通知的两个授权判定，不做任何改写：
+     *   NotificationSettingsManager.canCustomFocus(pkg)      —— 自定义焦点通知白名单
+     *   NotificationSettingsManager.canPassXMSPermission(pkg) —— XMS 授权名单
+     */
+    private void installPluginFocusHooks(ClassLoader pl) {
+        if (pl == null) return;
+        try {
+            Class<?> c = Class.forName(
+                    "miui.systemui.notification.NotificationSettingsManager", true, pl);
+            int n = 0;
+            for (Method m : c.getDeclaredMethods()) {
+                String nm = m.getName();
+                if (!"canCustomFocus".equals(nm) && !"canPassXMSPermission".equals(nm)) continue;
+                try {
+                    hook(m).intercept(chain -> {
+                        Object r;
+                        try {
+                            r = chain.proceed();
+                        } catch (Throwable t2) {
+                            r = "EX:" + t2.getClass().getSimpleName();
+                        }
+                        try {
+                            String arg = "";
+                            try {
+                                Object a = chain.getArg(1);
+                                if (a instanceof CharSequence) arg = a.toString();
+                            } catch (Throwable ignored) {}
+                            log(android.util.Log.INFO, TAG,
+                                    "PLUGFOCUS " + nm + "(" + arg + ") -> " + r);
+                        } catch (Throwable ignored) {}
+                        return r;
+                    });
+                    n++;
+                } catch (Throwable ignored) {}
+            }
+            log(android.util.Log.INFO, TAG, "plugin focus hooks installed: " + n
+                    + " on " + pl.getClass().getName());
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "plugin focus hooks skipped: " + t);
         }
     }
 
