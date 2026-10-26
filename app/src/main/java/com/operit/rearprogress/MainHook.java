@@ -202,7 +202,9 @@ public class MainHook extends XposedModule {
                                     intent.getStringExtra("title"),
                                     intent.getStringExtra("tool"),
                                     intent.getStringExtra("body"),
-                                    intent.getIntExtra("percent", -1));
+                                    intent.getIntExtra("percent", -1),
+                                    intent.getStringExtra("rate"),
+                                    intent.getStringExtra("spark"));
                             setResultCode(1);
                             return;
                         }
