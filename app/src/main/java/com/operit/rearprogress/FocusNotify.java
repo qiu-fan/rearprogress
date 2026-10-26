@@ -573,9 +573,13 @@ final class FocusNotify {
                                                   String body, int percent, boolean hasBar) {
         Notification.Builder b;
         if (android.os.Build.VERSION.SDK_INT >= 26) {
-            b = new Notification.Builder(ctx, sForceParam ? CHANNEL_ID : CHANNEL_ID_QUIET);
-            // 主通知用 IMPORTANCE_LOW 静默通道（B 实测：MIUI 对 IMPORTANCE_MIN 第三方通知直接不投递）
-            // LOW 通道本身就不响铃不震动，NLS 仍会派发 → 背屏数据源存活
+            // 主通知统一用 agent_rear_progress(HIGH)通道：
+            //   quiet 通道(agent_rear_progress_quiet)在系统里已锁死 mImportance=1(MIN)，
+            //   Android 不允许修改已有通道的重要性，改代码用 LOW 会被忽略，
+            //   MIUI 对 MIN 通道的第三方通知直接不投递 → NLS 收不到 → 背屏空白。
+            //   HIGH 通道能正常投递，NLS 收得到，背屏有内容。
+            //   岛的隐藏靠不注入 miui.focus.param 实现，不靠压通道 importance。
+            b = new Notification.Builder(ctx, CHANNEL_ID);
         } else {
             b = new Notification.Builder(ctx);
         }
