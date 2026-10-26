@@ -86,6 +86,12 @@ public final class SysUiHot {
                 wlog("HOT factory hook threw: " + t);
             }
         }
+        // 岛右侧文字换自定义字体
+        try {
+            hookRightTextFont(sysUiCl);
+        } catch (Throwable t) {
+            wlog("HOT rightTextFont hook threw: " + t);
+        }
     }
 
     /** 从 PluginFactory.createPluginContext 的返回值里拿插件 classloader */
@@ -103,6 +109,8 @@ public final class SysUiHot {
                             if (pcl != null && !sHooked.contains(pcl)) {
                                 wlog("HOT got plugin loader, hooking whitelist");
                                 hookWhitelist(pcl);
+                                // 插件 loader 里也有岛的 ViewHolder，一并 hook 字体
+                                hookRightTextFont(pcl);
                             }
                         }
                     } catch (Throwable t) {
@@ -213,6 +221,100 @@ public final class SysUiHot {
         } catch (Throwable t) {
             wlog("HOT SceneHandler missing: " + t);
         }
+    }
+
+    /**
+     * 岛右侧文字换自定义字体（徕卡改造版：数字等宽 + K/M/B 窄）。
+     * 照抄 HyperIsland IslandFontTuningHook 的 hook 思路，
+     * 但只针对 IslandRightTextViewHolder（右侧文字）。
+     */
+    private static android.graphics.Typeface sCustomFont;
+
+    private static android.graphics.Typeface loadCustomFont() {
+        if (sCustomFont != null) return sCustomFont;
+        // 优先从 KSU 模块读，其次从 sdcard 读
+        String[] paths = {
+            "/system/fonts/rp_leica_mono.otf",
+            "/sdcard/Android/code/rp_leica_mono.otf",
+        };
+        for (String p : paths) {
+            try {
+                java.io.File f = new java.io.File(p);
+                if (f.exists()) {
+                    sCustomFont = android.graphics.Typeface.createFromFile(f);
+                    wlog("HOT custom font loaded from " + p
+                        + " weight=" + sCustomFont.getWeight());
+                    return sCustomFont;
+                }
+            } catch (Throwable t) {
+                wlog("HOT font load failed " + p + ": " + t);
+            }
+        }
+        wlog("HOT custom font NOT FOUND, using system default");
+        return null;
+    }
+
+    private static void hookRightTextFont(ClassLoader cl) {
+        android.graphics.Typeface font = loadCustomFont();
+        if (font == null) return;
+
+        // 右侧文字 Holder（照抄 HyperIsland IslandTextAlignHook 的 HOLDER_CLASSES）
+        String[] holderClasses = {
+            "miui.systemui.dynamicisland.module.IslandRightTextViewHolder",
+            "miui.systemui.dynamicisland.module.IslandTextViewHolder",
+        };
+        // 文本字段名（照抄 HyperIsland IslandFontTuningHook 的 TEXT_FIELD_NAMES）
+        String[] fieldNames = {"title", "frontTitle", "content", "titleView"};
+
+        int hooked = 0;
+        for (String clsName : holderClasses) {
+            try {
+                Class<?> clazz = Class.forName(clsName, false, cl);
+                // 解析文本字段
+                java.util.List<java.lang.reflect.Field> fields = new java.util.ArrayList<>();
+                for (String fn : fieldNames) {
+                    try {
+                        java.lang.reflect.Field f = clazz.getDeclaredField(fn);
+                        f.setAccessible(true);
+                        fields.add(f);
+                    } catch (NoSuchFieldException ignored) {}
+                }
+                if (fields.isEmpty()) {
+                    wlog("HOT " + clsName + " no text fields found");
+                    continue;
+                }
+                // hook bind / updatePartial（照抄 HyperIsland hookTextBind）
+                for (Method m : clazz.getDeclaredMethods()) {
+                    if (!m.getName().equals("bind") && !m.getName().equals("updatePartial")) continue;
+                    if (m.getParameterTypes().length != 2) continue;
+                    try {
+                        sModule.hook(m).intercept(chain -> {
+                            Object result = chain.proceed();
+                            try {
+                                Object holder = chain.getThisObject();
+                                for (java.lang.reflect.Field f : fields) {
+                                    Object v = f.get(holder);
+                                    if (v instanceof android.widget.TextView) {
+                                        android.widget.TextView tv = (android.widget.TextView) v;
+                                        tv.setTypeface(font);
+                                    }
+                                }
+                            } catch (Throwable ignored) {}
+                            return result;
+                        });
+                        hooked++;
+                        wlog("HOT hooked " + clsName + "#" + m.getName() + " -> custom font");
+                    } catch (Throwable t) {
+                        wlog("HOT hook " + clsName + "#" + m.getName() + " failed: " + t);
+                    }
+                }
+            } catch (ClassNotFoundException ignored) {
+                wlog("HOT " + clsName + " not found");
+            } catch (Throwable t) {
+                wlog("HOT " + clsName + " error: " + t);
+            }
+        }
+        wlog("HOT rightTextFont hooks=" + hooked);
     }
 
     /** 只打印方法签名，不做任何改写（探针，安全） */
