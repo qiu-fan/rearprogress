@@ -556,6 +556,18 @@ final class FocusNotify {
      *
      * setContentText(body) 保持不变（背屏 MAML 读 extras.android.text）。
      */
+    /** 命中率后缀：" · 84.83%"，无数据时返回空串 */
+    private static String hitSuffix() {
+        try {
+            if (AgentProgress.toolName() == null || AgentProgress.toolName().equals("ready")) return "";
+            double rate = TokenHook.getHitRate();
+            if (rate <= 0) return "";
+            return " · " + String.format(java.util.Locale.US, "%.2f", rate) + "%";
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
     @SuppressWarnings("deprecation")
     private static Notification buildNotification(Context ctx, String title, String toolName,
                                                   String body, int percent, boolean hasBar) {
@@ -637,9 +649,12 @@ final class FocusNotify {
             // （只有岛展开后的内容不同，由 param_island.bigIslandArea 提供）
             org.json.JSONObject iconTextInfo = new org.json.JSONObject()
                     .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
-                    .put("title", toolTitle)
-                    .put("content", bodyText.isEmpty() ? tok : bodyText)
-                    .put("subContent", tok);
+                    // title  → 工具名（CopyFile / read_file …），没有工具名时回落到状态标题
+                    .put("title", (toolName == null || toolName.isEmpty()) ? toolTitle : toolName)
+                    // content → 命令正文；多行会被 MIUI 折叠成一行，所以显式用 · 连接
+                    .put("content", bodyText.isEmpty() ? tok : bodyText.replace("\n", " · "))
+                    // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
+                    .put("subContent", tok + hitSuffix());
 
             // 大岛：左=图标+标题，右=token
             org.json.JSONObject bigLeft = new org.json.JSONObject()
