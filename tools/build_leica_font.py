@@ -17,7 +17,7 @@ SRC = "/tmp/leica/etc/LG1056-Regular.otf"
 DST = "/sdcard/Android/code/rp_leica_mono.otf"
 
 DIGIT_ADV = 573      # 数字统一宽度
-KMB_RATIO = 0.68     # K/M/B 缩到原宽度的 68%
+KMB_RATIO = 1.0      # K/M/B 不缩窄（用户要求去掉变窄，恢复原宽）
 
 f = TTFont(SRC)
 upm = f['head'].unitsPerEm
