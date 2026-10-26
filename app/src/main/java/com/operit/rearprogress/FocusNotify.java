@@ -210,27 +210,51 @@ final class FocusNotify {
      *   percent   → 0-100 进度条，<0 表示不显示
      */
     static void pushState(String title, String toolName, String body, int percent) {
-        // 在 Operit 进程里：转发给副屏中心代发（用它的包名，绕过 MIUI 前台抑制）
-        // 加兜底：若 700ms 内没收到副屏中心的回执，就本地自己发（保证通知不丢）
-        if (isOperitProcess()) {
-            installAckReceiver();
-            final long before = System.currentTimeMillis();
-            forwardPush(title, toolName, body, percent);
-            final String fT = title, fTool = toolName, fBody = body;
-            final int fPct = percent;
-            new Thread(() -> {
-                try {
-                    Thread.sleep(700L);
-                } catch (InterruptedException e) {
+        // READY 态（刚进软件 / 没有任何工具调用）不推送通知：
+        // 否则会闪一下「Agent"，右侧无内容」的岛，通知栏也多一条「已就绪」空卡片。
+        try {
+            if (AgentProgress.state() == AgentProgress.State.READY) {
+                String b = body == null ? "" : body.trim();
+                String t = toolName == null ? "" : toolName.trim();
+                if (t.isEmpty() || "已就绪".equals(b) || b.isEmpty()) {
                     return;
                 }
-                if (sLastAckAt >= before) return;   // 代发成功，不兜底
-                android.util.Log.w(TAG, "no ack from subscreencenter, fallback to local");
-                try {
-                    initFromActivityThread();
-                    pushStateLocal(fT, fTool, fBody, fPct);
-                } catch (Throwable ignored) {}
-            }, "RearProgressFallback").start();
+            }
+        } catch (Throwable ignored) {}
+        // 在 Operit 进程里：转发给副屏中心代发（用它的包名，绕过 MIUI 前台抑制）
+        // 用 ordered broadcast 同步回执：副屏中心成功代发会 setResultCode(1)，
+        // 收不到（比如副屏中心没在跑）才本地兜底发，避免重复通知。
+        if (isOperitProcess()) {
+            final String fT = title, fTool = toolName, fBody = body;
+            final int fPct = percent;
+            try {
+                Context ctx = currentAppContext();
+                if (ctx != null) {
+                    android.content.Intent i = new android.content.Intent(ACTION_PUSH);
+                    i.putExtra("title", title == null ? "" : title);
+                    i.putExtra("tool", toolName == null ? "" : toolName);
+                    i.putExtra("body", body == null ? "" : body);
+                    i.putExtra("percent", percent);
+                    i.setPackage(PKG_SCREEN);
+                    ctx.sendOrderedBroadcast(i, null, new android.content.BroadcastReceiver() {
+                        @Override
+                        public void onReceive(Context c, android.content.Intent it) {
+                            if (getResultCode() == 1) return;   // 代发成功
+                            android.util.Log.w(TAG, "delegate failed (code="
+                                    + getResultCode() + "), fallback to local");
+                            try {
+                                initFromActivityThread();
+                                pushStateLocal(fT, fTool, fBody, fPct);
+                            } catch (Throwable ignored) {}
+                        }
+                    }, null, 0, null, null);
+                    return;
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "forwardPush failed, fallback", t);
+            }
+            // 拿不到 context 时直接本地发
+            pushStateLocal(title, toolName, body, percent);
             return;
         }
         pushStateLocal(title, toolName, body, percent);
