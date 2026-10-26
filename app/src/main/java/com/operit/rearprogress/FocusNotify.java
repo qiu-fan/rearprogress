@@ -194,10 +194,14 @@ final class FocusNotify {
     private static void forwardStop() {
         try {
             Context ctx = currentAppContext();
-            if (ctx == null) return;
+            if (ctx == null) {
+                android.util.Log.w(TAG, "forwardStop: ctx is null, cannot cancel mirror");
+                return;
+            }
             android.content.Intent i = new android.content.Intent(ACTION_STOP);
             i.setPackage(PKG_SCREEN);
             ctx.sendBroadcast(i);
+            android.util.Log.i(TAG, "forwardStop: ACTION_STOP broadcast sent to subscreencenter");
         } catch (Throwable t) {
             android.util.Log.w(TAG, "forwardStop failed", t);
         }
@@ -280,6 +284,8 @@ final class FocusNotify {
     /** 真正撤掉通知（副屏中心进程执行） */
     static void stopLocal() {
         try {
+            android.util.Log.i(TAG, "stopLocal: sNm=" + (sNm != null ? "ok" : "null")
+                    + " pkg=" + (sCtx != null ? sCtx.getPackageName() : "?"));
             if (sNm != null) sNm.cancel(NOTIF_ID);
             sLastTitle = null;
             sLastBody = null;
