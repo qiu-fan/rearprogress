@@ -689,10 +689,20 @@ final class AgentProgress {
         return (System.currentTimeMillis() - sLastToolAt) <= 15_000L;
     }
 
+    static boolean idleForReady() {
+        if (sLastToolAt <= 0) return false;
+        return (System.currentTimeMillis() - sLastToolAt) > 10_000L && ChatCounter.isIdle();
+    }
+
+    static boolean idleForClear() {
+        if (sLastToolAt <= 0) return false;
+        return (System.currentTimeMillis() - sLastToolAt) > 120_000L && ChatCounter.isIdle();
+    }
+
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
-        final char[] FRAMES = {'|', '\\', '-', '/'};  // 用户要求：反向旋转
+        final char[] FRAMES = {'\u28FE', '\u28FD', '\u28FB', '\u28F7', '\u28E7', '\u28CF', '\u28DF', '\u288F'};
         return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 300L) % 4)]);
     }
 

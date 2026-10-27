@@ -450,6 +450,10 @@ final class FocusNotify {
                             return;
                         }
                         try {
+                            if (AgentProgress.idleForClear()) {
+                                stop();
+                                continue;
+                            }
                             pushState(AgentProgress.title(), AgentProgress.toolName(),
                                     AgentProgress.body(), AgentProgress.percent());
                         } catch (Throwable ignored) {}
@@ -789,12 +793,14 @@ final class FocusNotify {
                     .put("type", 1)
                     .put("picInfo", picInfo)
                     .put("textInfo", new org.json.JSONObject()
-                            .put("title", SLOT_TEST ? "【10-大岛左标题】" : toolTitle));
+                            .put("title", SLOT_TEST ? "【10-大岛左标题】"
+                                    : (AgentProgress.idleForReady() ? "Agent" : toolTitle)));
             org.json.JSONObject bigRight = new org.json.JSONObject()
                     .put("type", 2)
                     .put("textInfo", new org.json.JSONObject()
                             .put("title", SLOT_TEST ? "【11-大岛右标题】"
-                                    : (tok + (sSpinner.isEmpty() ? "" : " " + sSpinner))));
+                                    : (AgentProgress.idleForReady() ? "Ready"
+                                            : (tok + (sSpinner.isEmpty() ? "" : " " + sSpinner)))));
             org.json.JSONObject bigArea = new org.json.JSONObject()
                     .put("imageTextInfoLeft", bigLeft)
                     .put("imageTextInfoRight", bigRight);
