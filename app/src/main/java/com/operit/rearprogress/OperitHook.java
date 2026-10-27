@@ -919,7 +919,7 @@ final class OperitHook {
                     if (s == null || s.isEmpty()) continue;
                     if (sb.length() > 0) sb.append(' ');
                     sb.append(s);
-                    if (sb.length() > 60) break;
+                    if (sb.length() > 200) break;  // 60->200: git 长前缀(cd + -c user.name...)会把 push/pull/commit 挤出截断点
                 }
                 return sb.toString();
             }
