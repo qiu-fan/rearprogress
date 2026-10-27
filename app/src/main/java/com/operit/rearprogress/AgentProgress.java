@@ -683,10 +683,16 @@ final class AgentProgress {
      * 调用工具时 token 后面的转轮字符画："/ - \ |" 每 300ms 轮一次。
      * 最近 15 秒内没有工具调用 → 返回空串（不显示）。
      */
+    /** 最近 15 秒内有工具调用 = 转轮活跃，此时心跳要提到 300ms */
+    static boolean spinnerActive() {
+        if (sLastToolAt <= 0) return false;
+        return (System.currentTimeMillis() - sLastToolAt) <= 15_000L;
+    }
+
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
-        final char[] FRAMES = {'/', '-', '\\', '|'};
+        final char[] FRAMES = {'|', '\\', '-', '/'};  // 用户要求：反向旋转
         return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 300L) % 4)]);
     }
 

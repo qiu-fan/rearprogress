@@ -424,6 +424,8 @@ final class FocusNotify {
     private static final long THROTTLE_MS = 300L;
     /** 空闲心跳间隔：内容没变也按 1Hz 刷新（图表、工具调用频率需要节拍） */
     private static final long HEARTBEAT_MS = 1000L;
+    /** 转轮活跃时的心跳间隔（保证 /-\| 轮播是 300ms 一帧） */
+    private static final long FAST_TICK_MS = 300L;
     private static volatile boolean sHeartbeatOn = false;
 
     /**
@@ -440,7 +442,10 @@ final class FocusNotify {
                 @Override public void run() {
                     while (true) {
                         try {
-                            Thread.sleep(HEARTBEAT_MS);
+                            // 动态间隔：转轮活跃（最近 15s 有工具调用）→ 300ms，空闲 → 1Hz。
+                            //   转轮字符本身按 300ms 轮换，只有通知也以 300ms 刷新才看得见。
+                            long interval = AgentProgress.spinnerActive() ? FAST_TICK_MS : HEARTBEAT_MS;
+                            Thread.sleep(interval);
                         } catch (InterruptedException e) {
                             return;
                         }
