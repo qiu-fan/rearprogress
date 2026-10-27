@@ -727,8 +727,7 @@ final class FocusNotify {
                     // content → 命令正文；多行会被 MIUI 折叠成一行，所以显式用 · 连接
                     .put("content",  SLOT_TEST ? "【8-焦点卡内容】多行示例·用·连接" : (sSparkline.isEmpty() ? placeholderSpark() : sSparkline))
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
-                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】"
-                            : (tok.isEmpty() ? toolTitle : toolTitle + "  " + tok));
+                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : tok);
 
             // 大岛：左=工具名（10），右=token 数（11）——用户指定
             org.json.JSONObject bigLeft = new org.json.JSONObject()
