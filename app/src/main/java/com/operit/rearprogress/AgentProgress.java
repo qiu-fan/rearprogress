@@ -50,6 +50,24 @@ final class AgentProgress {
     /** 最近一次 AI 响应的 token 数据 */
     private static volatile String sLastTokenUsage = "";
 
+    // ---- 自适应显示（工具执行期间临时覆盖 title/toolName） ----
+    /** 自适应标题：工具执行时设置，执行完清除（null 表示无自适应） */
+    private static volatile String sAdaptiveTitle = null;
+    /** 自适应副标题：工具执行时设置，执行完清除 */
+    private static volatile String sAdaptiveSub = null;
+
+    /** 设置自适应显示（工具执行期间临时覆盖 title/toolName） */
+    static void setAdaptiveDisplay(String title, String sub) {
+        sAdaptiveTitle = title;
+        sAdaptiveSub = sub;
+    }
+
+    /** 清除自适应显示（工具执行完恢复） */
+    static void clearAdaptiveDisplay() {
+        sAdaptiveTitle = null;
+        sAdaptiveSub = null;
+    }
+
     /** 终端命令历史（最近 N 条） */
     private static final List<String> sCommandHistory = new ArrayList<>();
     /** 终端输出历史 */
@@ -490,6 +508,8 @@ final class AgentProgress {
      *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
     static String title() {
+        // 0. 自适应显示优先（工具执行期间临时覆盖）
+        if (sAdaptiveTitle != null) return sAdaptiveTitle;
         // 1. AI 上传进度优先级最高
         if (hasAiTitle()) {
             LogX.i("RearProgress", "title() -> AI title: [" + sAiTitle + "]");
@@ -543,6 +563,8 @@ final class AgentProgress {
     }
 
     static String toolName() {
+        // 0. 自适应显示优先（工具执行期间临时覆盖）
+        if (sAdaptiveSub != null) return sAdaptiveSub;
         // 1. AI 上传的工具名优先
         if (hasAiTool()) return sAiTool;
 
