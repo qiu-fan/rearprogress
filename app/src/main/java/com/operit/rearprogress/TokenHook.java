@@ -74,6 +74,14 @@ final class TokenHook {
 
     private TokenHook() {}
 
+    /**
+     * 判断 token 是否还在增长（最近 3 秒内有更新）。
+     * 用于推断 AI 正在回复中（思考/流式输出），供背屏显示 "Thinking"。
+     */
+    static boolean isTokenGrowing() {
+        return sHasLive && (System.currentTimeMillis() - sLastPushAt) < 3000L;
+    }
+
     /** 记录一次 token 快照（环形缓冲） */
     private static void recordHistory(long in, long out) {
         long now = System.currentTimeMillis();

@@ -520,6 +520,10 @@ final class AgentProgress {
             case RUNNING:
                 return "任务进行中";
             case DONE:
+                // 用户发消息后 AI 还在回复（token 在增长但还没开始调工具），显示 Thinking
+                if (TokenHook.isTokenGrowing()) {
+                    return "Thinking";
+                }
                 return "已完成";
             case READY:
             default:
