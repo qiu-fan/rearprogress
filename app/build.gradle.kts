@@ -10,10 +10,21 @@ android {
         applicationId = "com.operit.rearprogress"
         minSdk = 30
         targetSdk = 36
-        versionCode = 89
-        versionName = "1.2.9"
+        versionCode = 97
+        versionName = "1.3.7"
+        // 右上角显示的提交编号：构建时取当前 HEAD 短 hash（merge 后自动更新）
+        val gitHash = try {
+            ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+                .directory(file(".."))
+                .redirectErrorStream(true)
+                .start().inputStream.bufferedReader().readText().trim()
+        } catch (e: Exception) { "nogit" }
+        buildConfigField("String", "GIT_COMMIT", "\"$gitHash\"")
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
     buildTypes {
         release {
             isMinifyEnabled = false

@@ -48,8 +48,15 @@ final class TokenHook {
     private static volatile long sLastIn = -1, sLastOut = -1, sLastCached = -1;
     private static volatile long sLastPushAt = 0L;
     private static volatile boolean sHasLive = false;
-    /** 流式更新最短推送间隔 */
-    private static final long THROTTLE_MS = 300L;
+    /** 图表刷新基准间隔：1Hz（默认/最低刷新率/AOD 与熄屏锁定值） */
+    private static final long BASE_INTERVAL_MS = 1000L;
+    /** 活跃时最快间隔（快照密集时允许 300ms） */
+    private static final long FAST_INTERVAL_MS = 300L;
+    /** 活跃判定窗口：窗内快照数 >= BUSY_MIN_SNAPSHOTS 视为活跃 */
+    private static final long BUSY_WINDOW_MS = 3_000L;
+    private static final int BUSY_MIN_SNAPSHOTS = 3;
+    /** PowerManager 缓存（熄屏/AOD 检测） */
+    private static volatile android.os.PowerManager sPm;
     /** token 停止增长多久判定为「输出完成」并计算费用 */
     private static final long FINALIZE_DELAY_MS = 10_000L;
     /** 是否已落地为最终值 */
@@ -73,6 +80,60 @@ final class TokenHook {
     private static volatile long sPrevTotalOut = 0L;
 
     private TokenHook() {}
+
+    /**
+     * 判断 token 是否还在增长（最近 3 秒内有更新）。
+     * 用于推断 AI 正在回复中（思考/流式输出），供背屏显示 "Thinking"。
+     */
+    static boolean isTokenGrowing() {
+        return sHasLive && (System.currentTimeMillis() - sLastPushAt) < 3000L;
+    }
+
+    /** PowerManager 懒加载缓存 */
+    private static android.os.PowerManager pm() {
+        android.os.PowerManager pm = sPm;
+        if (pm != null) return pm;
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object app = at.getMethod("currentApplication").invoke(null);
+            if (app instanceof android.content.Context) {
+                pm = (android.os.PowerManager) ((android.content.Context) app)
+                        .getSystemService(android.content.Context.POWER_SERVICE);
+                sPm = pm;
+            }
+        } catch (Throwable ignored) {}
+        return pm;
+    }
+
+    /**
+     * 自适应节流间隔（毫秒）。
+     * - 熄屏/AOD（主屏 not interactive）：锁定 1Hz，避免息屏时高频刷新
+     * - 活跃（3 秒窗口内快照 >= 3 个）：最快 300ms，跟得上流式生成
+     * - 其余情况：1Hz 基准
+     * 任何分支都 <= BASE_INTERVAL_MS，保证最低刷新率不会掉到 1Hz 以下。
+     */
+    private static long currentThrottleMs() {
+        try {
+            android.os.PowerManager p = pm();
+            if (p != null && !p.isInteractive()) return BASE_INTERVAL_MS;  // AOD/熄屏锁 1Hz
+        } catch (Throwable ignored) {}
+        return countRecentSnapshots() >= BUSY_MIN_SNAPSHOTS ? FAST_INTERVAL_MS : BASE_INTERVAL_MS;
+    }
+
+    /** BUSY_WINDOW_MS 窗口内新快照数（从新往旧数，遇旧即停） */
+    private static int countRecentSnapshots() {
+        int n = sHistCount;
+        if (n == 0) return 0;
+        long cutoff = System.currentTimeMillis() - BUSY_WINDOW_MS;
+        int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        int c = 0;
+        for (int i = n - 1; i >= 0; i--) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (sHistAt[idx] >= cutoff) c++; else break;
+        }
+        return c;
+
+    }
 
     /** 记录一次 token 快照（环形缓冲） */
     private static void recordHistory(long in, long out) {
@@ -176,7 +237,7 @@ final class TokenHook {
         if (baseIdx < 0) baseIdx = start;  // 全部早于窗口，用最旧的
         long baseIn = sHistIn[baseIdx], baseOut = sHistOut[baseIdx];
         long baseAt = sHistAt[baseIdx];
-        long dTok = (lastIn + lastOut) - (baseIn + baseOut);
+        long dTok = lastOut - baseOut;  // 只统计下载（out）token
         long dMs = lastAt - baseAt;
         if (dMs <= 0) return "--.-/s";
         double rate = dTok * 1000.0 / dMs;
@@ -196,7 +257,31 @@ final class TokenHook {
             for (int i = 0; i < width; i++) ph.append('\u2581');
             return ph.toString();
         }
+        // 时间窗口：只取最近 10 秒内的快照
+        long cutoff = System.currentTimeMillis() - 10_000L;
         int start = (sHistHead - n + HISTORY_SIZE) % HISTORY_SIZE;
+        // 找窗口内第一个快照
+        int winStart = start;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (sHistAt[idx] >= cutoff) { winStart = idx; break; }
+            winStart = (start + i + 1) % HISTORY_SIZE;
+        }
+        // 窗口内快照数
+        int winCount = 0;
+        int wi = winStart;
+        for (int i = 0; i < n; i++) {
+            int idx = (start + i) % HISTORY_SIZE;
+            if (sHistAt[idx] >= cutoff) winCount++;
+        }
+        if (winCount < 2) {
+            // 窗口内数据不足，铺满占位
+            StringBuilder ph = new StringBuilder();
+            for (int i = 0; i < width; i++) ph.append('\u2581');
+            return ph.toString();
+        }
+        start = winStart;
+        n = winCount;
         // 每段增量
         long[] delta = new long[n];
         long maxD = 1;
@@ -468,7 +553,7 @@ final class TokenHook {
         if (in == sLastIn && out == sLastOut && cached == sLastCached && !force) return;
 
         long now = System.currentTimeMillis();
-        if (!force && now - sLastPushAt < THROTTLE_MS) return;
+        if (!force && now - sLastPushAt < currentThrottleMs()) return;
 
         sLastIn = in;
         sLastOut = out;

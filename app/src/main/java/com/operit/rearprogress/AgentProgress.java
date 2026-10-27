@@ -43,10 +43,30 @@ final class AgentProgress {
     private static final List<String[]> sRecent = new ArrayList<>();
     /** 本任务工具调用计数 */
     private static volatile int sToolCount = 0;
+    /** 最近一次工具名（volatile 保证可见性，供 extras tool_name 用） */
+    private static volatile String sLastToolName = "";
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
     /** 最近一次 AI 响应的 token 数据 */
     private static volatile String sLastTokenUsage = "";
+
+    // ---- 自适应显示（工具执行期间临时覆盖 title/toolName） ----
+    /** 自适应标题：工具执行时设置，执行完清除（null 表示无自适应） */
+    private static volatile String sAdaptiveTitle = null;
+    /** 自适应副标题：工具执行时设置，执行完清除 */
+    private static volatile String sAdaptiveSub = null;
+
+    /** 设置自适应显示（工具执行期间临时覆盖 title/toolName） */
+    static void setAdaptiveDisplay(String title, String sub) {
+        sAdaptiveTitle = title;
+        sAdaptiveSub = sub;
+    }
+
+    /** 清除自适应显示（工具执行完恢复） */
+    static void clearAdaptiveDisplay() {
+        sAdaptiveTitle = null;
+        sAdaptiveSub = null;
+    }
 
     /** 终端命令历史（最近 N 条） */
     private static final List<String> sCommandHistory = new ArrayList<>();
@@ -441,12 +461,27 @@ final class AgentProgress {
 
         markRunning();
         sToolCount++;
+        if (name != null && !name.isEmpty()) sLastToolName = name;
         sLastToolAt = System.currentTimeMillis();
 
         // 映射到短名：先精确匹配；带包前缀的长名（如 workflow:get_workflow）
         // 再拿冒号后的部分匹配一次，仍没有就截短，避免岛上显示被截断的长串
         String shortName = TOOL_NAME_MAP.getOrDefault(name, name);
-        if (!shortName.equals(name) || !name.contains(":")) {
+        if ("use_package".equals(name)) {
+            // 用户要求：使用包时显示包的名字（如 time），不显示 use_package
+            // detail 是参数摘要（通常是 package_name 的值）
+            if (detail != null && !detail.trim().isEmpty()) {
+                String pkg = detail.trim();
+                // 去掉可能的 key= 前缀（如 "package_name=time" -> "time"）
+                int eq = pkg.lastIndexOf('=');
+                if (eq >= 0 && eq < pkg.length() - 1 && !pkg.contains(" ")) {
+                    pkg = pkg.substring(eq + 1);
+                }
+                name = pkg.length() > 14 ? pkg.substring(0, 14) + "…" : pkg;
+                LogX.i("RearProgress", "use_package -> " + name);
+            }
+            // 拿不到包名时退回原工具名
+        } else if (!shortName.equals(name) || !name.contains(":")) {
             name = shortName;
         } else {
             String tail = name.substring(name.lastIndexOf(':') + 1);
@@ -473,6 +508,8 @@ final class AgentProgress {
      *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
     static String title() {
+        // 0. 自适应显示优先（工具执行期间临时覆盖）
+        if (sAdaptiveTitle != null) return sAdaptiveTitle;
         // 1. AI 上传进度优先级最高
         if (hasAiTitle()) {
             LogX.i("RearProgress", "title() -> AI title: [" + sAiTitle + "]");
@@ -503,6 +540,10 @@ final class AgentProgress {
             case RUNNING:
                 return "任务进行中";
             case DONE:
+                // 用户发消息后 AI 还在回复（token 在增长但还没开始调工具），显示 Thinking
+                if (TokenHook.isTokenGrowing()) {
+                    return "Thinking";
+                }
                 return "已完成";
             case READY:
             default:
@@ -516,7 +557,14 @@ final class AgentProgress {
      *   AI 上传工具名 → 优先显示
      *   否则 → token 数量
      */
+    /** 最近一次工具名（供背屏 extras tool_name 用） */
+    static String getLastToolName() {
+        return sLastToolName;
+    }
+
     static String toolName() {
+        // 0. 自适应显示优先（工具执行期间临时覆盖）
+        if (sAdaptiveSub != null) return sAdaptiveSub;
         // 1. AI 上传的工具名优先
         if (hasAiTool()) return sAiTool;
 

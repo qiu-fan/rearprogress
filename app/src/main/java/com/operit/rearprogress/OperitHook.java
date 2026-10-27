@@ -79,6 +79,12 @@ final class OperitHook {
 
                 // 工具开始时立即推送（让灵动岛实时显示当前调用的工具）
                 AgentProgress.recordTool(name, detail, true);
+                // 自适应显示：解析特定工具参数，临时覆盖 title/toolName
+                String[] adaptive = parseAdaptiveDisplay(name, detail);
+                if (adaptive != null) {
+                    AgentProgress.setAdaptiveDisplay(adaptive[0], adaptive[1]);
+                    LogX.i(TAG, "adaptive display: " + adaptive[0] + " / " + adaptive[1]);
+                }
                 FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
                         AgentProgress.percent());
                 LogX.i(TAG, "tool start -> " + name + " (" + AgentProgress.toolCount() + ")");
@@ -125,7 +131,10 @@ final class OperitHook {
                     success = false;
                     throw e;
                 } finally {
+                    AgentProgress.clearAdaptiveDisplay();
                     AgentProgress.recordTool(name, detail, success);
+                    FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
+                            AgentProgress.percent());
                     LogX.i(TAG, "tool " + (success ? "ok" : "fail") + " -> " + name
                             + " (" + AgentProgress.toolCount() + ")");
                 }
@@ -142,6 +151,54 @@ final class OperitHook {
         } catch (Throwable e) {
             LogX.e(TAG, "installOperitToolHook failed", e);
         }
+    }
+
+    /**
+     * 解析特定工具参数，返回自适应显示 [title, sub] 或 null（无自适应）。
+     * - sleep（独立工具或 shell 命令）→ "sleep" + 毫秒数
+     * - shell 编译（gradle/assembleDebug/bump/compile）→ "Compiling" + 版本号/hash
+     */
+    private static String[] parseAdaptiveDisplay(String name, String detail) {
+        if (name == null || detail == null) {
+            LogX.i("RearProgress", "adaptive skip: name=" + name + " detail=" + detail);
+            return null;
+        }
+        String lower = name.toLowerCase();
+        String cmd = detail.toLowerCase();
+        LogX.i("RearProgress", "adaptive check: name=[" + lower + "] cmd=[" + cmd.substring(0, Math.min(60, cmd.length())) + "]");
+
+        // sleep 场景：独立工具或 shell 命令里含 sleep
+        if (lower.contains("sleep") || cmd.contains("sleep")) {
+            String ms = extractNumber(detail);
+            return new String[]{"sleep", ms != null ? ms : ""};
+        }
+
+        // 编译场景：shell/terminal 命令里含 gradle 相关
+        if (lower.contains("shell") || lower.contains("terminal")) {
+            if (cmd.contains("gradle") || cmd.contains("assembledebug") || cmd.contains("assemble release")
+                    || cmd.contains("bump") || cmd.contains("cmd package compile")) {
+                String ver = extractVersionOrHash(detail);
+                return new String[]{"Compiling", ver != null ? ver : ""};
+            }
+        }
+        return null;
+    }
+
+    /** 提取第一个数字串（如 sleep30 → 30） */
+    private static String extractNumber(String s) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(s);
+        return m.find() ? m.group() : null;
+    }
+
+    /** 从命令里提取版本号或 git hash（versionCode=数字 或 7-40 位 hex） */
+    private static String extractVersionOrHash(String s) {
+        java.util.regex.Matcher v = java.util.regex.Pattern
+                .compile("version(?:Code)?[=:\\s]+(\\d+)").matcher(s);
+        if (v.find()) return v.group(1);
+        java.util.regex.Matcher h = java.util.regex.Pattern
+                .compile("\\b[0-9a-f]{7,40}\\b").matcher(s);
+        if (h.find()) return h.group();
+        return null;
     }
 
     /** Hook AIToolHandler.notifyToolExecutionStarted(AITool) —— 所有工具执行前必调 */

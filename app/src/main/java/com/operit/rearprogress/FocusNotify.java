@@ -194,10 +194,14 @@ final class FocusNotify {
     private static void forwardStop() {
         try {
             Context ctx = currentAppContext();
-            if (ctx == null) return;
+            if (ctx == null) {
+                android.util.Log.w(TAG, "forwardStop: ctx is null, cannot cancel mirror");
+                return;
+            }
             android.content.Intent i = new android.content.Intent(ACTION_STOP);
             i.setPackage(PKG_SCREEN);
             ctx.sendBroadcast(i);
+            android.util.Log.i(TAG, "forwardStop: ACTION_STOP broadcast sent to subscreencenter");
         } catch (Throwable t) {
             android.util.Log.w(TAG, "forwardStop failed", t);
         }
@@ -280,6 +284,8 @@ final class FocusNotify {
     /** 真正撤掉通知（副屏中心进程执行） */
     static void stopLocal() {
         try {
+            android.util.Log.i(TAG, "stopLocal: sNm=" + (sNm != null ? "ok" : "null")
+                    + " pkg=" + (sCtx != null ? sCtx.getPackageName() : "?"));
             if (sNm != null) sNm.cancel(NOTIF_ID);
             sLastTitle = null;
             sLastBody = null;
@@ -395,9 +401,29 @@ final class FocusNotify {
         }
     }
 
+    /** 真正的通知发送节流：距离上次实际发送不足 THROTTLE_MS 就跳过（避免高频重渲染闪空窗） */
+    private static volatile long sLastSendAt = 0L;
+    private static final long THROTTLE_MS = 2000L;
+
     /** 真正构建并发通知（由副屏中心进程执行，通知 pkg = com.xiaomi.subscreencenter） */
     static void pushStateLocal(String title, String toolName, String body, int percent) {
         try {
+            // 节流：内容确实变了但离上次发送 <2s 就跳过，防止每秒 notify → 副屏中心每秒重渲染
+            //   （空窗现象：渲染间隙闪系统默认占位"左边Agent右边Thinking"）
+            //   例外：title 变化（工具切换）必须立刻发，否则会卡住新工具名
+            if (sLastTitle != null) {
+                String newKey = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
+                if (newKey.equals(sLastTitle)) {
+                    return;  // 内容完全没变，不发（原逻辑）
+                }
+                if (System.currentTimeMillis() - sLastSendAt < THROTTLE_MS) {
+                    // 距上次发送不足 2s：仅当 title 变了才发（工具切换），否则跳过
+                    String oldTitle = sLastTitle.split("\u0001")[0];
+                    if (title == null || title.equals(oldTitle)) {
+                        return;
+                    }
+                }
+            }
             // 检查开关文件：不存在则不推送通知
             if (!isEnabled()) {
                 // 开关关闭时，撤掉可能存在的通知
@@ -448,6 +474,7 @@ final class FocusNotify {
 
             Notification n = buildNotification(sCtx, title, toolName, body, pct, hasBar);
             sNm.notify(NOTIF_ID, n);
+            sLastSendAt = System.currentTimeMillis();  // 记录实际发送时刻（节流用）
             sSeq++;
         } catch (Throwable t) {
             android.util.Log.w(TAG, "pushState failed", t);
@@ -637,7 +664,7 @@ final class FocusNotify {
         final boolean SLOT_TEST = false;
         String t1 = SLOT_TEST ? "【1-通知标题】" : title;
         String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
-        String t3 = SLOT_TEST ? "【3-通知正文】" : body;
+        String t3 = "任务 #" + AgentProgress.toolCount();  // 用户指定：通知正文显示任务数
 
         b.setContentTitle(t1);
         if (t2 != null && !t2.isEmpty()) {
@@ -669,6 +696,7 @@ final class FocusNotify {
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getPrevTotalIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getPrevTotalOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());
+            n.extras.putString("tool_name", AgentProgress.getLastToolName());
             n.extras.putString("time_range", TokenHook.getTimeRange());
             n.extras.putString("task_time", TokenHook.getTaskTime());
         } catch (Throwable ignored) {}

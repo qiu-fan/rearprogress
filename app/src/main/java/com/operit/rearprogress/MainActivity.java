@@ -34,6 +34,8 @@ import java.io.InputStreamReader;
  *   - 读文件 /data/local/tmp/* 需要 root（模块本身没 root，靠 su 兜底）
  *   - am/pm 命令通过 su 执行
  */
+import com.operit.rearprogress.BuildConfig;
+
 public class MainActivity extends Activity {
 
     private static final String TAG = "RearProgress";
@@ -86,12 +88,22 @@ public class MainActivity extends Activity {
         root.setPadding(20, statusBarH + 24, 20, 24);
         setContentView(root);
 
-        // 标题
+        // 标题 + 右上角版本/提交编号
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        titleRow.setPadding(0, 0, 0, 8);
         TextView tvTitle = new TextView(this);
         tvTitle.setText("RearProgress 控制面板");
         tvTitle.setTextSize(19);
-        tvTitle.setPadding(0, 0, 0, 8);
-        root.addView(tvTitle);
+        titleRow.addView(tvTitle, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView tvVer = new TextView(this);
+        String ver = BuildConfig.VERSION_NAME + "  " + BuildConfig.GIT_COMMIT;
+        tvVer.setText(ver);
+        tvVer.setTextSize(12);
+        tvVer.setTextColor(0xFF888888);
+        titleRow.addView(tvVer, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(titleRow);
 
         // ===== 操作区（固定高度） =====
         root.addView(sectionLabel("操作"));
