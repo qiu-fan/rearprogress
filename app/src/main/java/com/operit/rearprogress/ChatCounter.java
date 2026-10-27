@@ -6,16 +6,19 @@ import android.database.sqlite.SQLiteDatabase;
 /**
  * 统计 Operit 中「目前进行中」的对话数。
  *
- * 口径：最近 5 分钟内有更新的对话（updatedAt >= now - 5min）。
- * 数据源：/data/data/com.ai.assistance.operit/databases/app_database 的 chats 表。
+ * 口径（2026-10-27 修复）：改用 messages 表的最后消息时间，窗口 3 分钟。
+ *   旧口径 chats.updatedAt >= now-5min 会把「57分钟没消息的对话」「空对话（一条消息都没有）」
+ *   也算成进行中（updatedAt 被 touch 过就会更新），实测误报成 4 个。
+ *   新口径只数「3分钟内真正有消息交互」的对话，实测 1 个（符合用户实际）。
+ * 数据源：/data/data/com.ai.assistance.operit/databases/app_database
  * 只读打开 + 后台线程 + 10 秒缓存，避免拖慢通知构建。
  */
 final class ChatCounter {
 
     private static final String DB_PATH =
             "/data/data/com.ai.assistance.operit/databases/app_database";
-    /** 判定"进行中"的时间窗口 */
-    private static final long WINDOW_MS = 5 * 60_000L;
+    /** 判定"进行中"的时间窗口：最近 3 分钟内有消息交互 */
+    private static final long WINDOW_MS = 3 * 60_000L;
     /** 结果缓存时长 */
     private static final long REFRESH_MS = 10_000L;
 
@@ -61,7 +64,12 @@ final class ChatCounter {
         try {
             db = SQLiteDatabase.openDatabase(DB_PATH, null, SQLiteDatabase.OPEN_READONLY);
             long since = System.currentTimeMillis() - windowMs;
-            c = db.rawQuery("SELECT COUNT(*) FROM chats WHERE updatedAt >= ?",
+            // 口径：每个对话取最后一条消息时间，只数窗口内有消息交互的
+            //   （chats.updatedAt 会被 touch 刷新，导致空对话/久未说话的也被算成"进行中"）
+            c = db.rawQuery(
+                    "SELECT COUNT(*) FROM ("
+                            + "SELECT chatId, MAX(timestamp) AS mx FROM messages "
+                            + "GROUP BY chatId HAVING mx >= ?)",
                     new String[]{String.valueOf(since)});
             if (c.moveToFirst()) return c.getInt(0);
             return 0;
