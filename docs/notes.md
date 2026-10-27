@@ -119,3 +119,17 @@ feature/xxx  →  做功能  →  完整可用后合 dev  →  删 feature 分�
 ## 当前待办
 
 - [ ] v1.2.2（`IMPORTANCE_MIN → LOW`）已装，**等用户重启验证背屏**
+## ⚠️ 装机脚本致命坑（2026-10-27 星回发现）
+
+`/sdcard/Android/code/inst_b.sh` 第2行曾被 sed 反复替换弄坏成：
+```sh
+cp /sdcard/Android/code/rearprogress_XXX.apk      # ❌ 没有目标路径
+```
+`cp` 直接报错退出，`/data/local/tmp/rearprogress.apk` 一直是旧文件，后面 `pm install` 装的一直是旧 APK。
+
+**后果**：历史上多次出现“改了代码但岛/背屏没变化”，根因就是这个，不是代码问题。
+
+**规矩**：
+1. 装机脚本必须写完整 `cp 源 目标`，并检查返回值
+2. **每次装机后校验 md5**：`md5sum /data/local/tmp/rearprogress.apk` 对比编译产物
+3. 排查“改动不生效”时，第一件事是比对 APK md5，而不是怀疑代码
