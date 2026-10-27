@@ -217,7 +217,7 @@
 
   <!-- "Agent" 文字标签（仅 Operit 包显示），顶部对齐安全区上沿（10*scale） -->
   <Var name="icon_y" type="number" expression="#content_start_y"/>
-  <Var name="agent_label_y" type="number" expression="max(#area_top, #icon_y) + #agent_offset - #base_shift - ifelse(eq(#has_agent_mark, 1), 0, ifelse(#bigtext_natural_lines > 3, #agent_shift, 0))"/>
+  <Var name="agent_label_y" type="number" expression="#area_top + #agent_offset"/>
   <Text visibility="#show_agent_label" x="#text_x" y="#agent_label_y" size="#title_size" color="#4CC9F0" textExp="'Agent'" width="#text_w" name="agent_label" fontFamily="mipro-semibold"/>
 
   <!-- Title（第二行，Agent 下方留 4*scale 间距） -->
