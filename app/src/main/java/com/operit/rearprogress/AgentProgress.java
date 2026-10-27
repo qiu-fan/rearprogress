@@ -699,11 +699,18 @@ final class AgentProgress {
         return (System.currentTimeMillis() - sLastToolAt) > 120_000L && ChatCounter.isIdle();
     }
 
+    /** 转轮帧计数：每次通知刷新 +1，让字符画跟随刷新节拍推进（不再按绝对时间 300ms 跳） */
+    private static final java.util.concurrent.atomic.AtomicInteger sSpinnerTick =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
         final char[] FRAMES = {'\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'};  // 十帧 braille spinner
-        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 300L) % FRAMES.length)]);
+        // 跟随刷新推进：spinner() 在每次通知刷新构建 extra 时被调用一次，每调一次走一格。
+        //   旧实现用 currentTimeMillis()/300 取帧，与通知刷新节奏（活跃300ms/空闲1Hz）不同步，
+        //   会出现：1Hz 刷新时一次跳 3 格（跳帧）、心跳相位错开时连续同帧（看起来卡住）。
+        return String.valueOf(FRAMES[sSpinnerTick.getAndIncrement() % FRAMES.length]);
     }
 
     static synchronized String getToolIntervalText() {
