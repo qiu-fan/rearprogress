@@ -580,6 +580,16 @@ final class AgentProgress {
     }
 
     static String toolName() {
+        // 转轮拼在 token 行末尾：这样转轮变化会成为 newKey 的一部分 → 走 FAST_TICK(100ms) 刷新分支。
+        //   （之前只走 extra 通道时"内容没变"→ 被判进 1Hz 心跳，永远每秒1格）
+        String base = toolNameBase();
+        String sp = spinner();
+        if (sp.isEmpty()) return base;
+        return base.isEmpty() ? sp : base + " " + sp;
+    }
+
+    /** 不含转轮的基础值（自适应副标题 / AI 工具名 / token 用量） */
+    private static String toolNameBase() {
         // 0. 自适应显示优先（工具执行期间临时覆盖）
         if (sAdaptiveSub != null) return sAdaptiveSub;
         // 1. AI 上传的工具名优先
@@ -699,10 +709,6 @@ final class AgentProgress {
         return (System.currentTimeMillis() - sLastToolAt) > 120_000L && ChatCounter.isIdle();
     }
 
-    /** 转轮帧计数：每次通知刷新 +1，让字符画跟随刷新节拍推进（不再按绝对时间 300ms 跳） */
-    private static final java.util.concurrent.atomic.AtomicInteger sSpinnerTick =
-            new java.util.concurrent.atomic.AtomicInteger(0);
-
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
@@ -711,12 +717,10 @@ final class AgentProgress {
             if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
         } catch (Throwable ignored) {}
         final char[] FRAMES = {'\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'};  // 十帧 braille spinner
-        // 跟随刷新推进：spinner() 在每次通知刷新构建 extra 时被调用一次，每调一次走一格。
-        //   旧实现用 currentTimeMillis()/300 取帧，与通知刷新节奏（活跃300ms/空闲1Hz）不同步，
-        //   会出现：1Hz 刷新时一次跳 3 格（跳帧）、心跳相位错开时连续同帧（看起来卡住）。
-        // 每刷推进一格：活跃心跳已放宽到 100ms（FAST_TICK_MS），单帧每秒走 10 格 = 快速连续旋转。
-        //   （此前为 300ms 心跳补偿过一刷 3 帧；100ms 下单帧即可，3 帧反而会看糊）
-        return String.valueOf(FRAMES[sSpinnerTick.getAndIncrement() % FRAMES.length]);
+        // 时间驱动 100ms（配合 FAST_TICK_MS=100ms 心跳），每次读当前帧。
+        //   关键：转轮必须拼进 toolName()（token 行）成为 newKey 的一部分 —— 否则只走 extra 通道时
+        //   "内容没变"会被判进 1Hz 心跳分支，永远每秒 1 格（用户报的"还是不行"的根因）。
+        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 100L) % FRAMES.length)]);
     }
 
     static synchronized String getToolIntervalText() {
