@@ -48,6 +48,8 @@ final class AgentProgress {
 
     // ---- 工具调用时间戳（30s 滑动窗口，算"几秒调用一次工具"）----
     private static final long TOOL_RATE_WINDOW_MS = 30_000L;
+    /** 距上次工具调用超过该阈值（且 token 正在增长）→ AI 在思考，显示 Thinking */
+    private static final long THINK_IDLE_MS = 10_000L;
     private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
@@ -522,7 +524,16 @@ final class AgentProgress {
             return sAiTitle;
         }
 
-        // 2. 有工具调用时，标题用工具名
+        // 2. AI 只在思考（token 在增长，但最近没调工具）→ 显示 Thinking
+        //    避免单任务思考时大岛一直残留上一次工具名（如 WriteFile）
+        try {
+            long toolIdle = System.currentTimeMillis() - sLastToolAt;
+            if (toolIdle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) {
+                return "Thinking";
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. 有工具调用时，标题用工具名
         synchronized (AgentProgress.class) {
             if (!sRecent.isEmpty()) {
                 String[] last = sRecent.get(sRecent.size() - 1);
