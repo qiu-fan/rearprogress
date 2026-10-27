@@ -25,11 +25,11 @@ final class ChatCounter {
 
     private ChatCounter() {}
 
-    /** 主通知正文用：如 "对话 2"；无数据时显示 "对话 -" */
+    /** 主通知正文用：如 "进行中：2" */
     static String text() {
         refreshIfNeeded();
         int n = sActive;
-        return n > 0 ? ("对话 " + n) : "对话 -";
+        return n > 0 ? ("进行中：" + n) : "进行中：-";
     }
 
     private static void refreshIfNeeded() {

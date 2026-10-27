@@ -529,7 +529,7 @@ final class AgentProgress {
         try {
             long toolIdle = System.currentTimeMillis() - sLastToolAt;
             if (toolIdle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) {
-                return "Thinking";
+                return thinkingDots();  // Thinking. / Thinking.. / Thinking...（随秒跳动）
             }
         } catch (Throwable ignored) {}
 
@@ -667,6 +667,29 @@ final class AgentProgress {
      * 过去 30 秒平均几秒调用一次工具，如 "4.2s/次"。
      * 窗口内不足 2 次时返回占位 "--.-s/次"（固定宽度，避免文本跳动）。
      */
+    /**
+     * Thinking 后面的跳动点：随秒数在 "Thinking." / "Thinking.." / "Thinking..." 之间轮换，
+     * 配合 1Hz 心跳，用户能一眼看出 AI 还在思考（不是卡住）。
+     */
+    static String thinkingDots() {
+        long sec = System.currentTimeMillis() / 1000L;
+        int n = (int) (sec % 3) + 1;
+        StringBuilder sb = new StringBuilder("Thinking");
+        for (int i = 0; i < n; i++) sb.append('.');
+        return sb.toString();
+    }
+
+    /**
+     * 调用工具时 token 后面的转轮字符画："/ - \ |" 每 300ms 轮一次。
+     * 最近 15 秒内没有工具调用 → 返回空串（不显示）。
+     */
+    static String spinner() {
+        long idle = System.currentTimeMillis() - sLastToolAt;
+        if (sLastToolAt <= 0 || idle > 15_000L) return "";
+        final char[] FRAMES = {'/', '-', '\\', '|'};
+        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 300L) % 4)]);
+    }
+
     static synchronized String getToolIntervalText() {
         long now = System.currentTimeMillis();
         while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
@@ -685,7 +708,7 @@ final class AgentProgress {
         //   2) 没有任何活动的对话 → "Agent | 已就绪"
         try {
             if (TokenHook.isTokenGrowing()) {
-                return "Thinking";
+                return thinkingDots();  // Thinking. / Thinking.. / Thinking...
             }
         } catch (Throwable ignored) {}
         return "Agent | 已就绪";
