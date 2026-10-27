@@ -169,7 +169,10 @@ final class OperitHook {
 
         // sleep 场景：独立工具或 shell 命令里含 sleep
         if (lower.contains("sleep") || cmd.contains("sleep")) {
-            String ms = extractNumber(detail);
+            // 只取 sleep 后面的秒数：命令里可能同时有别的数字，
+            //   如 "chmod755 /data/local/tmp/watch_rotation.sh && sleep1"
+            //   以前全局取第一个数字会拿到 "755"
+            String ms = extractSleepSeconds(detail);
             return new String[]{"sleep", ms != null ? ms : ""};
         }
 
@@ -184,10 +187,17 @@ final class OperitHook {
         return null;
     }
 
-    /** 提取第一个数字串（如 sleep30 → 30） */
+    /** 提取第一个数字串（如 chmod755 → 755）；仅供非 sleep 场景使用 */
     private static String extractNumber(String s) {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(s);
         return m.find() ? m.group() : null;
+    }
+
+    /** 提取 sleep 后面的秒数：支持 sleep1 / sleep 1 / sleep1.5 / sleep -1 风格 */
+    private static String extractSleepSeconds(String s) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?i)sleep[\\s_-]*(\\d+(?:\\.\\d+)?)").matcher(s);
+        return m.find() ? m.group(1) : null;
     }
 
     /** 从命令里提取版本号或 git hash（versionCode=数字 或 7-40 位 hex） */
