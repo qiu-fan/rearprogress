@@ -663,14 +663,15 @@ final class AgentProgress {
                 return String.format(java.util.Locale.US, "%.1fs/次", sec);
             }
         }
-        // 窗口内不足 2 次调用（空闲）：显示距上次调用多久，每秒跳动，肉眼可见在刷新
-        if (sLastToolAt > 0) {
-            long idle = (now - sLastToolAt) / 1000L;
-            if (idle < 0) idle = 0;
-            if (idle > 999) idle = 999;
-            return "静默 " + idle + "s";
-        }
-        return "--.-s/次";
+        // 窗口内不足 2 次调用 → 静默：按当前活动状态显示
+        //   1) AI 正在思考/生成（token 在增长）→ "Thinking"
+        //   2) 没有任何活动的对话 → "Agent | 已就绪"
+        try {
+            if (TokenHook.isTokenGrowing()) {
+                return "Thinking";
+            }
+        } catch (Throwable ignored) {}
+        return "Agent | 已就绪";
     }
 
     /** 启动窗口时长（毫秒），供初始状态推送对齐 */
