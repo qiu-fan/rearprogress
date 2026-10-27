@@ -48,6 +48,8 @@ final class AgentProgress {
 
     // ---- 工具调用时间戳（30s 滑动窗口，算"几秒调用一次工具"）----
     private static final long TOOL_RATE_WINDOW_MS = 30_000L;
+    /** 距上次工具调用超过该阈值（且 token 正在增长）→ AI 在思考，显示 Thinking */
+    private static final long THINK_IDLE_MS = 10_000L;
     private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
@@ -522,7 +524,16 @@ final class AgentProgress {
             return sAiTitle;
         }
 
-        // 2. 有工具调用时，标题用工具名
+        // 2. AI 只在思考（token 在增长，但最近没调工具）→ 显示 Thinking
+        //    避免单任务思考时大岛一直残留上一次工具名（如 WriteFile）
+        try {
+            long toolIdle = System.currentTimeMillis() - sLastToolAt;
+            if (toolIdle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) {
+                return "Thinking";
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. 有工具调用时，标题用工具名
         synchronized (AgentProgress.class) {
             if (!sRecent.isEmpty()) {
                 String[] last = sRecent.get(sRecent.size() - 1);
@@ -640,6 +651,12 @@ final class AgentProgress {
     /** 记一次工具调用时间（30s 窗口），供频率统计 */
     private static synchronized void recordToolTime() {
         long now = System.currentTimeMillis();
+        // 去重：同一次工具调用会被多个 hook 点各记一次
+        //   （如 super_admin:shell 与 execute_shell，间隔 <100ms），
+        //   否则 30s 窗口里永远 >=2 次，频率槽位永远显示 "X.Xs/次"，
+        //   进不了 Thinking / Agent | 已就绪 状态。
+        Long last = sToolTimes.peekLast();
+        if (last != null && now - last < 100L) return;
         sToolTimes.addLast(now);
         while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
             sToolTimes.pollFirst();
@@ -663,14 +680,15 @@ final class AgentProgress {
                 return String.format(java.util.Locale.US, "%.1fs/次", sec);
             }
         }
-        // 窗口内不足 2 次调用（空闲）：显示距上次调用多久，每秒跳动，肉眼可见在刷新
-        if (sLastToolAt > 0) {
-            long idle = (now - sLastToolAt) / 1000L;
-            if (idle < 0) idle = 0;
-            if (idle > 999) idle = 999;
-            return "静默 " + idle + "s";
-        }
-        return "--.-s/次";
+        // 窗口内不足 2 次调用 → 静默：按当前活动状态显示
+        //   1) AI 正在思考/生成（token 在增长）→ "Thinking"
+        //   2) 没有任何活动的对话 → "Agent | 已就绪"
+        try {
+            if (TokenHook.isTokenGrowing()) {
+                return "Thinking";
+            }
+        } catch (Throwable ignored) {}
+        return "Agent | 已就绪";
     }
 
     /** 启动窗口时长（毫秒），供初始状态推送对齐 */
