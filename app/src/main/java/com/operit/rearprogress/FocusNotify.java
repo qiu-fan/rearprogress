@@ -60,6 +60,7 @@ final class FocusNotify {
     /** 速率/图表由 Operit 进程算好，通过广播 extras 传给 subscreencenter（那边 TokenHook 是空的） */
     static volatile String sRate = "";
     static volatile String sSparkline = "";
+    static volatile String sInterval = "";
     static final String ACTION_MIRROR = "com.operit.rearprogress.MIRROR";
     /** 是否注入 miui.focus.param（岛展开态差异）。
      *  实测：注入后系统生成 rear_paramv2，副屏中心走 OS2,3 新分支按 (pkg,business)
@@ -373,6 +374,8 @@ final class FocusNotify {
             // 在 Operit 进程算好速率和图表（TokenHook 数据只在这里有）
             i.putExtra("rate", TokenHook.getRate10s());
             i.putExtra("spark", TokenHook.getSparkline(8));
+            // 工具调用频率（30s 窗口）在 Operit 进程算好，跨进程传给副屏中心
+            i.putExtra("interval", AgentProgress.getToolIntervalText());
             i.setPackage(PKG_SCREEN);
             ctx.sendBroadcast(i);
             android.util.Log.i(TAG, "forwardMirror sent: tool=" + toolName);
@@ -383,17 +386,19 @@ final class FocusNotify {
 
     /** 副屏中心进程里：发镜像通知（强制注入 param） */
     static void pushMirrorLocal(String title, String toolName, String body, int percent) {
-        pushMirrorLocal(title, toolName, body, percent, "", "");
+        pushMirrorLocal(title, toolName, body, percent, "", "", "");
     }
 
     static void pushMirrorLocal(String title, String toolName, String body, int percent,
-                                String rate, String sparkline) {
+                                String rate, String sparkline, String interval) {
         boolean old = sForceParam;
         String oldRate = sRate;
         String oldSpark = sSparkline;
+        String oldInterval = sInterval;
         sForceParam = true;
         sRate = rate == null ? "" : rate;
         sSparkline = sparkline == null ? "" : sparkline;
+        sInterval = interval == null ? "" : interval;
         try {
             pushStateLocal(title, toolName, body, percent);
             android.util.Log.i(TAG, "mirror notify sent (pkg="
@@ -402,6 +407,7 @@ final class FocusNotify {
             sForceParam = old;
             sRate = oldRate;
             sSparkline = oldSpark;
+            sInterval = oldInterval;
         }
     }
 
@@ -674,7 +680,8 @@ final class FocusNotify {
         final boolean SLOT_TEST = false;
         String t1 = SLOT_TEST ? "【1-通知标题】" : title;
         String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
-        String t3 = "任务 #" + AgentProgress.toolCount();  // 用户指定：通知正文显示任务数
+        // 用户指定（1.4.1）：正文显示"目前进行的对话数"，不再显示工具调用累计数
+        String t3 = ChatCounter.text();
 
         b.setContentTitle(t1);
         if (t2 != null && !t2.isEmpty()) {
@@ -726,11 +733,11 @@ final class FocusNotify {
                     .put("animIconInfo", new org.json.JSONObject().put("type", 0).put("src", PIC_KEY))
                     // title  → 状态标题（工具名）；SLOT_TEST 时显示槽位测试文案
                     // 注意：不能用 toolName，它实际是 token 用量（102bd62 修的 bug 根因）
-                    .put("title",    SLOT_TEST ? "【7-焦点卡标题】" : (tok + " " + (sRate.isEmpty() ? "--.-/s" : sRate)))
+                    .put("title",    SLOT_TEST ? "【7-焦点卡标题】" : (sInterval.isEmpty() ? "--.-s/次" : sInterval))
                     // content → 命令正文；多行会被 MIUI 折叠成一行，所以显式用 · 连接
                     .put("content",  SLOT_TEST ? "【8-焦点卡内容】多行示例·用·连接" : (sSparkline.isEmpty() ? placeholderSpark() : sSparkline))
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
-                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : toolTitle);
+                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : tok);
 
             // 大岛：左=工具名（10），右=token 数（11）——用户指定
             org.json.JSONObject bigLeft = new org.json.JSONObject()

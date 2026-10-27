@@ -45,6 +45,10 @@ final class AgentProgress {
     private static volatile int sToolCount = 0;
     /** 最近一次工具名（volatile 保证可见性，供 extras tool_name 用） */
     private static volatile String sLastToolName = "";
+
+    // ---- 工具调用时间戳（30s 滑动窗口，算"几秒调用一次工具"）----
+    private static final long TOOL_RATE_WINDOW_MS = 30_000L;
+    private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
     /** 最近一次 AI 响应的 token 数据 */
@@ -272,7 +276,8 @@ final class AgentProgress {
 
     static void markReady() {
         sState = State.READY;
-        sLastToolAt = System.currentTimeMillis();  // 就绪计时的起点，供 1 分钟静默自动清除使用
+        sLastToolAt = System.currentTimeMillis();
+        // 就绪计时的起点，供 1 分钟静默自动清除使用
     }
 
     /** 每次工具调用：READY → RUNNING（从 DONE 回到 RUNNING 表示新任务开始） */
@@ -463,6 +468,7 @@ final class AgentProgress {
         sToolCount++;
         if (name != null && !name.isEmpty()) sLastToolName = name;
         sLastToolAt = System.currentTimeMillis();
+        recordToolTime();  // 记一次工具调用时间戳（30s 窗口频率统计）
 
         // 映射到短名：先精确匹配；带包前缀的长名（如 workflow:get_workflow）
         // 再拿冒号后的部分匹配一次，仍没有就截短，避免岛上显示被截断的长串
@@ -629,6 +635,32 @@ final class AgentProgress {
 
     static int toolCount() {
         return sToolCount;
+    }
+
+    /** 记一次工具调用时间（30s 窗口），供频率统计 */
+    private static synchronized void recordToolTime() {
+        long now = System.currentTimeMillis();
+        sToolTimes.addLast(now);
+        while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
+            sToolTimes.pollFirst();
+        }
+    }
+
+    /**
+     * 过去 30 秒平均几秒调用一次工具，如 "4.2s/次"。
+     * 窗口内不足 2 次时返回占位 "--.-s/次"（固定宽度，避免文本跳动）。
+     */
+    static synchronized String getToolIntervalText() {
+        long now = System.currentTimeMillis();
+        while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
+            sToolTimes.pollFirst();
+        }
+        int n = sToolTimes.size();
+        if (n < 2) return "--.-s/次";
+        long span = now - sToolTimes.peekFirst();
+        if (span <= 0) return "--.-s/次";
+        double sec = (span / 1000.0) / (n - 1);
+        return String.format(java.util.Locale.US, "%.1fs/次", sec);
     }
 
     /** 启动窗口时长（毫秒），供初始状态推送对齐 */
