@@ -308,7 +308,11 @@ final class FocusNotify {
             if (AgentProgress.state() == AgentProgress.State.READY) {
                 String b = body == null ? "" : body.trim();
                 String t = toolName == null ? "" : toolName.trim();
-                if (t.isEmpty() || "已就绪".equals(b) || b.isEmpty()) {
+                String ti = title == null ? "" : title.trim();
+                // AI/测试上传了真实标题（不是默认的 "Agent"）→ 允许推送
+                //   （"测进度(纯)"只有 title，tool/body 为空，不能被误挡）
+                boolean hasRealTitle = !ti.isEmpty() && !"Agent".equals(ti);
+                if (!hasRealTitle && (t.isEmpty() || "已就绪".equals(b) || b.isEmpty())) {
                     return;
                 }
             }
@@ -417,9 +421,15 @@ final class FocusNotify {
                     return;  // 内容完全没变，不发（原逻辑）
                 }
                 if (System.currentTimeMillis() - sLastSendAt < THROTTLE_MS) {
-                    // 距上次发送不足 2s：仅当 title 变了才发（工具切换），否则跳过
-                    String oldTitle = sLastTitle.split("\u0001")[0];
-                    if (title == null || title.equals(oldTitle)) {
+                    // 距上次发送不足 2s：仅当 title 和 body 都没变（纯 token 数字增长）才跳过。
+                    //   title 变（工具切换）或 body 变（新命令/测试按钮）都必须立刻发，
+                    //   否则测试按钮、快速连续操作会被误吞。
+                    String[] oldParts = sLastTitle.split("\u0001", -1);
+                    String oldTitle = oldParts.length > 0 ? oldParts[0] : "";
+                    String oldBody = oldParts.length > 2 ? oldParts[2] : "";
+                    String newBody = body == null ? "" : body;
+                    String newTitle = title == null ? "" : title;
+                    if (newTitle.equals(oldTitle) && newBody.equals(oldBody)) {
                         return;
                     }
                 }
