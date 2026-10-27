@@ -710,7 +710,11 @@ final class AgentProgress {
         // 跟随刷新推进：spinner() 在每次通知刷新构建 extra 时被调用一次，每调一次走一格。
         //   旧实现用 currentTimeMillis()/300 取帧，与通知刷新节奏（活跃300ms/空闲1Hz）不同步，
         //   会出现：1Hz 刷新时一次跳 3 格（跳帧）、心跳相位错开时连续同帧（看起来卡住）。
-        return String.valueOf(FRAMES[sSpinnerTick.getAndIncrement() % FRAMES.length]);
+        // 一刷返回【3 帧滚动序列】：刷新频率被 THROTTLE_MS(300ms) 下限锁死（用户定的防抖动规则），
+        //   单帧每秒只能走 3 格、看着慢；输出当前帧+后 2 帧，每次刷新整体前移 3 帧位，
+        //   视觉上像连续流动（每秒"流过"约 9 个字符位），不改节流、不违反 300ms 规则。
+        int i = sSpinnerTick.getAndIncrement() % FRAMES.length;
+        return "" + FRAMES[i] + FRAMES[(i + 1) % FRAMES.length] + FRAMES[(i + 2) % FRAMES.length];
     }
 
     static synchronized String getToolIntervalText() {
