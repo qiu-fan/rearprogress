@@ -466,17 +466,10 @@ final class FocusNotify {
                     //   让背屏图表 / 工具调用频率持续跳动
                     if (sinceLast < HEARTBEAT_MS) return;
                 } else if (sinceLast < THROTTLE_MS) {
-                    // 距上次发送不足 2s：仅当 title 和 body 都没变（纯 token 数字增长）才跳过。
-                    //   title 变（工具切换）或 body 变（新命令/测试按钮）都必须立刻发，
-                    //   否则测试按钮、快速连续操作会被误吞。
-                    String[] oldParts = sLastTitle.split("\u0001", -1);
-                    String oldTitle = oldParts.length > 0 ? oldParts[0] : "";
-                    String oldBody = oldParts.length > 2 ? oldParts[2] : "";
-                    String newBody = body == null ? "" : body;
-                    String newTitle = title == null ? "" : title;
-                    if (newTitle.equals(oldTitle) && newBody.equals(oldBody)) {
-                        return;
-                    }
+                    // 严格节流：用户要求"最快 300ms 一刷"。内容变化也必须等满 300ms，
+                    //   否则一次工具调用内多次 pushState 会在 4ms 内连发 2~3 次，
+                    //   背屏跟着重渲染抖动（实测出现过 52.839/52.843）。
+                    return;
                 }
             }
             // 检查开关文件：不存在则不推送通知
