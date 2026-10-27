@@ -640,6 +640,12 @@ final class AgentProgress {
     /** 记一次工具调用时间（30s 窗口），供频率统计 */
     private static synchronized void recordToolTime() {
         long now = System.currentTimeMillis();
+        // 去重：同一次工具调用会被多个 hook 点各记一次
+        //   （如 super_admin:shell 与 execute_shell，间隔 <100ms），
+        //   否则 30s 窗口里永远 >=2 次，频率槽位永远显示 "X.Xs/次"，
+        //   进不了 Thinking / Agent | 已就绪 状态。
+        Long last = sToolTimes.peekLast();
+        if (last != null && now - last < 100L) return;
         sToolTimes.addLast(now);
         while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
             sToolTimes.pollFirst();
