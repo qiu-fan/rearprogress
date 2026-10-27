@@ -706,6 +706,10 @@ final class AgentProgress {
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
+        // Thinking 状态（>10s 无工具调用 且 token 正在增长）→ 不显示字符画
+        try {
+            if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
+        } catch (Throwable ignored) {}
         final char[] FRAMES = {'\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'};  // 十帧 braille spinner
         // 跟随刷新推进：spinner() 在每次通知刷新构建 extra 时被调用一次，每调一次走一格。
         //   旧实现用 currentTimeMillis()/300 取帧，与通知刷新节奏（活跃300ms/空闲1Hz）不同步，
