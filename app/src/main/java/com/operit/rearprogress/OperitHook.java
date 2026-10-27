@@ -187,7 +187,46 @@ final class OperitHook {
             Long ms = extractSleepMs(detail);
             return new String[]{"sleep", ms != null ? ms + "ms" : ""};
         }
+        // ④ logcat 场景：左侧显示 Logcat，右侧显示它在搜的关键词（grep 模式/-s 标签/pidof 包名）；
+        //    识别不出 → sub 传 null → toolName() 不覆盖，右侧保持原样 token（"右边不用动"）
+        if (hasLogcatCommand(cmd)) {
+            String q = extractLogcatQuery(detail);
+            return new String[]{"Logcat", (q == null || q.isEmpty()) ? null : q};
+        }
         return null;
+    }
+
+    /** logcat 是否作为【命令】出现（行首 / | ; & 之后），避免 "grep logcat 字样" 这类文本误判 */
+    private static boolean hasLogcatCommand(String cmd) {
+        String c = cmd.replaceAll("\\s+", " ").trim();
+        return java.util.regex.Pattern.compile("(^|[|;&]\\s*)logcat\\b").matcher(c).find();
+    }
+
+    /** 识别 logcat 在搜什么：grep 模式 > -s 标签 > pidof 包名 > --pid=N；识别不出返回空串 */
+    private static String extractLogcatQuery(String s) {
+        try {
+            // 1) grep 引号内的完整模式（可含空格，如 "tool start"）
+            java.util.regex.Matcher q = java.util.regex.Pattern
+                    .compile("\\bgrep\\s+(?:-\\S+\\s+)*[\"']([^\"']+)[\"']").matcher(s);
+            if (q.find()) return trim(q.group(1), 20);
+            // 2) grep 裸词（跳过 -iE/-c/-A2 等选项）
+            java.util.regex.Matcher b = java.util.regex.Pattern
+                    .compile("\\bgrep\\s+(?:-\\S+\\s+)*(\\S+)").matcher(s);
+            if (b.find() && !b.group(1).startsWith("-")) return trim(b.group(1), 20);
+            // 3) logcat -s TAG:PRIO → TAG
+            java.util.regex.Matcher t = java.util.regex.Pattern
+                    .compile("\\s-s\\s+([A-Za-z0-9_.]+)").matcher(s);
+            if (t.find()) return trim(t.group(1), 20);
+            // 4) pidof 包名
+            java.util.regex.Matcher p = java.util.regex.Pattern
+                    .compile("pidof\\s+([a-zA-Z0-9_.]+)").matcher(s);
+            if (p.find()) return trim(p.group(1), 24);
+            // 5) --pid=12345
+            java.util.regex.Matcher d = java.util.regex.Pattern
+                    .compile("--pid=(\\d+)").matcher(s);
+            if (d.find()) return "pid" + d.group(1);
+        } catch (Throwable ignored) {}
+        return "";
     }
 
     /** 识别 git 子命令 → 显示动作名（无 git 返回 null）。
