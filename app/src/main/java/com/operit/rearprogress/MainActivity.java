@@ -221,10 +221,12 @@ public class MainActivity extends Activity {
     /** 测试上传进度（纯文字 / JSON） */
     private void testProgress(boolean json) {
         String content;
+        long stamp = System.currentTimeMillis() % 10000;
         if (json) {
-            content = "{\"title\":\"测试任务\",\"tool\":\"Python\",\"body\":\"执行 test.py\\nAll passed\",\"percent\":75}";
+            // JSON 里带上变化的时间戳，否则连续点击会被 sLastTitle 去重吞掉
+            content = "{\"title\":\"测试任务" + stamp + "\",\"tool\":\"Python\",\"body\":\"执行 test.py\\nAll passed\",\"percent\":75}";
         } else {
-            content = "测试进度 " + System.currentTimeMillis() % 1000;
+            content = "测试进度 " + stamp;
         }
         execSuSilent("echo '" + content.replace("'", "'\\''") + "' > " + PROGRESS_FILE);
         Toast.makeText(this, "已上传进度(" + (json ? "JSON" : "纯") + ")", Toast.LENGTH_SHORT).show();
