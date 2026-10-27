@@ -314,7 +314,8 @@ final class OperitHook {
         return s.length() <= max ? s : s.substring(0, max - 1) + "\u2026";
     }
 
-    /** 从命令里提取版本号或 git hash（versionCode=数字 或 7-40 位 hex） */
+    /** 从命令里提取版本号或 git hash（versionCode=数字 或 7-40 位 hex）；
+     *  都识别不出时（如 ./gradlew assembleDebug）→ 从项目 build.gradle.kts 读 versionName */
     private static String extractVersionOrHash(String s) {
         java.util.regex.Matcher v = java.util.regex.Pattern
                 .compile("version(?:Code)?[=:\\s]+(\\d+)").matcher(s);
@@ -322,6 +323,46 @@ final class OperitHook {
         java.util.regex.Matcher h = java.util.regex.Pattern
                 .compile("\\b[0-9a-f]{7,40}\\b").matcher(s);
         if (h.find()) return h.group();
+        // 编译场景兜底：读项目版本号（versionName 如 1.6.0，读不到再试 versionCode）
+        String ver = readProjectVersion(s);
+        if (ver != null) return ver;
+        return null;
+    }
+
+    /** 编译命令识别不出版本时：从命令里的 cd <目录> 找 build.gradle.kts 读 versionName。
+     *  支持 proot 工作副本 ~/rpb_*、/root/rpb_* → 映射回 /sdcard/Android/code/rp_work（它们是它的拷贝）。 */
+    private static String readProjectVersion(String cmd) {
+        try {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("\\bcd\\s+(\\S+)").matcher(cmd);
+            if (!m.find()) return null;
+            String dir = m.group(1).replaceAll("[;&|]+$", "");
+            // proot 里的 home 目录（~/rpb_xxx、/root/rpb_xxx）在 Operit 进程里读不到，映射回源工作树
+            if (dir.startsWith("~/") || dir.startsWith("/root/")) {
+                if (dir.contains("rpb_")) {
+                    dir = "/sdcard/Android/code/rp_work";
+                } else {
+                    return null;
+                }
+            }
+            java.io.File f = new java.io.File(dir, "app/build.gradle.kts");
+            if (!f.exists()) f = new java.io.File(dir, "build.gradle.kts");
+            if (!f.exists() || !f.isFile()) return null;
+            StringBuilder sb = new StringBuilder();
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(new java.io.FileInputStream(f), "UTF-8"));
+            String line;
+            int n = 0;
+            while ((line = br.readLine()) != null && n++ < 300) sb.append(line).append('\n');
+            try { br.close(); } catch (Throwable ignored) {}
+            String txt = sb.toString();
+            java.util.regex.Matcher vn = java.util.regex.Pattern
+                    .compile("versionName\\s*=\\s*\"([^\"]+)\"").matcher(txt);
+            if (vn.find()) return vn.group(1);
+            java.util.regex.Matcher vc = java.util.regex.Pattern
+                    .compile("versionCode\\s*=\\s*(\\d+)").matcher(txt);
+            if (vc.find()) return vc.group(1);
+        } catch (Throwable ignored) {}
         return null;
     }
 
