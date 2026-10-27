@@ -69,7 +69,7 @@ final class ChatCounter {
             c = db.rawQuery(
                     "SELECT COUNT(*) FROM ("
                             + "SELECT chatId, MAX(timestamp) AS mx FROM messages "
-                            + "GROUP BY chatId HAVING mx >= ?)",
+                            + "GROUP BY chatId HAVING mx >= CAST(? AS INTEGER))",
                     new String[]{String.valueOf(since)});
             if (c.moveToFirst()) return c.getInt(0);
             return 0;
