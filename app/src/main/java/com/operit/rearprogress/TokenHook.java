@@ -253,9 +253,7 @@ final class TokenHook {
         int n = sHistCount;
         if (n < 2) {
             // 占位：铺满最低块字符，固定宽度避免文本跳动
-            StringBuilder ph = new StringBuilder();
-            for (int i = 0; i < width; i++) ph.append('\u2581');
-            return ph.toString();
+            return braillePlaceholder(width);
         }
         // 时间窗口：只取最近 10 秒内的快照
         long cutoff = System.currentTimeMillis() - 10_000L;
@@ -276,9 +274,7 @@ final class TokenHook {
         }
         if (winCount < 2) {
             // 窗口内数据不足，铺满占位
-            StringBuilder ph = new StringBuilder();
-            for (int i = 0; i < width; i++) ph.append('\u2581');
-            return ph.toString();
+            return braillePlaceholder(width);
         }
         start = winStart;
         n = winCount;
@@ -293,21 +289,50 @@ final class TokenHook {
             delta[i] = d;
             if (d > maxD) maxD = d;
         }
-        // Unicode 块字符：8 级
-        final char[] BLOCKS = {'\u2581', '\u2582', '\u2583', '\u2584',
-                               '\u2585', '\u2586', '\u2587', '\u2588'};
-        StringBuilder sb = new StringBuilder();
-        for (int w = 0; w < width; w++) {
-            // 等距重采样：把 n 个点压缩到 width 个
-            int i = (int) ((long) w * (n - 1) / Math.max(1, width - 1));
-            int level = (int) (delta[i] * 8 / maxD);
-            if (level > 7) level = 7;
+        // ---- Braille 点阵：width 个字符 = (width*2) 列 × 4 行 ----
+        int cols = width * 2;
+        boolean[][] grid = new boolean[cols][4];
+        for (int c = 0; c < cols; c++) {
+            // 等距重采样：把 n 个点压缩到 cols 列
+            int i = (int) ((long) c * (n - 1) / Math.max(1, cols - 1));
+            int level = (int) (delta[i] * 4 / maxD);   // 0~4 行
+            if (level > 4) level = 4;
             if (level < 0) level = 0;
-            // 全 0 时也给最低一格，避免空白
-            if (delta[i] == 0 && maxD > 0) level = 0;
-            sb.append(BLOCKS[level]);
+            if (level == 0 && maxD > 0) level = 1;     // 有数据但为 0 → 至少一条基线
+            for (int r = 0; r < level; r++) grid[c][3 - r] = true;   // 自下向上填充
+        }
+        return brailleFrom(grid);
+    }
+
+    /**
+     * Braille 点阵 → 字符串。每个 Braille 字符是 2 列 × 4 行，
+     * 8 个字符 = 16×4 = 64 个点，分辨率是 8 格块字符的 8 倍。
+     */
+    private static String brailleFrom(boolean[][] grid) {
+        // 位布局：col0 = {row0:0x01, row1:0x02, row2:0x04, row3:0x40}
+        //         col1 = {row0:0x08, row1:0x10, row2:0x20, row3:0x80}
+        final int[][] BIT = {
+                {0x01, 0x02, 0x04, 0x40},
+                {0x08, 0x10, 0x20, 0x80}
+        };
+        StringBuilder sb = new StringBuilder();
+        for (int c = 0; c + 1 < grid.length; c += 2) {
+            int bits = 0;
+            for (int col = 0; col < 2; col++) {
+                for (int row = 0; row < 4; row++) {
+                    if (grid[c + col][row]) bits |= BIT[col][row];
+                }
+            }
+            sb.append((char) (0x2800 + bits));
         }
         return sb.toString();
+    }
+
+    /** 占位：宽度固定的 Braille 底部基线（一条平直的线） */
+    private static String braillePlaceholder(int width) {
+        boolean[][] grid = new boolean[width * 2][4];
+        for (int c = 0; c < width * 2; c++) grid[c][3] = true;   // 最底行
+        return brailleFrom(grid);
     }
 
     /**
