@@ -104,6 +104,34 @@ public class MainActivity extends Activity {
         tvVer.setTextColor(0xFF888888);
         titleRow.addView(tvVer, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         root.addView(titleRow);
+        // ===== 实时参数面板（每秒刷新，用户需求：软件界面内实时显示动态参数）=====
+        final TextView tvLive = new TextView(this);
+        tvLive.setTextSize(11);
+        tvLive.setTextColor(0xFFB0BEC5);
+        tvLive.setTypeface(android.graphics.Typeface.MONOSPACE);
+        tvLive.setPadding(0, 10, 0, 6);
+        tvLive.setText("实时参数：等待数据…");
+        root.addView(tvLive);
+        final Runnable liveTick = new Runnable() {
+            @Override public void run() {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("状态   : ").append(AgentProgress.title());
+                    sb.append("\n频率   : ").append(AgentProgress.getToolIntervalText());
+                    sb.append("\n对话   : ").append(ChatCounter.text());
+                    sb.append("\n工具   : ").append(AgentProgress.getLastToolName());
+                    sb.append("\ntoken  : ").append(AgentProgress.toolName());
+                    String sp = AgentProgress.spinner();
+                    sb.append("\n转轮   : ").append(sp.isEmpty() ? "（隐藏）" : sp);
+                    tvLive.setText(sb.toString());
+                } catch (Throwable t) {
+                    tvLive.setText("实时参数：读取失败 " + t.getMessage());
+                }
+                handler.postDelayed(this, 1000);
+            }
+        };
+        handler.post(liveTick);
+
 
         // ===== 操作区（固定高度） =====
         root.addView(sectionLabel("操作"));
