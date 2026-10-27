@@ -61,6 +61,7 @@ final class FocusNotify {
     static volatile String sRate = "";
     static volatile String sSparkline = "";
     static volatile String sInterval = "";
+    static volatile String sSpinner = "";
     static final String ACTION_MIRROR = "com.operit.rearprogress.MIRROR";
     /** 是否注入 miui.focus.param（岛展开态差异）。
      *  实测：注入后系统生成 rear_paramv2，副屏中心走 OS2,3 新分支按 (pkg,business)
@@ -376,6 +377,8 @@ final class FocusNotify {
             i.putExtra("spark", TokenHook.getSparkline(8));
             // 工具调用频率（30s 窗口）在 Operit 进程算好，跨进程传给副屏中心
             i.putExtra("interval", AgentProgress.getToolIntervalText());
+            // 工具转轮字符画（"/-\"| 每 300ms 轮一次），在 Operit 进程算好跨进程传
+            i.putExtra("spinner", AgentProgress.spinner());
             i.setPackage(PKG_SCREEN);
             ctx.sendBroadcast(i);
             android.util.Log.i(TAG, "forwardMirror sent: tool=" + toolName);
@@ -386,19 +389,22 @@ final class FocusNotify {
 
     /** 副屏中心进程里：发镜像通知（强制注入 param） */
     static void pushMirrorLocal(String title, String toolName, String body, int percent) {
-        pushMirrorLocal(title, toolName, body, percent, "", "", "");
+        pushMirrorLocal(title, toolName, body, percent, "", "", "", "");
     }
 
     static void pushMirrorLocal(String title, String toolName, String body, int percent,
-                                String rate, String sparkline, String interval) {
+                                String rate, String sparkline, String interval,
+                                String spinner) {
         boolean old = sForceParam;
         String oldRate = sRate;
         String oldSpark = sSparkline;
         String oldInterval = sInterval;
+        String oldSpinner = sSpinner;
         sForceParam = true;
         sRate = rate == null ? "" : rate;
         sSparkline = sparkline == null ? "" : sparkline;
         sInterval = interval == null ? "" : interval;
+        sSpinner = spinner == null ? "" : spinner;
         try {
             pushStateLocal(title, toolName, body, percent);
             android.util.Log.i(TAG, "mirror notify sent (pkg="
@@ -408,6 +414,7 @@ final class FocusNotify {
             sRate = oldRate;
             sSparkline = oldSpark;
             sInterval = oldInterval;
+            sSpinner = oldSpinner;
         }
     }
 
@@ -769,7 +776,8 @@ final class FocusNotify {
                     // content → 命令正文；多行会被 MIUI 折叠成一行，所以显式用 · 连接
                     .put("content",  SLOT_TEST ? "【8-焦点卡内容】多行示例·用·连接" : (sSparkline.isEmpty() ? placeholderSpark() : sSparkline))
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
-                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】" : tok);
+                    .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】"
+                            : (tok + (sSpinner.isEmpty() ? "" : " " + sSpinner)));
 
             // 大岛：左=工具名（10），右=token 数（11）——用户指定
             org.json.JSONObject bigLeft = new org.json.JSONObject()
@@ -780,7 +788,8 @@ final class FocusNotify {
             org.json.JSONObject bigRight = new org.json.JSONObject()
                     .put("type", 2)
                     .put("textInfo", new org.json.JSONObject()
-                            .put("title", SLOT_TEST ? "【11-大岛右标题】" : tok));
+                            .put("title", SLOT_TEST ? "【11-大岛右标题】"
+                                    : (tok + (sSpinner.isEmpty() ? "" : " " + sSpinner))));
             org.json.JSONObject bigArea = new org.json.JSONObject()
                     .put("imageTextInfoLeft", bigLeft)
                     .put("imageTextInfoRight", bigRight);
