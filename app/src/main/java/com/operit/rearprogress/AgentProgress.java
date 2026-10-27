@@ -449,7 +449,21 @@ final class AgentProgress {
         // 映射到短名：先精确匹配；带包前缀的长名（如 workflow:get_workflow）
         // 再拿冒号后的部分匹配一次，仍没有就截短，避免岛上显示被截断的长串
         String shortName = TOOL_NAME_MAP.getOrDefault(name, name);
-        if (!shortName.equals(name) || !name.contains(":")) {
+        if ("use_package".equals(name)) {
+            // 用户要求：使用包时显示包的名字（如 time），不显示 use_package
+            // detail 是参数摘要（通常是 package_name 的值）
+            if (detail != null && !detail.trim().isEmpty()) {
+                String pkg = detail.trim();
+                // 去掉可能的 key= 前缀（如 "package_name=time" -> "time"）
+                int eq = pkg.lastIndexOf('=');
+                if (eq >= 0 && eq < pkg.length() - 1 && !pkg.contains(" ")) {
+                    pkg = pkg.substring(eq + 1);
+                }
+                name = pkg.length() > 14 ? pkg.substring(0, 14) + "…" : pkg;
+                LogX.i("RearProgress", "use_package -> " + name);
+            }
+            // 拿不到包名时退回原工具名
+        } else if (!shortName.equals(name) || !name.contains(":")) {
             name = shortName;
         } else {
             String tail = name.substring(name.lastIndexOf(':') + 1);
