@@ -159,9 +159,13 @@ final class OperitHook {
      * - shell 编译（gradle/assembleDebug/bump/compile）→ "Compiling" + 版本号/hash
      */
     private static String[] parseAdaptiveDisplay(String name, String detail) {
-        if (name == null || detail == null) return null;
+        if (name == null || detail == null) {
+            LogX.i("RearProgress", "adaptive skip: name=" + name + " detail=" + detail);
+            return null;
+        }
         String lower = name.toLowerCase();
         String cmd = detail.toLowerCase();
+        LogX.i("RearProgress", "adaptive check: name=[" + lower + "] cmd=[" + cmd.substring(0, Math.min(60, cmd.length())) + "]");
 
         // sleep 场景：独立工具或 shell 命令里含 sleep
         if (lower.contains("sleep") || cmd.contains("sleep")) {
