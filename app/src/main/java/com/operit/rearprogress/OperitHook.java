@@ -167,13 +167,7 @@ final class OperitHook {
         String cmd = detail.toLowerCase();
         LogX.i("RearProgress", "adaptive check: name=[" + lower + "] cmd=[" + cmd.substring(0, Math.min(60, cmd.length())) + "]");
 
-        // sleep 场景：独立工具或 shell 命令里含 sleep
-        if (lower.contains("sleep") || cmd.contains("sleep")) {
-            String ms = extractNumber(detail);
-            return new String[]{"sleep", ms != null ? ms : ""};
-        }
-
-        // 编译场景：shell/terminal 命令里含 gradle 相关
+        // ① 编译场景（优先：耗时最长、信息最有价值）
         if (lower.contains("shell") || lower.contains("terminal")) {
             if (cmd.contains("gradle") || cmd.contains("assembledebug") || cmd.contains("assemble release")
                     || cmd.contains("bump") || cmd.contains("cmd package compile")) {
@@ -181,13 +175,104 @@ final class OperitHook {
                 return new String[]{"Compiling", ver != null ? ver : ""};
             }
         }
+
+        // ② git 场景：按动作给标题，右侧给分支/目标
+        String gitAct = gitAction(cmd);
+        if (gitAct != null) {
+            return new String[]{gitAct, gitTarget(detail, gitAct)};
+        }
+
+        // ③ sleep 场景（精确匹配，避免 commit message 里出现 sleep 误判）
+        if (lower.contains("sleep") || hasSleepCommand(cmd)) {
+            Long ms = extractSleepMs(detail);
+            return new String[]{"sleep", ms != null ? ms + "ms" : ""};
+        }
         return null;
     }
 
-    /** 提取第一个数字串（如 sleep30 → 30） */
-    private static String extractNumber(String s) {
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(s);
-        return m.find() ? m.group() : null;
+    /** 识别 git 子命令 → 显示动作名（无 git 返回 null）。
+     *  注意真实命令常带 -c/-C 参数（git -c user.name=x commit），所以不能要求 "git commit" 紧邻。 */
+    private static String gitAction(String cmd) {
+        int gi = cmd.lastIndexOf("git ");
+        if (gi < 0) return null;
+        String tail = cmd.substring(gi).replaceAll("\\s+", " ");
+        String[][] acts = {
+                {"commit", "Commit"}, {"merge", "Merge"}, {"push", "Push"}, {"pull", "Pull"},
+                {"fetch", "Fetch"}, {"checkout", "Switch"}, {"switch", "Switch"}, {"branch", "Branch"},
+                {"clone", "Clone"}, {"rebase", "Rebase"}, {"reset", "Reset"}, {"stash", "Stash"},
+                {"add", "Add"}, {"status", "Status"}, {"diff", "Diff"}, {"log", "Log"}, {"tag", "Tag"}
+        };
+        for (String[] a : acts) {
+            if (tail.matches("(?s).*\\b" + a[0] + "\\b.*")) return a[1];
+        }
+        return "Git";
+    }
+
+    /** 从 git 命令里取右侧内容：分支/目标；commit 取消息摘要 */
+    private static String gitTarget(String s, String action) {
+        try {
+            if ("Commit".equals(action)) {
+                // -m "消息" / -m '消息' / -m 消息
+                java.util.regex.Matcher cm = java.util.regex.Pattern
+                        .compile("-m\\s+[\"']?([^\"'\\n]{1,40})").matcher(s);
+                if (cm.find()) return trim(cm.group(1).trim(), 24);
+                return "";
+            }
+            int gi = s.lastIndexOf("git ");
+            if (gi < 0) return "";
+            String tail = s.substring(gi).replaceAll("\\s+", " ");
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("\\b(?:push|pull|merge|checkout|switch|branch|clone|rebase|reset|fetch)\\b(.*)$")
+                    .matcher(tail);
+            if (!m.find()) return "";
+            String[] toks = m.group(1).trim().split("\\s+");
+            String first = null, last = null;
+            for (String t : toks) {
+                if (t.isEmpty() || t.startsWith("-")) continue;
+                if (first == null) first = t;
+                last = t;
+            }
+            // push/pull 常见 "origin dev" → 取最后一个（分支）；其余取第一个（目标分支/路径）
+            String t = ("Push".equals(action) || "Pull".equals(action)) ? last : first;
+            if (t == null || t.isEmpty()) return "";
+            int i = t.lastIndexOf('/');
+            if (i > 0) t = t.substring(i + 1);
+            t = t.replaceAll("[\"'`;|&]$", "");
+            return trim(t, 20);
+        } catch (Throwable ignored) {}
+        return "";
+    }
+
+    /** 命令里是否真的在调用 sleep（开头/管道/&&/;之后，允许 sleep30 无空格），避免误判参数里的 sleep 字样 */
+    private static boolean hasSleepCommand(String cmd) {
+        String c = cmd.replaceAll("\\s+", " ").trim();
+        // (^|&&|;|||) + sleep + 可选空格 + 数字
+        if (java.util.regex.Pattern.compile("(?:^|[&;|]\\s*)sleep\\s*[0-9]").matcher(c).find()) return true;
+        if (c.startsWith("sleep ") || c.contains("&& sleep ") || c.contains("; sleep ") || c.contains("| sleep ")) return true;
+        return false;
+    }
+
+    /** 提取 sleep 参数并换算成毫秒（sleep30→30000；sleep 0.5→500；支持 30s/500ms） */
+    private static Long extractSleepMs(String s) {
+        try {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("sleep\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(ms|s)?")
+                    .matcher(s.toLowerCase());
+            if (!m.find()) return null;
+            double v = Double.parseDouble(m.group(1));
+            String unit = m.group(2);
+            if ("ms".equals(unit)) return Math.round(v);
+            return Math.round(v * 1000.0);   // 默认按秒
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 截断字符串（超长加 …） */
+    private static String trim(String s, int max) {
+        if (s == null) return "";
+        s = s.trim();
+        return s.length() <= max ? s : s.substring(0, max - 1) + "\u2026";
     }
 
     /** 从命令里提取版本号或 git hash（versionCode=数字 或 7-40 位 hex） */
