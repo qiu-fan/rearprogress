@@ -47,7 +47,7 @@ final class AgentProgress {
     private static volatile String sLastToolName = "";
 
     // ---- 工具调用时间戳（30s 滑动窗口，算"几秒调用一次工具"）----
-    private static final long TOOL_RATE_WINDOW_MS = 30_000L;
+    private static final long TOOL_RATE_WINDOW_MS = 5_000L;  // 用户要求：统计改为过去5秒的平均值
     /** 距上次工具调用超过该阈值（且 token 正在增长）→ AI 在思考，显示 Thinking */
     private static final long THINK_IDLE_MS = 10_000L;
     private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
@@ -723,6 +723,10 @@ final class AgentProgress {
 
     static synchronized String getToolIntervalText() {
         long now = System.currentTimeMillis();
+        // 用户要求：展开态调用工具慢于10s一次就显示 Agent | 已就绪（不再走 Thinking 分支）
+        if (sLastToolAt > 0 && now - sLastToolAt > 10_000L) {
+            return "Agent | 已就绪";
+        }
         while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
             sToolTimes.pollFirst();
         }
