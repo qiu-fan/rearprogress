@@ -277,7 +277,7 @@ final class AgentProgress {
     static void markReady() {
         sState = State.READY;
         sLastToolAt = System.currentTimeMillis();
-        recordToolTime();  // 就绪计时的起点，供 1 分钟静默自动清除使用
+        // 就绪计时的起点，供 1 分钟静默自动清除使用
     }
 
     /** 每次工具调用：READY → RUNNING（从 DONE 回到 RUNNING 表示新任务开始） */
@@ -468,6 +468,7 @@ final class AgentProgress {
         sToolCount++;
         if (name != null && !name.isEmpty()) sLastToolName = name;
         sLastToolAt = System.currentTimeMillis();
+        recordToolTime();  // 记一次工具调用时间戳（30s 窗口频率统计）
 
         // 映射到短名：先精确匹配；带包前缀的长名（如 workflow:get_workflow）
         // 再拿冒号后的部分匹配一次，仍没有就截短，避免岛上显示被截断的长串
