@@ -10,8 +10,8 @@ android {
         applicationId = "com.operit.rearprogress"
         minSdk = 30
         targetSdk = 36
-        versionCode = 99
-        versionName = "1.4.1"
+        versionCode = 100
+        versionName = "1.4.2"
         // 右上角显示的提交编号：构建时取当前 HEAD 短 hash（merge 后自动更新）
         val gitHash = try {
             ProcessBuilder("git", "rev-parse", "--short", "HEAD")

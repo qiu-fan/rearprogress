@@ -656,11 +656,21 @@ final class AgentProgress {
             sToolTimes.pollFirst();
         }
         int n = sToolTimes.size();
-        if (n < 2) return "--.-s/次";
-        long span = now - sToolTimes.peekFirst();
-        if (span <= 0) return "--.-s/次";
-        double sec = (span / 1000.0) / (n - 1);
-        return String.format(java.util.Locale.US, "%.1fs/次", sec);
+        if (n >= 2) {
+            long span = now - sToolTimes.peekFirst();
+            if (span > 0) {
+                double sec = (span / 1000.0) / (n - 1);
+                return String.format(java.util.Locale.US, "%.1fs/次", sec);
+            }
+        }
+        // 窗口内不足 2 次调用（空闲）：显示距上次调用多久，每秒跳动，肉眼可见在刷新
+        if (sLastToolAt > 0) {
+            long idle = (now - sLastToolAt) / 1000L;
+            if (idle < 0) idle = 0;
+            if (idle > 999) idle = 999;
+            return "静默 " + idle + "s";
+        }
+        return "--.-s/次";
     }
 
     /** 启动窗口时长（毫秒），供初始状态推送对齐 */

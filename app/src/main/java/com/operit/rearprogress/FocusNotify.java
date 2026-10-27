@@ -413,7 +413,44 @@ final class FocusNotify {
 
     /** 真正的通知发送节流：距离上次实际发送不足 THROTTLE_MS 就跳过（避免高频重渲染闪空窗） */
     private static volatile long sLastSendAt = 0L;
-    private static final long THROTTLE_MS = 2000L;
+    /** 活跃态最快刷新间隔（用户要求：最快 300ms 一次） */
+    private static final long THROTTLE_MS = 300L;
+    /** 空闲心跳间隔：内容没变也按 1Hz 刷新（图表、工具调用频率需要节拍） */
+    private static final long HEARTBEAT_MS = 1000L;
+    private static volatile boolean sHeartbeatOn = false;
+
+    /**
+     * 1Hz 空闲心跳：用当前实时状态重推一次通知。
+     * 作用：没有工具调用、token 不增长时，背屏图表 / 工具调用频率也按 1Hz 刷新
+     *      （AOD 下同样是 1Hz）。
+     * pushStateLocal 内部有"内容没变且 <HEARTBEAT_MS 就跳过"的判断，所以这里无脑每秒调。
+     */
+    static void startHeartbeat() {
+        if (sHeartbeatOn) return;
+        sHeartbeatOn = true;
+        try {
+            Thread t = new Thread(new Runnable() {
+                @Override public void run() {
+                    while (true) {
+                        try {
+                            Thread.sleep(HEARTBEAT_MS);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                        try {
+                            pushState(AgentProgress.title(), AgentProgress.toolName(),
+                                    AgentProgress.body(), AgentProgress.percent());
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }, "rp-heartbeat");
+            t.setDaemon(true);
+            t.start();
+            LogX.i(TAG, "heartbeat started (1Hz)");
+        } catch (Throwable t) {
+            sHeartbeatOn = false;
+        }
+    }
 
     /** 真正构建并发通知（由副屏中心进程执行，通知 pkg = com.xiaomi.subscreencenter） */
     static void pushStateLocal(String title, String toolName, String body, int percent) {
@@ -423,21 +460,16 @@ final class FocusNotify {
             //   例外：title 变化（工具切换）必须立刻发，否则会卡住新工具名
             if (sLastTitle != null) {
                 String newKey = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
+                long sinceLast = System.currentTimeMillis() - sLastSendAt;
                 if (newKey.equals(sLastTitle)) {
-                    return;  // 内容完全没变，不发（原逻辑）
-                }
-                if (System.currentTimeMillis() - sLastSendAt < THROTTLE_MS) {
-                    // 距上次发送不足 2s：仅当 title 和 body 都没变（纯 token 数字增长）才跳过。
-                    //   title 变（工具切换）或 body 变（新命令/测试按钮）都必须立刻发，
-                    //   否则测试按钮、快速连续操作会被误吞。
-                    String[] oldParts = sLastTitle.split("\u0001", -1);
-                    String oldTitle = oldParts.length > 0 ? oldParts[0] : "";
-                    String oldBody = oldParts.length > 2 ? oldParts[2] : "";
-                    String newBody = body == null ? "" : body;
-                    String newTitle = title == null ? "" : title;
-                    if (newTitle.equals(oldTitle) && newBody.equals(oldBody)) {
-                        return;
-                    }
+                    // 内容完全没变：用户要求"没有工具调用也要刷新"——按 1Hz 心跳重推，
+                    //   让背屏图表 / 工具调用频率持续跳动
+                    if (sinceLast < HEARTBEAT_MS) return;
+                } else if (sinceLast < THROTTLE_MS) {
+                    // 严格节流：用户要求"最快 300ms 一刷"。内容变化也必须等满 300ms，
+                    //   否则一次工具调用内多次 pushState 会在 4ms 内连发 2~3 次，
+                    //   背屏跟着重渲染抖动（实测出现过 52.839/52.843）。
+                    return;
                 }
             }
             // 检查开关文件：不存在则不推送通知
@@ -476,7 +508,6 @@ final class FocusNotify {
             if (title.trim().isEmpty() && body.isEmpty()) return;
 
             String key = title + "\u0001" + toolName + "\u0001" + body + "\u0001" + percent;
-            if (key.equals(sLastTitle)) return;   // 完全没变就不发
             sLastTitle = key;
             // 副标题去重：与标题/内容相同则不显示（避免岛上左右/上下重复文字）
             if (toolName.equalsIgnoreCase(title) || toolName.equalsIgnoreCase(body)) {
@@ -492,6 +523,7 @@ final class FocusNotify {
             sNm.notify(NOTIF_ID, n);
             sLastSendAt = System.currentTimeMillis();  // 记录实际发送时刻（节流用）
             sSeq++;
+            startHeartbeat();  // 首次发送成功后启动 1Hz 空闲心跳
         } catch (Throwable t) {
             android.util.Log.w(TAG, "pushState failed", t);
         }
