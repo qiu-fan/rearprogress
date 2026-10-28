@@ -111,7 +111,11 @@ public class MainActivity extends Activity {
         tvLive.setTypeface(android.graphics.Typeface.MONOSPACE);
         tvLive.setPadding(0, 10, 0, 6);
         tvLive.setText("实时参数：等待数据…");
-        root.addView(tvLive);
+        {
+            LinearLayout g = collapsibleSection("实时参数", true);
+            ((LinearLayout) g.getChildAt(1)).addView(tvLive);
+            root.addView(g);
+        }
         final Runnable liveTick = new Runnable() {
             @Override public void run() {
                 try {
@@ -139,35 +143,44 @@ public class MainActivity extends Activity {
                 makeButton("重启 Operit", v -> restartOperit()),
                 makeButton("强停", v -> execSu("am force-stop " + OPERIT_PKG, "已强停")),
                 makeButton("重启背屏", v -> restartSubScreenCenter())));
-        root.addView(btnRow(
-                makeButton("开通知", v -> { execSu("touch " + ENABLED_FILE, "已开"); refreshStatus(); }),
-                makeButton("清通知", v -> { execSu("rm -f " + ENABLED_FILE, "已清"); refreshStatus(); })));
-        root.addView(btnRow(
-                makeButton("清进度", v -> { execSu("rm -f " + PROGRESS_FILE, "已清"); refreshStatus(); }),
-                makeButton("清日志", v -> { execSuSilent("logcat -c"); tvLog.setText("（日志已清空）"); })));
+        {
+            LinearLayout g = collapsibleSection("更多操作", false);
+            LinearLayout b = (LinearLayout) g.getChildAt(1);
+                    b.addView(btnRow(
+                            makeButton("开通知", v -> { execSu("touch " + ENABLED_FILE, "已开"); refreshStatus(); }),
+                            makeButton("清通知", v -> { execSu("rm -f " + ENABLED_FILE, "已清"); refreshStatus(); })));
+                    b.addView(btnRow(
+                            makeButton("清进度", v -> { execSu("rm -f " + PROGRESS_FILE, "已清"); refreshStatus(); }),
+                            makeButton("清日志", v -> { execSuSilent("logcat -c"); tvLog.setText("（日志已清空）"); })));
+            root.addView(g);
+        }
 
         // ===== 测试区（含模拟发布页，核心调试） =====
-        root.addView(sectionLabel("测试"));
-        root.addView(btnRow(
-                makeButton("测进度(纯)", v -> testProgress(false)),
-                makeButton("测进度(JSON)", v -> testProgress(true)),
-                makeButton("测重启广播", v -> sendCmd("restart_operit")),
-                makeButton("测状态", v -> sendCmd("status"))));
-
-        // —— 模拟发布：跳到独立测试页 ——
-        root.addView(btnRow(
-                makeButton("→ 模拟发布（测试页）", v ->
-                        startActivity(new Intent(this, TestPublishActivity.class)))));
-
-        // —— 布局参数：跳到独立布局调节页 ——
-        root.addView(btnRow(
-                makeButton("→ 布局参数（背屏）", v ->
-                        startActivity(new Intent(this, LayoutConfigActivity.class)))));
-
-        // —— 测试通道：模拟"其他软件"的通知，验证背屏 Agent 标签过滤 ——
-        root.addView(btnRow(
-                makeButton("发测试通知(BigText)", v -> sendForeignTestNotification(true)),
-                makeButton("发测试通知(普通)", v -> sendForeignTestNotification(false))));
+        {
+            LinearLayout g = collapsibleSection("测试", false);
+            LinearLayout b = (LinearLayout) g.getChildAt(1);
+                    b.addView(btnRow(
+                            makeButton("测进度(纯)", v -> testProgress(false)),
+                            makeButton("测进度(JSON)", v -> testProgress(true)),
+                            makeButton("测重启广播", v -> sendCmd("restart_operit")),
+                            makeButton("测状态", v -> sendCmd("status"))));
+            
+                    // —— 模拟发布：跳到独立测试页 ——
+                    b.addView(btnRow(
+                            makeButton("→ 模拟发布（测试页）", v ->
+                                    startActivity(new Intent(this, TestPublishActivity.class)))));
+            
+                    // —— 布局参数：跳到独立布局调节页 ——
+                    b.addView(btnRow(
+                            makeButton("→ 布局参数（背屏）", v ->
+                                    startActivity(new Intent(this, LayoutConfigActivity.class)))));
+            
+                    // —— 测试通道：模拟"其他软件"的通知，验证背屏 Agent 标签过滤 ——
+                    b.addView(btnRow(
+                            makeButton("发测试通知(BigText)", v -> sendForeignTestNotification(true)),
+                            makeButton("发测试通知(普通)", v -> sendForeignTestNotification(false))));
+            root.addView(g);
+        }
         // —— 模拟 Operit：依次"调用"10 个工具（走 recordTool + pushState） ——
         root.addView(btnRow(
                 makeButton("模拟10个工具", v -> simulateTenTools())));
@@ -210,6 +223,23 @@ public class MainActivity extends Activity {
     }
 
     /** 分区标题 */
+    /** 可折叠分区：标题可点击展开/收起（用户需求：日志区要大） */
+    private LinearLayout collapsibleSection(String title, boolean open) {
+        LinearLayout grp = new LinearLayout(this);
+        grp.setOrientation(LinearLayout.VERTICAL);
+        TextView tv = sectionLabel(title);
+        final LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setVisibility(open ? android.view.View.VISIBLE : android.view.View.GONE);
+        tv.setOnClickListener(v -> body.setVisibility(
+                body.getVisibility() == android.view.View.VISIBLE
+                        ? android.view.View.GONE : android.view.View.VISIBLE));
+        grp.addView(tv);
+        grp.addView(body);
+        return grp;
+    }
+
+
     private TextView sectionLabel(String text) {
         TextView tv = new TextView(this);
         tv.setText("—— " + text + " ——");
