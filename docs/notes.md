@@ -140,3 +140,11 @@ cp /sdcard/Android/code/rearprogress_XXX.apk      # ❌ 没有目标路径
 - **禁止**再建 `rpb_b`/`rpb_c`/`rpb_m3` 这类一次性目录（曾累积 51 个占 1.3G，已清理）
 - APK 产物：`/sdcard/Android/code/rearprogress_xinghui.apk`（星回）/ `rearprogress_forge.apk`（Forge）
 - 历史 APK 归档：`/sdcard/Android/code/_archive/apks/`
+
+## 严禁修改 Operit 本体 APK（2026-10-28 用户定，所有对话/所有 Agent 都必须遵守）
+
+- 目标：`com.ai.assistance.operit`（用户日常使用的 AI 助手本体）
+- 原因：Operit 会持续更新版本，改过的 APK 更新后要重新修改，太麻烦
+- **允许**：只读操作（apk_reverse 反编译分析、dumpsys 查询、unzip 读 dex、pm path）
+- **禁止**：pm install / 签名 / 替换 / 反编译后重打包 —— 任何形式的写入 Operit 本体
+- `com.operit.rearprogress`（我们的 Xposed 模块）不受限，可自由编译装机
