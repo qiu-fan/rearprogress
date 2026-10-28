@@ -726,8 +726,14 @@ final class AgentProgress {
 
     static synchronized String getToolIntervalText() {
         long now = System.currentTimeMillis();
-        // 用户要求：展开态调用工具慢于10s一次就显示 Agent | 已就绪（不再走 Thinking 分支）
+        // 用户要求：展开态调用工具慢于10s一次就显示 Agent | 已就绪；
+        //   但 AI 正在思考（token 增长）时要和大岛一致，显示带点的 Thinking
         if (sLastToolAt > 0 && now - sLastToolAt > 10_000L) {
+            try {
+                if (TokenHook.isTokenGrowing()) {
+                    return thinkingDots();  // Thinking. / Thinking.. / Thinking...
+                }
+            } catch (Throwable ignored) {}
             return "Agent | 已就绪";
         }
         while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
