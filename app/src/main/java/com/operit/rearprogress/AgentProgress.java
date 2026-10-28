@@ -560,10 +560,11 @@ final class AgentProgress {
         }
         // 0. 自适应显示优先（工具执行期间临时覆盖）
         if (sAdaptiveTitle != null) return sAdaptiveTitle;
-        // 1. AI 上传进度优先级最高 —— 【1.7.8-fix14】但工具调用 3 秒内让位工具名：
-        //   实测：工具执行期间 AI 持续上报 "Thinking..."（sAiTitle），旧逻辑无门 → title 被它盖住
-        //   → 用户看到的工具与实际调用对不上（06:36:20 实证：hook=super_admin:shell 但 title=Thinking...）
-        if (hasAiTitle() && (System.currentTimeMillis() - sLastToolAt) > 3_000L) {
+        // 1. AI 上传进度优先级最高 —— 【1.7.8-fix14】工具3秒内让位；【1.7.8-fix15】Thinking 类不透传：
+        //   AI 上报的 "Thinking..." 跳点与本地判定是两个源，前期交替变化 → 每变一次 SystemUI
+        //   重建焦点视图 → 发消息后前期闪好几下（用户实测）—— 同源，交给下方本地思考判定。
+        if (hasAiTitle() && (System.currentTimeMillis() - sLastToolAt) > 3_000L
+                && !sAiTitle.startsWith("Thinking")) {
             LogX.i("RearProgress", "title() -> AI title: [" + sAiTitle + "]");
             return sAiTitle;
         }
@@ -572,11 +573,13 @@ final class AgentProgress {
         //    避免单任务思考时大岛一直残留上一次工具名（如 WriteFile）
         try {
             long toolIdle = System.currentTimeMillis() - sLastToolAt;
-            // 【1.7.8-fix13】用户令：3 秒没工具 + hook 到 Thinking（token 流动）才显示 Thinking——
-            //   否则思考和工具调用时间挨着时，token 还在流动会把工具名顶掉（工具名显示不出来）。
-            //   3 秒内有工具 → 落到下方工具名分支；3 秒无工具且生成中 → Thinking 跳点。
-            if (toolIdle > 3_000L && TokenHook.isTokenGrowing()) {
-                return thinkingDots();  // Thinking. / Thinking.. / Thinking...（随秒跳动）
+            // 【1.7.8-fix13】3 秒没工具才进思考态（防顶掉工具名）。
+            // 【1.7.8-fix16】覆盖"发消息后前期"（RUNNING 但 token 未流）：旧逻辑此期间
+            //   落回 sRecent 残留工具名 → 与 sAiTitle/跳点多源交替 → 前期闪好几下（用户实测）。
+            //   现在：3 秒无工具且任务进行中即进思考态 —— 未流式 → 固定 "Thinking"（单源稳定不闪）；
+            //   token 开始流式 → thinkingDots 跳点（用户验收"流式跳点正常"）。
+            if (toolIdle > 3_000L && (TokenHook.isTokenGrowing() || sState == State.RUNNING)) {
+                return TokenHook.isTokenGrowing() ? thinkingDots() : "Thinking";
             }
         } catch (Throwable ignored) {}
 
