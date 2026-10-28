@@ -40,6 +40,12 @@ final class ChatCounter {
         return n > 0 ? ("进行中：" + n) : "进行中：-";
     }
 
+    /** 当前进行中的对话数（供副标题右侧显示；<=1 时调用方不显示） */
+    static int activeCount() {
+        refreshIfNeeded();
+        return sActive;
+    }
+
     private static void refreshIfNeeded() {
         long now = System.currentTimeMillis();
         if (now - sLastAt < REFRESH_MS || sRunning) return;

@@ -598,9 +598,16 @@ final class AgentProgress {
     }
 
     static String toolName() {
-        // 用户要求：背屏/岛去掉字符画，该位置改为显示工具调用频率（几秒/次），Thinking 时不显示。
-        //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
         String base = toolNameBase();
+        // 多任务（>1 个对话进行中）→ 副标题右侧显示"进行中：N"；一个任务不显示（用户要求）
+        try {
+            int active = ChatCounter.activeCount();
+            if (active > 1) {
+                return base + " 进行中：" + active;
+            }
+        } catch (Throwable ignored) {}
+        // 单任务：显示工具调用频率（几秒/次），Thinking 时不显示（用户之前的要求）
+        //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
         try {
             if (TokenHook.isTokenGrowing()) return base;   // Thinking：不显示任何附加内容
             String iv = getToolIntervalText();
