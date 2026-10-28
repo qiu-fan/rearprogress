@@ -359,7 +359,33 @@ final class FocusNotify {
         // 双通知解耦：再让副屏中心代发一条"带 param"的镜像通知。
         //   主通知（Operit 自己发、不带 param）→ 背屏模板按 Operit 包名命中，正常显示
         //   镜像通知（副屏中心包名、带 param）→ 它不是前台应用，MIUI 不抑制 → 前台也有岛
-        if (isOperitProcess()) forwardMirror(title, toolName, body, percent);
+        if (isOperitProcess()) {
+            writeLiveParams();   // 跨进程共享：模块界面读这个文件
+            forwardMirror(title, toolName, body, percent);
+        }
+    }
+
+    /** 实时参数共享文件（模块界面在另一进程，静态数据拿不到，只能读文件） */
+    private static final String LIVE_PARAMS = "/data/local/tmp/rp/live_params.txt";
+
+    /** Operit 进程推送时把 6 项实时参数写文件，供 MainActivity 进程读取 */
+    private static void writeLiveParams() {
+        try {
+            java.io.File dir = new java.io.File("/data/local/tmp/rp");
+            if (!dir.exists()) dir.mkdirs();
+            StringBuilder sb = new StringBuilder();
+            sb.append("状态   : ").append(AgentProgress.title()).append('\n');
+            sb.append("频率   : ").append(AgentProgress.getToolIntervalText()).append('\n');
+            sb.append("对话   : ").append(ChatCounter.text()).append('\n');
+            sb.append("工具   : ").append(AgentProgress.getLastToolName()).append('\n');
+            sb.append("token  : ").append(AgentProgress.toolName()).append('\n');
+            String sp = AgentProgress.spinner();
+            sb.append("转轮   : ").append(sp.isEmpty() ? "（隐藏）" : sp).append('\n');
+            java.io.FileWriter w = new java.io.FileWriter(
+                    new java.io.File(dir, "live_params.txt"), false);
+            w.write(sb.toString());
+            w.close();
+        } catch (Throwable ignored) {}
     }
 
     /** 让副屏中心代发"带 param"的镜像通知（只为前台灵动岛 + 展开态差异服务） */
