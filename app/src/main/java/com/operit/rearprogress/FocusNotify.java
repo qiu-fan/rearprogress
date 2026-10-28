@@ -62,6 +62,7 @@ final class FocusNotify {
     static volatile String sSparkline = "";
     static volatile String sInterval = "";
     static volatile String sSpinner = "";
+    static volatile int sActiveCount = 0;   // 进行中对话数（广播传入，用于槽位9）
     static final String ACTION_MIRROR = "com.operit.rearprogress.MIRROR";
     /** 是否注入 miui.focus.param（岛展开态差异）。
      *  实测：注入后系统生成 rear_paramv2，副屏中心走 OS2,3 新分支按 (pkg,business)
@@ -398,6 +399,7 @@ final class FocusNotify {
             i.putExtra("tool", toolName == null ? "" : toolName);
             i.putExtra("body", body == null ? "" : body);
             i.putExtra("percent", percent);
+            i.putExtra("active", ChatCounter.activeCount());  // 进行中→展开副标题
             // 在 Operit 进程算好速率和图表（TokenHook 数据只在这里有）
             i.putExtra("rate", TokenHook.getRate10s());
             i.putExtra("spark", TokenHook.getSparkline(8));
@@ -416,12 +418,12 @@ final class FocusNotify {
 
     /** 副屏中心进程里：发镜像通知（强制注入 param） */
     static void pushMirrorLocal(String title, String toolName, String body, int percent) {
-        pushMirrorLocal(title, toolName, body, percent, "", "", "", "");
+        pushMirrorLocal(title, toolName, body, percent, "", "", "", "", 0);
     }
 
     static void pushMirrorLocal(String title, String toolName, String body, int percent,
                                 String rate, String sparkline, String interval,
-                                String spinner) {
+                                String spinner, int active) {
         boolean old = sForceParam;
         String oldRate = sRate;
         String oldSpark = sSparkline;
@@ -432,6 +434,7 @@ final class FocusNotify {
         sSparkline = sparkline == null ? "" : sparkline;
         sInterval = interval == null ? "" : interval;
         sSpinner = spinner == null ? "" : spinner;
+        sActiveCount = active;
         try {
             pushStateLocal(title, toolName, body, percent);
             android.util.Log.i(TAG, "mirror notify sent (pkg="
@@ -442,6 +445,7 @@ final class FocusNotify {
             sSparkline = oldSpark;
             sInterval = oldInterval;
             sSpinner = oldSpinner;
+            sActiveCount = 0;
         }
     }
 
@@ -813,7 +817,9 @@ final class FocusNotify {
                     .put("content",  SLOT_TEST ? "【8-焦点卡内容】多行示例·用·连接" : (sSparkline.isEmpty() ? placeholderSpark() : sSparkline))
                     // subContent → token 用量 + 命中率（三个槽位全部塞满，尽量一行多信息）
                     .put("subContent", SLOT_TEST ? "【9-焦点卡副内容】"
-                            : (tok + (sSpinner.isEmpty() ? "" : " " + sSpinner)));
+                            : (tok + (sSpinner.isEmpty() ? "" : " " + sSpinner)
+                                    // 用户要求：进行中：N 显示在展开副标题（不再进岛右侧 subText）
+                                    + (sActiveCount > 1 ? " 进行中：" + sActiveCount : "")));
 
             // 大岛：左=工具名（10），右=token 数（11）——用户指定
             org.json.JSONObject bigLeft = new org.json.JSONObject()
