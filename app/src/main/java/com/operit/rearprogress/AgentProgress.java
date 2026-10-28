@@ -475,6 +475,10 @@ final class AgentProgress {
         HIDDEN_TOOLS.add("list_character_cards");
         // write_file 移出 HIDDEN（文件写入有效，需显示）
         HIDDEN_TOOLS.add("create_terminal_session");
+        // 【1.7.8-fix13】转发外壳：package_proxy 内部再调 super_admin:shell，一次动作两个 hook
+        //   → Proxy↔Shell 14ms 双推 → title 快速变化触发 SystemUI 重建 = 岛闪（用户实测）
+        //   隐藏后只剩真实工具名（Shell）单次推送
+        HIDDEN_TOOLS.add("package_proxy");
     }
 
     /**
