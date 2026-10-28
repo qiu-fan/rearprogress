@@ -89,6 +89,28 @@ final class OperitHook {
                         AgentProgress.percent());
                 LogX.i(TAG, "tool start -> " + name + " (" + AgentProgress.toolCount() + ")");
 
+                // 超时看门狗：按工具参数里的 timeoutMs（缺省 60s），到点未返回 → 岛右侧 Timeout
+                final boolean[] finished = {false};
+                final long toolTimeoutMs = parseTimeoutMs(detail);
+                final String wName = name;   // name 非 effectively final，复制给内部类用
+                Thread watchdog = new Thread(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            Thread.sleep(toolTimeoutMs);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                        if (!finished[0]) {
+                            LogX.i(TAG, "tool timeout -> " + wName + " (" + toolTimeoutMs + "ms)");
+                            AgentProgress.setAdaptiveDisplay(AgentProgress.title(), "Timeout");
+                            FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                                    AgentProgress.body(), AgentProgress.percent());
+                        }
+                    }
+                }, "rp-tool-timeout");
+                watchdog.setDaemon(true);
+                watchdog.start();
+
                 Object result = null;
                 boolean success = true;
                 try {
@@ -131,8 +153,13 @@ final class OperitHook {
                     success = false;
                     throw e;
                 } finally {
+                    finished[0] = true;
                     AgentProgress.clearAdaptiveDisplay();
                     AgentProgress.recordTool(name, detail, success);
+                    // 出错 → 走自适应渠道，岛右侧显示 Error（3s 后自动清）
+                    if (!success) {
+                        AgentProgress.setAdaptiveDisplay(AgentProgress.title(), "Error");
+                    }
                     FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
                             AgentProgress.percent());
                     LogX.i(TAG, "tool " + (success ? "ok" : "fail") + " -> " + name
@@ -158,6 +185,21 @@ final class OperitHook {
      * - sleep（独立工具或 shell 命令）→ "sleep" + 毫秒数
      * - shell 编译（gradle/assembleDebug/bump/compile）→ "Compiling" + 版本号/hash
      */
+    /** 从参数摘要解析 timeoutMs（如 "timeoutMs=60000"），缺省 60s */
+    private static long parseTimeoutMs(String detail) {
+        if (detail != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("timeoutMs[=:]\\s*(\\d+)").matcher(detail);
+            if (m.find()) {
+                try {
+                    long v = Long.parseLong(m.group(1));
+                    if (v > 0) return v;
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return 60_000L;
+    }
+
     private static String[] parseAdaptiveDisplay(String name, String detail) {
         if (name == null || detail == null) {
             LogX.i("RearProgress", "adaptive skip: name=" + name + " detail=" + detail);
@@ -314,7 +356,8 @@ final class OperitHook {
         return s.length() <= max ? s : s.substring(0, max - 1) + "\u2026";
     }
 
-    /** 从命令里提取版本号或 git hash（versionCode=数字 或 7-40 位 hex） */
+    /** 从命令里提取版本号或 git hash（versionCode=数字 或 7-40 位 hex）；
+     *  都识别不出时（如 ./gradlew assembleDebug）→ 从项目 build.gradle.kts 读 versionName */
     private static String extractVersionOrHash(String s) {
         java.util.regex.Matcher v = java.util.regex.Pattern
                 .compile("version(?:Code)?[=:\\s]+(\\d+)").matcher(s);
@@ -322,6 +365,46 @@ final class OperitHook {
         java.util.regex.Matcher h = java.util.regex.Pattern
                 .compile("\\b[0-9a-f]{7,40}\\b").matcher(s);
         if (h.find()) return h.group();
+        // 编译场景兜底：读项目版本号（versionName 如 1.6.0，读不到再试 versionCode）
+        String ver = readProjectVersion(s);
+        if (ver != null) return ver;
+        return null;
+    }
+
+    /** 编译命令识别不出版本时：从命令里的 cd <目录> 找 build.gradle.kts 读 versionName。
+     *  支持 proot 工作副本 ~/rpb_*、/root/rpb_* → 映射回 /sdcard/Android/code/rp_work（它们是它的拷贝）。 */
+    private static String readProjectVersion(String cmd) {
+        try {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("\\bcd\\s+(\\S+)").matcher(cmd);
+            if (!m.find()) return null;
+            String dir = m.group(1).replaceAll("[;&|]+$", "");
+            // proot 里的 home 目录（~/rpb_xxx、/root/rpb_xxx）在 Operit 进程里读不到，映射回源工作树
+            if (dir.startsWith("~/") || dir.startsWith("/root/")) {
+                if (dir.contains("rpb_")) {
+                    dir = "/sdcard/Android/code/rp_work";
+                } else {
+                    return null;
+                }
+            }
+            java.io.File f = new java.io.File(dir, "app/build.gradle.kts");
+            if (!f.exists()) f = new java.io.File(dir, "build.gradle.kts");
+            if (!f.exists() || !f.isFile()) return null;
+            StringBuilder sb = new StringBuilder();
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(new java.io.FileInputStream(f), "UTF-8"));
+            String line;
+            int n = 0;
+            while ((line = br.readLine()) != null && n++ < 300) sb.append(line).append('\n');
+            try { br.close(); } catch (Throwable ignored) {}
+            String txt = sb.toString();
+            java.util.regex.Matcher vn = java.util.regex.Pattern
+                    .compile("versionName\\s*=\\s*\"([^\"]+)\"").matcher(txt);
+            if (vn.find()) return vn.group(1);
+            java.util.regex.Matcher vc = java.util.regex.Pattern
+                    .compile("versionCode\\s*=\\s*(\\d+)").matcher(txt);
+            if (vc.find()) return vc.group(1);
+        } catch (Throwable ignored) {}
         return null;
     }
 
@@ -878,7 +961,7 @@ final class OperitHook {
                     if (s == null || s.isEmpty()) continue;
                     if (sb.length() > 0) sb.append(' ');
                     sb.append(s);
-                    if (sb.length() > 60) break;
+                    if (sb.length() > 200) break;  // 60->200: git 长前缀(cd + -c user.name...)会把 push/pull/commit 挤出截断点
                 }
                 return sb.toString();
             }

@@ -47,7 +47,7 @@ final class AgentProgress {
     private static volatile String sLastToolName = "";
 
     // ---- 工具调用时间戳（30s 滑动窗口，算"几秒调用一次工具"）----
-    private static final long TOOL_RATE_WINDOW_MS = 30_000L;
+    private static final long TOOL_RATE_WINDOW_MS = 5_000L;  // 用户要求：统计改为过去5秒的平均值
     /** 距上次工具调用超过该阈值（且 token 正在增长）→ AI 在思考，显示 Thinking */
     private static final long THINK_IDLE_MS = 10_000L;
     private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
@@ -62,10 +62,28 @@ final class AgentProgress {
     /** 自适应副标题：工具执行时设置，执行完清除 */
     private static volatile String sAdaptiveSub = null;
 
-    /** 设置自适应显示（工具执行期间临时覆盖 title/toolName） */
+    /** 自适应显示时长（每个可不同，暂时统一 3s——用户 2026-10-28 指定） */
+    private static final long ADAPTIVE_DURATION_MS = 3000L;
+    /** 自适应设置令牌：防止旧定时器清除新内容 */
+    private static volatile long sAdaptiveToken = 0L;
+
+    /** 设置自适应显示（title/toolName 覆盖，3 秒后自动清除） */
     static void setAdaptiveDisplay(String title, String sub) {
         sAdaptiveTitle = title;
         sAdaptiveSub = sub;
+        final long token = ++sAdaptiveToken;
+        Thread t = new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    Thread.sleep(ADAPTIVE_DURATION_MS);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (token == sAdaptiveToken) clearAdaptiveDisplay();
+            }
+        }, "rp-adaptive-expire");
+        t.setDaemon(true);
+        t.start();
     }
 
     /** 清除自适应显示（工具执行完恢复） */
@@ -580,6 +598,22 @@ final class AgentProgress {
     }
 
     static String toolName() {
+        // 用户要求：背屏/岛去掉字符画，该位置改为显示工具调用频率（几秒/次），Thinking 时不显示。
+        //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
+        String base = toolNameBase();
+        try {
+            if (TokenHook.isTokenGrowing()) return base;   // Thinking：不显示任何附加内容
+            String iv = getToolIntervalText();
+            // getToolIntervalText 在调用不足时会返回 "Thinking" / "Agent | 已就绪"，这些不该拼在 token 行
+            if (iv != null && !iv.isEmpty() && !iv.contains("Thinking") && !iv.contains("已就绪")) {
+                return base.isEmpty() ? iv : base + " " + iv;
+            }
+        } catch (Throwable ignored) {}
+        return base;
+    }
+
+    /** 不含转轮的基础值（自适应副标题 / AI 工具名 / token 用量） */
+    private static String toolNameBase() {
         // 0. 自适应显示优先（工具执行期间临时覆盖）
         if (sAdaptiveSub != null) return sAdaptiveSub;
         // 1. AI 上传的工具名优先
@@ -689,15 +723,43 @@ final class AgentProgress {
         return (System.currentTimeMillis() - sLastToolAt) <= 15_000L;
     }
 
+    static boolean idleForReady() {
+        if (sLastToolAt <= 0) return false;
+        return (System.currentTimeMillis() - sLastToolAt) > 10_000L && ChatCounter.isIdle();
+    }
+
+    static boolean idleForClear() {
+        if (sLastToolAt <= 0) return false;
+        return (System.currentTimeMillis() - sLastToolAt) > 120_000L && ChatCounter.isIdle();
+    }
+
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
-        final char[] FRAMES = {'|', '\\', '-', '/'};  // 用户要求：反向旋转
-        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 300L) % 4)]);
+        // Thinking 状态（>10s 无工具调用 且 token 正在增长）→ 不显示字符画
+        try {
+            if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
+        } catch (Throwable ignored) {}
+        // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
+        final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // 八帧 3 点 braille
+        // 时间驱动 100ms（配合 FAST_TICK_MS=100ms 心跳），每次读当前帧。
+        //   关键：转轮必须拼进 toolName()（token 行）成为 newKey 的一部分 —— 否则只走 extra 通道时
+        //   "内容没变"会被判进 1Hz 心跳分支，永远每秒 1 格（用户报的"还是不行"的根因）。
+        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 100L) % FRAMES.length)]);
     }
 
     static synchronized String getToolIntervalText() {
         long now = System.currentTimeMillis();
+        // 用户要求：展开态调用工具慢于10s一次就显示 Agent | 已就绪；
+        //   但 AI 正在思考（token 增长）时要和大岛一致，显示带点的 Thinking
+        if (sLastToolAt > 0 && now - sLastToolAt > 10_000L) {
+            try {
+                if (TokenHook.isTokenGrowing()) {
+                    return thinkingDots();  // Thinking. / Thinking.. / Thinking...
+                }
+            } catch (Throwable ignored) {}
+            return "Agent | 已就绪";
+        }
         while (!sToolTimes.isEmpty() && now - sToolTimes.peekFirst() > TOOL_RATE_WINDOW_MS) {
             sToolTimes.pollFirst();
         }

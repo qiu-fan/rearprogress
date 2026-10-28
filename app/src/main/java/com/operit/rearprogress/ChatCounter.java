@@ -28,6 +28,11 @@ final class ChatCounter {
 
     private ChatCounter() {}
 
+    static boolean isIdle() {
+        refreshIfNeeded();
+        return sActive <= 0;
+    }
+
     /** 主通知正文用：如 "进行中：2" */
     static String text() {
         refreshIfNeeded();
