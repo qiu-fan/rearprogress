@@ -323,7 +323,10 @@ public class MainActivity extends Activity {
                 String tmp = "/data/local/tmp/.sim.tmp";
                 String escaped = sb.toString().replace("'", "'\\''");
                 execSuSilent("printf '%s' '" + escaped + "' > " + tmp
-                        + " && mv -f " + tmp + " /data/local/tmp/agent_progress.sim");
+                        + " && mv -f " + tmp + " /data/local/tmp/agent_progress.sim"
+                        // 【1.7.10】测试页有 root：30 秒后自删 .sim —— 否则 hook 侧（Operit 进程
+                        //   无 root）删不掉此文件，且 sLastSimMtime 重启即忘 → 每次重启都重放模拟
+                        + " ; setsid sh -c 'sleep 30 && rm -f /data/local/tmp/agent_progress.sim' >/dev/null 2>&1 &");
                 runOnUiThread(() -> Toast.makeText(this,
                         "已下发 10 个模拟工具，Operit 侧开始执行",
                         Toast.LENGTH_SHORT).show());
