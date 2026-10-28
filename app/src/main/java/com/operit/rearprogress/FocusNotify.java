@@ -455,11 +455,11 @@ final class FocusNotify {
     /** 真正的通知发送节流：距离上次实际发送不足节流下限就跳过（避免高频重渲染闪空窗） */
     private static volatile long sLastSendAt = 0L;
     /** 非转轮活跃时的最快刷新间隔（防"一次工具调用内 4ms 连发"导致背屏重渲染抖动） */
-    private static final long THROTTLE_MS = 100L;  // 用户要求:100ms刷新+内容变立刻推送
+    private static final long THROTTLE_MS = 50L;  // 低于转轮帧率100ms,保证每帧都推上不跳帧  // 用户要求:100ms刷新+内容变立刻推送
     /** 空闲心跳间隔：内容没变也按 1Hz 刷新（图表、工具调用频率需要节拍） */
     private static final long HEARTBEAT_MS = 1000L;
     /** 转轮活跃时的心跳间隔：100ms（用户要求"快速连续不断旋转"，仅工具调用后15秒窗口内） */
-    private static final long FAST_TICK_MS = 100L;  // revert 测试：100ms→300ms（100ms高频更新致SystemUI重建焦点视图间隙=岛闪）
+    private static final long FAST_TICK_MS = 50L;  // revert 测试：100ms→300ms（100ms高频更新致SystemUI重建焦点视图间隙=岛闪）
     private static volatile boolean sHeartbeatOn = false;
 
     /**
