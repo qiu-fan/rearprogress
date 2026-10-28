@@ -605,13 +605,8 @@ final class AgentProgress {
 
     static String toolName() {
         String base = toolNameBase();
-        // 多任务（>1 个对话进行中）→ 副标题右侧显示"进行中：N"；一个任务不显示（用户要求）
-        try {
-            int active = ChatCounter.activeCount();
-            if (active > 1) {
-                return base + " 进行中：" + active;
-            }
-        } catch (Throwable ignored) {}
+        // 用户要求（2026-10-28）：进行中：N 不再拼进 toolName（它会进 subText 被 MIUI 渲染到岛右边），
+        //   改由展开副标题（槽位9 subContent）显示，跨进程经广播 extra "active" 传递。
         // 单任务：显示工具调用频率（几秒/次），Thinking 时不显示（用户之前的要求）
         //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
         try {
