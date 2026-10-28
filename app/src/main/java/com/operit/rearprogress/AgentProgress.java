@@ -157,6 +157,7 @@ final class AgentProgress {
         // 代码执行（run + 语言）
         TOOL_NAME_MAP.put("code_runner:run_javascript_node", "runJS");
         TOOL_NAME_MAP.put("code_runner:run_python", "runPython");
+        TOOL_NAME_MAP.put("run_python_file", "runPython");  // 截断成 run_python_fil... 的映射缺失
         TOOL_NAME_MAP.put("code_runner:run_ruby", "runRuby");
         TOOL_NAME_MAP.put("code_runner:run_go", "runGo");
         TOOL_NAME_MAP.put("code_runner:run_rust", "runRust");
