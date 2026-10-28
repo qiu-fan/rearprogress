@@ -89,6 +89,28 @@ final class OperitHook {
                         AgentProgress.percent());
                 LogX.i(TAG, "tool start -> " + name + " (" + AgentProgress.toolCount() + ")");
 
+                // 超时看门狗：按工具参数里的 timeoutMs（缺省 60s），到点未返回 → 岛右侧 Timeout
+                final boolean[] finished = {false};
+                final long toolTimeoutMs = parseTimeoutMs(detail);
+                final String wName = name;   // name 非 effectively final，复制给内部类用
+                Thread watchdog = new Thread(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            Thread.sleep(toolTimeoutMs);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                        if (!finished[0]) {
+                            LogX.i(TAG, "tool timeout -> " + wName + " (" + toolTimeoutMs + "ms)");
+                            AgentProgress.setAdaptiveDisplay(AgentProgress.title(), "Timeout");
+                            FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(),
+                                    AgentProgress.body(), AgentProgress.percent());
+                        }
+                    }
+                }, "rp-tool-timeout");
+                watchdog.setDaemon(true);
+                watchdog.start();
+
                 Object result = null;
                 boolean success = true;
                 try {
@@ -131,8 +153,13 @@ final class OperitHook {
                     success = false;
                     throw e;
                 } finally {
+                    finished[0] = true;
                     AgentProgress.clearAdaptiveDisplay();
                     AgentProgress.recordTool(name, detail, success);
+                    // 出错 → 走自适应渠道，岛右侧显示 Error（3s 后自动清）
+                    if (!success) {
+                        AgentProgress.setAdaptiveDisplay(AgentProgress.title(), "Error");
+                    }
                     FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),
                             AgentProgress.percent());
                     LogX.i(TAG, "tool " + (success ? "ok" : "fail") + " -> " + name
@@ -158,6 +185,21 @@ final class OperitHook {
      * - sleep（独立工具或 shell 命令）→ "sleep" + 毫秒数
      * - shell 编译（gradle/assembleDebug/bump/compile）→ "Compiling" + 版本号/hash
      */
+    /** 从参数摘要解析 timeoutMs（如 "timeoutMs=60000"），缺省 60s */
+    private static long parseTimeoutMs(String detail) {
+        if (detail != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("timeoutMs[=:]\\s*(\\d+)").matcher(detail);
+            if (m.find()) {
+                try {
+                    long v = Long.parseLong(m.group(1));
+                    if (v > 0) return v;
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return 60_000L;
+    }
+
     private static String[] parseAdaptiveDisplay(String name, String detail) {
         if (name == null || detail == null) {
             LogX.i("RearProgress", "adaptive skip: name=" + name + " detail=" + detail);
