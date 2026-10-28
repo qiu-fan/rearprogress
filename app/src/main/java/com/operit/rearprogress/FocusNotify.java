@@ -762,8 +762,11 @@ final class FocusNotify {
         final boolean SLOT_TEST = false;
         String t1 = SLOT_TEST ? "【1-通知标题】" : title;
         String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
-        // 用户指定（1.4.1）：正文显示"目前进行的对话数"，不再显示工具调用累计数
-        String t3 = ChatCounter.text();
+        // 【1.7.8-fix11】contentText 不再放"进行中：N"（1.4.1 遗留）：MIUI 焦点卡把 android.text
+        //   画到岛旁边 → 用户看到岛旁裸数字（实测 dumpsys android.text=进行中：1）。
+        //   进行中：N 已由槽位9 subContent 显示（焦点通知副标题/图表右边，用户指定位置）。
+        //   contentText 回归命令正文（背屏 MAML 读 extras.android.text 的原设计）。
+        String t3 = body;
 
         b.setContentTitle(t1);
         if (t2 != null && !t2.isEmpty()) {
