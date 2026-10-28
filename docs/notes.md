@@ -133,3 +133,10 @@ cp /sdcard/Android/code/rearprogress_XXX.apk      # ❌ 没有目标路径
 1. 装机脚本必须写完整 `cp 源 目标`，并检查返回值
 2. **每次装机后校验 md5**：`md5sum /data/local/tmp/rearprogress.apk` 对比编译产物
 3. 排查“改动不生效”时，第一件事是比对 APK md5，而不是怀疑代码
+
+## 编译临时产物约定（2026-10-28 星回，用户定）
+
+- 编译用**固定目录** `/root/rpbuild`（proot 内），每次编译前 `rm -rf /root/rpbuild` 清空重用 —— 只占一份，不累积
+- **禁止**再建 `rpb_b`/`rpb_c`/`rpb_m3` 这类一次性目录（曾累积 51 个占 1.3G，已清理）
+- APK 产物：`/sdcard/Android/code/rearprogress_xinghui.apk`（星回）/ `rearprogress_forge.apk`（Forge）
+- 历史 APK 归档：`/sdcard/Android/code/_archive/apks/`
