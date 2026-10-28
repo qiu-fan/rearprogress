@@ -62,10 +62,28 @@ final class AgentProgress {
     /** 自适应副标题：工具执行时设置，执行完清除 */
     private static volatile String sAdaptiveSub = null;
 
-    /** 设置自适应显示（工具执行期间临时覆盖 title/toolName） */
+    /** 自适应显示时长（每个可不同，暂时统一 3s——用户 2026-10-28 指定） */
+    private static final long ADAPTIVE_DURATION_MS = 3000L;
+    /** 自适应设置令牌：防止旧定时器清除新内容 */
+    private static volatile long sAdaptiveToken = 0L;
+
+    /** 设置自适应显示（title/toolName 覆盖，3 秒后自动清除） */
     static void setAdaptiveDisplay(String title, String sub) {
         sAdaptiveTitle = title;
         sAdaptiveSub = sub;
+        final long token = ++sAdaptiveToken;
+        Thread t = new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    Thread.sleep(ADAPTIVE_DURATION_MS);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (token == sAdaptiveToken) clearAdaptiveDisplay();
+            }
+        }, "rp-adaptive-expire");
+        t.setDaemon(true);
+        t.start();
     }
 
     /** 清除自适应显示（工具执行完恢复） */
