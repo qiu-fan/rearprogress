@@ -757,7 +757,7 @@ final class AgentProgress {
             if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
         } catch (Throwable ignored) {}
         // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
-        final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // 八帧 3 点 braille
+        final char[] FRAMES = {'\u28B9', '\u28FC', '\u28F6', '\u28E7', '\u28CF', '\u285F'};  // 六帧6点滑圈（用户要求6点符号）
         // 时间驱动 100ms（配合 FAST_TICK_MS=100ms 心跳），每次读当前帧。
         //   关键：转轮必须拼进 toolName()（token 行）成为 newKey 的一部分 —— 否则只走 extra 通道时
         //   "内容没变"会被判进 1Hz 心跳分支，永远每秒 1 格（用户报的"还是不行"的根因）。
