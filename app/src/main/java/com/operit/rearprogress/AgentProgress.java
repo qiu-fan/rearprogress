@@ -580,12 +580,18 @@ final class AgentProgress {
     }
 
     static String toolName() {
-        // 转轮拼在 token 行末尾：这样转轮变化会成为 newKey 的一部分 → 走 FAST_TICK(100ms) 刷新分支。
-        //   （之前只走 extra 通道时"内容没变"→ 被判进 1Hz 心跳，永远每秒1格）
+        // 用户要求：背屏/岛去掉字符画，该位置改为显示工具调用频率（几秒/次），Thinking 时不显示。
+        //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
         String base = toolNameBase();
-        String sp = spinner();
-        if (sp.isEmpty()) return base;
-        return base.isEmpty() ? sp : base + " " + sp;
+        try {
+            if (TokenHook.isTokenGrowing()) return base;   // Thinking：不显示任何附加内容
+            String iv = getToolIntervalText();
+            // getToolIntervalText 在调用不足时会返回 "Thinking" / "Agent | 已就绪"，这些不该拼在 token 行
+            if (iv != null && !iv.isEmpty() && !iv.contains("Thinking") && !iv.contains("已就绪")) {
+                return base.isEmpty() ? iv : base + " " + iv;
+            }
+        } catch (Throwable ignored) {}
+        return base;
     }
 
     /** 不含转轮的基础值（自适应副标题 / AI 工具名 / token 用量） */
