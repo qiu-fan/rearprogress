@@ -739,6 +739,10 @@ final class AgentProgress {
 
     static boolean idleForClear() {
         if (sLastToolAt <= 0) return false;
+        // 用户要求(2026-10-28)：token 停止增长 且 非 Thinking 才允许停止显示岛（AI思考时不清）
+        try {
+            if (TokenHook.isTokenGrowing() || TokenHook.isRecentlyThinking()) return false;
+        } catch (Throwable ignored) {}
         return (System.currentTimeMillis() - sLastToolAt) > 120_000L && ChatCounter.isIdle();
     }
 
@@ -750,7 +754,7 @@ final class AgentProgress {
             if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
         } catch (Throwable ignored) {}
         // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
-        final char[] FRAMES = {'1', '2', '3', '4', '5', '6'};  // 数字帧（用户要求:方便观察帧数）
+        final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // braille 8帧3点（帧率100ms已验证连贯）
         // 时间驱动 100ms（配合 FAST_TICK_MS=100ms 心跳），每次读当前帧。
         //   关键：转轮必须拼进 toolName()（token 行）成为 newKey 的一部分 —— 否则只走 extra 通道时
         //   "内容没变"会被判进 1Hz 心跳分支，永远每秒 1 格（用户报的"还是不行"的根因）。
