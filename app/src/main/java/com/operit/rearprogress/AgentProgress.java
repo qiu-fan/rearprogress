@@ -61,6 +61,10 @@ final class AgentProgress {
     // ---- 自适应显示（工具执行期间临时覆盖 title/toolName） ----
     /** 自适应标题：工具执行时设置，执行完清除（null 表示无自适应） */
     private static volatile String sAdaptiveTitle = null;
+    /** 【1.7.8-fix15】工具 hook 后的 2 秒强制显示锁：锁值=hook 时刻确定的工具显示（工具名/自适应名），
+     *  2 秒内优先级最高（压过 Thinking/sAiTitle 判定）—— 消除工具执行期 title 在 Thinking↔工具名间反复闪过（用户令） */
+    private static volatile String sLockedTitle = null;
+    private static volatile long sLockedUntil = 0L;
     /** 自适应副标题：工具执行时设置，执行完清除 */
     private static volatile String sAdaptiveSub = null;
 
@@ -73,6 +77,9 @@ final class AgentProgress {
     static void setAdaptiveDisplay(String title, String sub) {
         sAdaptiveTitle = title;
         sAdaptiveSub = sub;
+        // 【fix15】hook 到新内容 → 刷新 2 秒强制锁（锁值=本次要显示的工具内容）
+        sLockedTitle = title;
+        sLockedUntil = System.currentTimeMillis() + 2_000L;
         final long token = ++sAdaptiveToken;
         Thread t = new Thread(new Runnable() {
             @Override public void run() {
@@ -524,6 +531,10 @@ final class AgentProgress {
         String d = detail == null ? "" : detail.trim().replaceAll("\\s+", " ");
         if (d.length() > 64) d = d.substring(0, 64) + "…";
 
+        // 【1.7.8-fix15】hook 到新工具内容 → 刷新 2 秒强制锁（锁值=映射后的显示名；
+        //   若随后有 setAdaptiveDisplay 会覆盖为自适应名，两者都是"工具内容"）
+        sLockedTitle = name;
+        sLockedUntil = System.currentTimeMillis() + 2_000L;
         sRecent.add(new String[]{name, d, success ? "1" : "0"});
         while (sRecent.size() > MAX_LINES) sRecent.remove(0);
     }
@@ -537,6 +548,12 @@ final class AgentProgress {
      *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
     static String title() {
+        // 【1.7.8-fix15】hook 到新工具内容后【强制显示 2 秒】（用户令，优先级最高，
+        //   压过自适应/Thinking/sAiTitle 判定）—— 消除工具执行期 title 在 Thinking↔工具名间反复闪过。
+        if (System.currentTimeMillis() < sLockedUntil) {
+            String locked = sLockedTitle;
+            if (locked != null && !locked.isEmpty()) return locked;
+        }
         // 0. 自适应显示优先（工具执行期间临时覆盖）
         if (sAdaptiveTitle != null) return sAdaptiveTitle;
         // 1. AI 上传进度优先级最高 —— 【1.7.8-fix14】但工具调用 3 秒内让位工具名：
