@@ -549,10 +549,11 @@ final class AgentProgress {
         //    避免单任务思考时大岛一直残留上一次工具名（如 WriteFile）
         try {
             long toolIdle = System.currentTimeMillis() - sLastToolAt;
-            // 误判修复（2026-10-28）：10s 太短，工具调用间隙(如12s)也被判成思考。
-            //   title 用 30s 阈值——活跃工具调用中显示工具名；真正长时间无工具+token增长才是 Thinking。
-            //   槽位7 的 10s 规则（用户已验收）不受影响，仍用 THINK_IDLE_MS。
-            if (toolIdle > THINK_IDLE_MS_TITLE && TokenHook.isTokenGrowing()) {
+            // 【1.7.8-fix10】用户令"获取到 Thinking 就替换"：AI 正在生成（token 流动）
+            //   即刻显示 Thinking，不等 30 秒工具间隔——旧条件导致连续工具调用后
+            //   思考/生成期 title 仍卡在工具名（用户实测截图 title=Term(root) 而非 Thinking）。
+            //   工具执行中 token 不流动 → 自动回落工具名，转换自然。
+            if (TokenHook.isTokenGrowing()) {
                 return thinkingDots();  // Thinking. / Thinking.. / Thinking...（随秒跳动）
             }
         } catch (Throwable ignored) {}
@@ -605,22 +606,11 @@ final class AgentProgress {
 
     static String toolName() {
         String base = toolNameBase();
-        // 用户要求（2026-10-28）：进行中：N 不再拼进 toolName（它会进 subText 被 MIUI 渲染到岛右边），
-        //   改由展开副标题（槽位9 subContent）显示，跨进程经广播 extra "active" 传递。
-        // 单任务：显示工具调用频率（几秒/次），Thinking 时不显示（用户之前的要求）
-        //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
+        // 【1.7.8-fix12】频率不再拼进 toolName（fix10 用户令）：toolName=subText=岛 token 行，
+        //   岛上不显示"X.Xs/次"（背屏频率走 forwardMirror extra "interval" 独立通道）。
+        //   转轮保留在 token 行末尾（469e703 恢复的功能，用户要求）。
         String result = base;
-        try {
-            if (!TokenHook.isTokenGrowing()) {   // Thinking：不显示频率/转轮附加内容
-                String iv = getToolIntervalText();
-                // getToolIntervalText 在调用不足时会返回 "Thinking" / "Agent | 已就绪"，这些不该拼在 token 行
-                if (iv != null && !iv.isEmpty() && !iv.contains("Thinking") && !iv.contains("已就绪")) {
-                    result = base.isEmpty() ? iv : base + " " + iv;
-                }
-            }
-        } catch (Throwable ignored) {}
-        // 转轮动画拼到末尾（2026-10-28 用户反馈字符动画消失：星回去掉 spinner 广播通道后
-        //   subText 链路没有转轮来源了）。spinner() 内部已处理 Thinking 隐藏/15s 窗口。
+        // 转轮动画拼到末尾：spinner() 内部已处理 15s 无工具隐藏。
         try {
             String sp = spinner();
             if (!sp.isEmpty()) result = result.isEmpty() ? sp : result + " " + sp;
