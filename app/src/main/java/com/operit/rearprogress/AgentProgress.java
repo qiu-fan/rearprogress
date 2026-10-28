@@ -51,7 +51,7 @@ final class AgentProgress {
     /** 距上次工具调用超过该阈值（且 token 正在增长）→ AI 在思考，显示 Thinking */
     private static final long THINK_IDLE_MS = 10_000L;
     /** title() 的 Thinking 判定阈值（30s）：工具调用间隙不算思考，避免误判 */
-    private static final long THINK_IDLE_MS_TITLE = 30_000L;
+    private static final long THINK_IDLE_MS_TITLE = 10_000L;  // 用户要求:Thinking点动画要回来,30s太长看不到
     private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
