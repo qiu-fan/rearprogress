@@ -305,10 +305,8 @@ final class FocusNotify {
      *   percent   → 0-100 进度条，<0 表示不显示
      */
     static void pushState(String title, String toolName, String body, int percent) {
-        // 用户要求（2026-10-28）：无进行中对话时，大标题显示 Ready（在 Operit 进程判定，镜像通知继承）
-        try {
-            if (ChatCounter.isIdle()) title = "Ready";
-        } catch (Throwable ignored) {}
+        // 【revert 5242bef 测试】移除 Ready 覆盖：isIdle 抖动会让 title 在 Shell(root)↔Ready 切换，
+        //   副屏中心把 Ready 那条按普通通知渲染 → 焦点↔普通来回切 = 岛/背屏闪（待验证是否闪源）
 
         // READY 态（刚进软件 / 没有任何工具调用）不推送通知：
         // 否则会闪一下「Agent"，右侧无内容」的岛，通知栏也多一条「已就绪」空卡片。
@@ -461,7 +459,7 @@ final class FocusNotify {
     /** 空闲心跳间隔：内容没变也按 1Hz 刷新（图表、工具调用频率需要节拍） */
     private static final long HEARTBEAT_MS = 1000L;
     /** 转轮活跃时的心跳间隔：100ms（用户要求"快速连续不断旋转"，仅工具调用后15秒窗口内） */
-    private static final long FAST_TICK_MS = 100L;
+    private static final long FAST_TICK_MS = 300L;  // revert 测试：100ms→300ms（100ms高频更新致SystemUI重建焦点视图间隙=岛闪）
     private static volatile boolean sHeartbeatOn = false;
 
     /**
@@ -517,7 +515,7 @@ final class FocusNotify {
                     // 内容完全没变：用户要求"没有工具调用也要刷新"——按 1Hz 心跳重推，
                     //   让背屏图表 / 工具调用频率持续跳动
                     if (sinceLast < HEARTBEAT_MS) return;
-                } else if (sinceLast < (AgentProgress.spinnerActive() ? FAST_TICK_MS : THROTTLE_MS)) {
+                } else if (sinceLast < THROTTLE_MS) {  // revert 测试：回固定300ms（原动态放宽到FAST_TICK 100ms致高频更新）
                     // 严格节流：防"一次工具调用内多次 pushState 在 4ms 内连发"导致背屏重渲染抖动。
                     //   转轮活跃（工具调用后 15 秒窗口内）时下限放宽到 FAST_TICK_MS(100ms)，
                     //   让字符画快速连续旋转（用户要求）；其余场景维持 300ms。
