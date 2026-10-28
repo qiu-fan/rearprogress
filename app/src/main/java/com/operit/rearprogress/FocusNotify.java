@@ -305,6 +305,11 @@ final class FocusNotify {
      *   percent   → 0-100 进度条，<0 表示不显示
      */
     static void pushState(String title, String toolName, String body, int percent) {
+        // 用户要求（2026-10-28）：无进行中对话时，大标题显示 Ready（在 Operit 进程判定，镜像通知继承）
+        try {
+            if (ChatCounter.isIdle()) title = "Ready";
+        } catch (Throwable ignored) {}
+
         // READY 态（刚进软件 / 没有任何工具调用）不推送通知：
         // 否则会闪一下「Agent"，右侧无内容」的岛，通知栏也多一条「已就绪」空卡片。
         try {
