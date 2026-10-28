@@ -148,3 +148,8 @@ cp /sdcard/Android/code/rearprogress_XXX.apk      # ❌ 没有目标路径
 - **允许**：只读操作（apk_reverse 反编译分析、dumpsys 查询、unzip 读 dex、pm path）
 - **禁止**：pm install / 签名 / 替换 / 反编译后重打包 —— 任何形式的写入 Operit 本体
 - `com.operit.rearprogress`（我们的 Xposed 模块）不受限，可自由编译装机
+
+## 进度排期（2026-10-29 用户确认）
+1. 【已排】自适应显示注册表重构（用户提案）：字典 key=工具简要名，value={入口函数 matcher(返回bool判是否自适应), 是否显示参数, 出口函数 formatter(综合判断+文本处理,返回[左,右])}——即策略模式+注册表，解决 parseAdaptiveDisplay 大 if/else 链（37行7分支）的维护问题。**时机：1.8.0 发布后**，开 refactor/adaptive-registry-xinghui 分支，纯结构不改行为，现有用例回归对照。
+2. 【已排】SystemUI 焦点视图日志注入（1.8.1）：hook SystemUI 焦点卡渲染点，直接记录岛实际显示的 title/subText（用户要求：不靠描述、拿一手显示内容），定位残留的偶发闪。
+3. 【机制】docs/bugs.md 已建：bug 台账，回退/合并前对照确认修复去向；新报障先查是否老 bug 复发。
