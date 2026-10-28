@@ -759,7 +759,7 @@ final class AgentProgress {
         //   关键：转轮必须拼进 toolName()（token 行）成为 newKey 的一部分 —— 否则只走 extra 通道时
         //   "内容没变"会被判进 1Hz 心跳分支，永远每秒 1 格（用户报的"还是不行"的根因）。
         // 帧率对齐通知节流 FAST_TICK_MS=300ms：100ms/帧 会跳帧(每3帧只显示1帧)导致视觉卡顿
-        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 300L) % FRAMES.length)]);
+        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 100L) % FRAMES.length)]);
     }
 
     static synchronized String getToolIntervalText() {
