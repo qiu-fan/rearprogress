@@ -377,8 +377,9 @@ final class FocusNotify {
             i.putExtra("spark", TokenHook.getSparkline(8));
             // 工具调用频率（30s 窗口）在 Operit 进程算好，跨进程传给副屏中心
             i.putExtra("interval", AgentProgress.getToolIntervalText());
-            // 工具转轮字符画（"/-\"| 每 300ms 轮一次），在 Operit 进程算好跨进程传
-            i.putExtra("spinner", AgentProgress.spinner());
+            // 转轮已拼进 subText(token 行)（必须进 newKey 才能走 100ms 刷新分支）；
+            //   这里再传 extra 会让副屏中心在另一个槽位再渲染一个 → 用户看到"两个进度动画"，故不再传。
+            i.putExtra("spinner", "");
             i.setPackage(PKG_SCREEN);
             ctx.sendBroadcast(i);
             android.util.Log.i(TAG, "forwardMirror sent: tool=" + toolName);
