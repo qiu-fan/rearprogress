@@ -754,7 +754,9 @@ final class AgentProgress {
         //   但 AI 正在思考（token 增长）时要和大岛一致，显示带点的 Thinking
         if (sLastToolAt > 0 && now - sLastToolAt > 10_000L) {
             try {
-                if (TokenHook.isTokenGrowing()) {
+                // isTokenGrowing(3s 窗口) 会因 token 更新间隙抖动 → 误判空闲 → 大标题闪过 "Agent | 已就绪"，
+                //   加 10 秒窗口的 isRecentlyThinking 兜底：真正空闲（token >10s 没更新）才显示已就绪。
+                if (TokenHook.isTokenGrowing() || TokenHook.isRecentlyThinking()) {
                     return thinkingDots();  // Thinking. / Thinking.. / Thinking...
                 }
             } catch (Throwable ignored) {}

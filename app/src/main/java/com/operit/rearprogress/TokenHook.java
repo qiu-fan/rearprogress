@@ -89,6 +89,13 @@ final class TokenHook {
         return sHasLive && (System.currentTimeMillis() - sLastPushAt) < 3000L;
     }
 
+    /** 最近 10 秒内有过 token 更新 → 视为 AI 仍在思考。
+     *  防 isTokenGrowing 的 3 秒窗口抖动：思考期间 token 更新偶尔间隔 >3 秒（模型停顿/缓存间隙），
+     *  会把"正在思考"误判成"空闲"，导致展开态大标题闪过 "Agent | 已就绪"（用户报的 bug）。 */
+    static boolean isRecentlyThinking() {
+        return sHasLive && (System.currentTimeMillis() - sLastPushAt) < 10_000L;
+    }
+
     /** PowerManager 懒加载缓存 */
     private static android.os.PowerManager pm() {
         android.os.PowerManager pm = sPm;
