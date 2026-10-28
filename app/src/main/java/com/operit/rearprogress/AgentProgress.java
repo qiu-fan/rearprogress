@@ -539,8 +539,10 @@ final class AgentProgress {
     static String title() {
         // 0. 自适应显示优先（工具执行期间临时覆盖）
         if (sAdaptiveTitle != null) return sAdaptiveTitle;
-        // 1. AI 上传进度优先级最高
-        if (hasAiTitle()) {
+        // 1. AI 上传进度优先级最高 —— 【1.7.8-fix14】但工具调用 3 秒内让位工具名：
+        //   实测：工具执行期间 AI 持续上报 "Thinking..."（sAiTitle），旧逻辑无门 → title 被它盖住
+        //   → 用户看到的工具与实际调用对不上（06:36:20 实证：hook=super_admin:shell 但 title=Thinking...）
+        if (hasAiTitle() && (System.currentTimeMillis() - sLastToolAt) > 3_000L) {
             LogX.i("RearProgress", "title() -> AI title: [" + sAiTitle + "]");
             return sAiTitle;
         }
@@ -741,7 +743,7 @@ final class AgentProgress {
 
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
-        if (sLastToolAt <= 0 || idle > 15_000L) return "";
+        if (sLastToolAt <= 0 || idle > 3_000L) return "";   // 【fix14】工具结束 3 秒停转（原 15 秒，用户报"结束后还在转"）
         // 【1.7.8-fix1】移除"Thinking 时清空转轮"：工具调用后 AI 生成中（token 增长 + 超10s）
         //   转轮会消失（用户要求"工具调用期间不能消失"）。保留原规则：15秒无工具调用才隐藏。
         // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
