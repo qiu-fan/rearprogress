@@ -610,15 +610,8 @@ final class AgentProgress {
         // 单任务：显示工具调用频率（几秒/次），Thinking 时不显示（用户之前的要求）
         //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
         String result = base;
-        try {
-            if (!TokenHook.isTokenGrowing()) {   // Thinking：不显示频率/转轮附加内容
-                String iv = getToolIntervalText();
-                // getToolIntervalText 在调用不足时会返回 "Thinking" / "Agent | 已就绪"，这些不该拼在 token 行
-                if (iv != null && !iv.isEmpty() && !iv.contains("Thinking") && !iv.contains("已就绪")) {
-                    result = base.isEmpty() ? iv : base + " " + iv;
-                }
-            }
-        } catch (Throwable ignored) {}
+        // 用户要求：频率不再拼进 token 行（停止思考后会突然多出频率，像多了一次调用速度）。
+        //   频率由展开态槽位7 单独显示，这里只留转轮。
         // 转轮动画拼到末尾（2026-10-28 用户反馈字符动画消失：星回去掉 spinner 广播通道后
         //   subText 链路没有转轮来源了）。spinner() 内部已处理 Thinking 隐藏/15s 窗口。
         try {
@@ -757,7 +750,7 @@ final class AgentProgress {
             if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
         } catch (Throwable ignored) {}
         // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
-        final char[] FRAMES = {'\u28B9', '\u28FC', '\u28F6', '\u28E7', '\u28CF', '\u285F'};  // 六帧6点滑圈（用户要求6点符号）
+        final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // 八帧3点滑圈（用户要求3点）
         // 时间驱动 100ms（配合 FAST_TICK_MS=100ms 心跳），每次读当前帧。
         //   关键：转轮必须拼进 toolName()（token 行）成为 newKey 的一部分 —— 否则只走 extra 通道时
         //   "内容没变"会被判进 1Hz 心跳分支，永远每秒 1 格（用户报的"还是不行"的根因）。
