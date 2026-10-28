@@ -752,10 +752,8 @@ final class AgentProgress {
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
-        // Thinking 状态（>10s 无工具调用 且 token 正在增长）→ 不显示字符画
-        try {
-            if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
-        } catch (Throwable ignored) {}
+        // 【1.7.8-fix1】移除"Thinking 时清空转轮"：工具调用后 AI 生成中（token 增长 + 超10s）
+        //   转轮会消失（用户要求"工具调用期间不能消失"）。保留原规则：15秒无工具调用才隐藏。
         // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
         final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // 八帧 3 点 braille
         // 时间驱动 100ms（配合 FAST_TICK_MS=100ms 心跳），每次读当前帧。
