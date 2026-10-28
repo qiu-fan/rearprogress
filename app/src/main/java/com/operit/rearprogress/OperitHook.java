@@ -110,9 +110,9 @@ final class OperitHook {
                 }, "rp-tool-timeout");
                 watchdog.setDaemon(true);
                 watchdog.start();
-
                 Object result = null;
                 boolean success = true;
+                final boolean[] threw = {false};  // 只有真异常(抛Throwable)才显示Error；工具返回success=false不算（如grep无匹配）
                 try {
                     result = chain.proceed();
                     try {
@@ -151,13 +151,15 @@ final class OperitHook {
                     } catch (Throwable ignored) {}
                 } catch (Throwable e) {
                     success = false;
+                    threw[0] = true;  // 真异常 → 显示 Error（区别于工具返回 success=false）
                     throw e;
                 } finally {
                     finished[0] = true;
                     AgentProgress.clearAdaptiveDisplay();
                     AgentProgress.recordTool(name, detail, success);
-                    // 出错 → 走自适应渠道，岛右侧显示 Error（3s 后自动清）
-                    if (!success) {
+                    // 【1.7.8-fix2】只有真异常(抛Throwable)才显示 Error —— 工具返回 success=false 不算
+                    //   （如 grep 无匹配、命令非0退出，软件里无红色报错，不该在岛右侧显示 Error 误判）
+                    if (threw[0]) {
                         AgentProgress.setAdaptiveDisplay(AgentProgress.title(), "Error");
                     }
                     FocusNotify.pushState(AgentProgress.title(), AgentProgress.toolName(), AgentProgress.body(),

@@ -51,7 +51,7 @@ final class AgentProgress {
     /** 距上次工具调用超过该阈值（且 token 正在增长）→ AI 在思考，显示 Thinking */
     private static final long THINK_IDLE_MS = 10_000L;
     /** title() 的 Thinking 判定阈值（30s）：工具调用间隙不算思考，避免误判 */
-    private static final long THINK_IDLE_MS_TITLE = 10_000L;  // 用户要求:Thinking点动画要回来,30s太长看不到
+    private static final long THINK_IDLE_MS_TITLE = 30_000L;
     private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
@@ -549,10 +549,10 @@ final class AgentProgress {
         //    避免单任务思考时大岛一直残留上一次工具名（如 WriteFile）
         try {
             long toolIdle = System.currentTimeMillis() - sLastToolAt;
-            // 误判修复（2026-10-28）：10s 太短，工具调用间隙(如12s)也被判成思考。
-            //   title 用 30s 阈值——活跃工具调用中显示工具名；真正长时间无工具+token增长才是 Thinking。
-            //   槽位7 的 10s 规则（用户已验收）不受影响，仍用 THINK_IDLE_MS。
-            if (toolIdle > THINK_IDLE_MS_TITLE && TokenHook.isTokenGrowing()) {
+            // 【1.7.8-fix13】用户令：3 秒没工具 + hook 到 Thinking（token 流动）才显示 Thinking——
+            //   否则思考和工具调用时间挨着时，token 还在流动会把工具名顶掉（工具名显示不出来）。
+            //   3 秒内有工具 → 落到下方工具名分支；3 秒无工具且生成中 → Thinking 跳点。
+            if (toolIdle > 3_000L && TokenHook.isTokenGrowing()) {
                 return thinkingDots();  // Thinking. / Thinking.. / Thinking...（随秒跳动）
             }
         } catch (Throwable ignored) {}
@@ -582,7 +582,8 @@ final class AgentProgress {
                 return "任务进行中";
             case DONE:
                 // 用户发消息后 AI 还在回复（token 在增长但还没开始调工具），显示 Thinking
-                if (TokenHook.isTokenGrowing()) {
+                // 【1.7.8-fix13】同样加 3 秒工具门（与主分支一致，防工具挨着思考时顶掉工具名）
+                if (System.currentTimeMillis() - sLastToolAt > 3_000L && TokenHook.isTokenGrowing()) {
                     return "Thinking";
                 }
                 return "已完成";
@@ -605,15 +606,11 @@ final class AgentProgress {
 
     static String toolName() {
         String base = toolNameBase();
-        // 用户要求（2026-10-28）：进行中：N 不再拼进 toolName（它会进 subText 被 MIUI 渲染到岛右边），
-        //   改由展开副标题（槽位9 subContent）显示，跨进程经广播 extra "active" 传递。
-        // 单任务：显示工具调用频率（几秒/次），Thinking 时不显示（用户之前的要求）
-        //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
+        // 【1.7.8-fix12】频率不再拼进 toolName（fix10 用户令）：toolName=subText=岛 token 行，
+        //   岛上不显示"X.Xs/次"（背屏频率走 forwardMirror extra "interval" 独立通道）。
+        //   转轮保留在 token 行末尾（469e703 恢复的功能，用户要求）。
         String result = base;
-        // 用户要求：频率不再拼进 token 行（停止思考后会突然多出频率，像多了一次调用速度）。
-        //   频率由展开态槽位7 单独显示，这里只留转轮。
-        // 转轮动画拼到末尾（2026-10-28 用户反馈字符动画消失：星回去掉 spinner 广播通道后
-        //   subText 链路没有转轮来源了）。spinner() 内部已处理 Thinking 隐藏/15s 窗口。
+        // 转轮动画拼到末尾：spinner() 内部已处理 15s 无工具隐藏。
         try {
             String sp = spinner();
             if (!sp.isEmpty()) result = result.isEmpty() ? sp : result + " " + sp;
@@ -739,27 +736,20 @@ final class AgentProgress {
 
     static boolean idleForClear() {
         if (sLastToolAt <= 0) return false;
-        // 用户要求(2026-10-28)：token 停止增长 且 非 Thinking 才允许停止显示岛（AI思考时不清）
-        try {
-            if (TokenHook.isTokenGrowing() || TokenHook.isRecentlyThinking()) return false;
-        } catch (Throwable ignored) {}
         return (System.currentTimeMillis() - sLastToolAt) > 120_000L && ChatCounter.isIdle();
     }
 
     static String spinner() {
         long idle = System.currentTimeMillis() - sLastToolAt;
         if (sLastToolAt <= 0 || idle > 15_000L) return "";
-        // Thinking 状态（>10s 无工具调用 且 token 正在增长）→ 不显示字符画
-        try {
-            if (idle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) return "";
-        } catch (Throwable ignored) {}
+        // 【1.7.8-fix1】移除"Thinking 时清空转轮"：工具调用后 AI 生成中（token 增长 + 超10s）
+        //   转轮会消失（用户要求"工具调用期间不能消失"）。保留原规则：15秒无工具调用才隐藏。
         // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
-        final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // braille 8帧3点（帧率100ms已验证连贯）
+        final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // 八帧 3 点 braille
         // 时间驱动 100ms（配合 FAST_TICK_MS=100ms 心跳），每次读当前帧。
         //   关键：转轮必须拼进 toolName()（token 行）成为 newKey 的一部分 —— 否则只走 extra 通道时
         //   "内容没变"会被判进 1Hz 心跳分支，永远每秒 1 格（用户报的"还是不行"的根因）。
-        // 帧率对齐通知节流 FAST_TICK_MS=300ms：100ms/帧 会跳帧(每3帧只显示1帧)导致视觉卡顿
-        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 200L) % FRAMES.length)]);
+        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 100L) % FRAMES.length)]);
     }
 
     static synchronized String getToolIntervalText() {
