@@ -119,15 +119,20 @@ public class MainActivity extends Activity {
         final Runnable liveTick = new Runnable() {
             @Override public void run() {
                 try {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("状态   : ").append(AgentProgress.title());
-                    sb.append("\n频率   : ").append(AgentProgress.getToolIntervalText());
-                    sb.append("\n对话   : ").append(ChatCounter.text());
-                    sb.append("\n工具   : ").append(AgentProgress.getLastToolName());
-                    sb.append("\ntoken  : ").append(AgentProgress.toolName());
-                    String sp = AgentProgress.spinner();
-                    sb.append("\n转轮   : ").append(sp.isEmpty() ? "（隐藏）" : sp);
-                    tvLive.setText(sb.toString());
+                    // 跨进程：面板在模块进程，静态数据在 Operit 进程，读共享文件
+                    java.io.File lf = new java.io.File("/data/local/tmp/rp/live_params.txt");
+                    if (!lf.exists()) {
+                        tvLive.setText("实时参数：等待 Operit 推送…");
+                    } else {
+                        java.io.BufferedReader r = new java.io.BufferedReader(
+                                new java.io.FileReader(lf));
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = r.readLine()) != null) sb.append(line).append('\n');
+                        r.close();
+                        tvLive.setText(sb.length() > 0 ? sb.toString()
+                                : "实时参数：等待 Operit 推送…");
+                    }
                 } catch (Throwable t) {
                     tvLive.setText("实时参数：读取失败 " + t.getMessage());
                 }
