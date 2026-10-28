@@ -418,14 +418,14 @@ final class FocusNotify {
         }
     }
 
-    /** 真正的通知发送节流：距离上次实际发送不足 THROTTLE_MS 就跳过（避免高频重渲染闪空窗） */
+    /** 真正的通知发送节流：距离上次实际发送不足节流下限就跳过（避免高频重渲染闪空窗） */
     private static volatile long sLastSendAt = 0L;
-    /** 活跃态最快刷新间隔（用户要求：最快 300ms 一次） */
+    /** 非转轮活跃时的最快刷新间隔（防"一次工具调用内 4ms 连发"导致背屏重渲染抖动） */
     private static final long THROTTLE_MS = 300L;
     /** 空闲心跳间隔：内容没变也按 1Hz 刷新（图表、工具调用频率需要节拍） */
     private static final long HEARTBEAT_MS = 1000L;
-    /** 转轮活跃时的心跳间隔（保证 /-\| 轮播是 300ms 一帧） */
-    private static final long FAST_TICK_MS = 300L;
+    /** 转轮活跃时的心跳间隔：100ms（用户要求"快速连续不断旋转"，仅工具调用后15秒窗口内） */
+    private static final long FAST_TICK_MS = 100L;
     private static volatile boolean sHeartbeatOn = false;
 
     /**
@@ -481,10 +481,10 @@ final class FocusNotify {
                     // 内容完全没变：用户要求"没有工具调用也要刷新"——按 1Hz 心跳重推，
                     //   让背屏图表 / 工具调用频率持续跳动
                     if (sinceLast < HEARTBEAT_MS) return;
-                } else if (sinceLast < THROTTLE_MS) {
-                    // 严格节流：用户要求"最快 300ms 一刷"。内容变化也必须等满 300ms，
-                    //   否则一次工具调用内多次 pushState 会在 4ms 内连发 2~3 次，
-                    //   背屏跟着重渲染抖动（实测出现过 52.839/52.843）。
+                } else if (sinceLast < (AgentProgress.spinnerActive() ? FAST_TICK_MS : THROTTLE_MS)) {
+                    // 严格节流：防"一次工具调用内多次 pushState 在 4ms 内连发"导致背屏重渲染抖动。
+                    //   转轮活跃（工具调用后 15 秒窗口内）时下限放宽到 FAST_TICK_MS(100ms)，
+                    //   让字符画快速连续旋转（用户要求）；其余场景维持 300ms。
                     return;
                 }
             }
