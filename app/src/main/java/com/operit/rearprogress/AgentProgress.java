@@ -609,15 +609,23 @@ final class AgentProgress {
         //   改由展开副标题（槽位9 subContent）显示，跨进程经广播 extra "active" 传递。
         // 单任务：显示工具调用频率（几秒/次），Thinking 时不显示（用户之前的要求）
         //   （频率值变化同样构成 newKey 变化，仍走 FAST_TICK 刷新分支）
+        String result = base;
         try {
-            if (TokenHook.isTokenGrowing()) return base;   // Thinking：不显示任何附加内容
-            String iv = getToolIntervalText();
-            // getToolIntervalText 在调用不足时会返回 "Thinking" / "Agent | 已就绪"，这些不该拼在 token 行
-            if (iv != null && !iv.isEmpty() && !iv.contains("Thinking") && !iv.contains("已就绪")) {
-                return base.isEmpty() ? iv : base + " " + iv;
+            if (!TokenHook.isTokenGrowing()) {   // Thinking：不显示频率/转轮附加内容
+                String iv = getToolIntervalText();
+                // getToolIntervalText 在调用不足时会返回 "Thinking" / "Agent | 已就绪"，这些不该拼在 token 行
+                if (iv != null && !iv.isEmpty() && !iv.contains("Thinking") && !iv.contains("已就绪")) {
+                    result = base.isEmpty() ? iv : base + " " + iv;
+                }
             }
         } catch (Throwable ignored) {}
-        return base;
+        // 转轮动画拼到末尾（2026-10-28 用户反馈字符动画消失：星回去掉 spinner 广播通道后
+        //   subText 链路没有转轮来源了）。spinner() 内部已处理 Thinking 隐藏/15s 窗口。
+        try {
+            String sp = spinner();
+            if (!sp.isEmpty()) result = result.isEmpty() ? sp : result + " " + sp;
+        } catch (Throwable ignored) {}
+        return result;
     }
 
     /** 不含转轮的基础值（自适应副标题 / AI 工具名 / token 用量） */
