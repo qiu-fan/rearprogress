@@ -50,6 +50,8 @@ final class AgentProgress {
     private static final long TOOL_RATE_WINDOW_MS = 5_000L;  // 用户要求：统计改为过去5秒的平均值
     /** 距上次工具调用超过该阈值（且 token 正在增长）→ AI 在思考，显示 Thinking */
     private static final long THINK_IDLE_MS = 10_000L;
+    /** title() 的 Thinking 判定阈值（30s）：工具调用间隙不算思考，避免误判 */
+    private static final long THINK_IDLE_MS_TITLE = 30_000L;
     private static final java.util.ArrayDeque<Long> sToolTimes = new java.util.ArrayDeque<>();
     /** 最近一次文件操作的 diff 统计 */
     private static volatile String sLastDiffStats = "";
@@ -547,7 +549,10 @@ final class AgentProgress {
         //    避免单任务思考时大岛一直残留上一次工具名（如 WriteFile）
         try {
             long toolIdle = System.currentTimeMillis() - sLastToolAt;
-            if (toolIdle > THINK_IDLE_MS && TokenHook.isTokenGrowing()) {
+            // 误判修复（2026-10-28）：10s 太短，工具调用间隙(如12s)也被判成思考。
+            //   title 用 30s 阈值——活跃工具调用中显示工具名；真正长时间无工具+token增长才是 Thinking。
+            //   槽位7 的 10s 规则（用户已验收）不受影响，仍用 THINK_IDLE_MS。
+            if (toolIdle > THINK_IDLE_MS_TITLE && TokenHook.isTokenGrowing()) {
                 return thinkingDots();  // Thinking. / Thinking.. / Thinking...（随秒跳动）
             }
         } catch (Throwable ignored) {}
