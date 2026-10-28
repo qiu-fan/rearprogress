@@ -249,6 +249,9 @@ final class TokenHook {
      * 每个字符 = 一个快照的 in 增量（每段新增量，不是累计值），
      * 归一化到 8 级：▁▂▃▄▅▆▇█。宽度固定 width 个字符（等距重采样）。
      */
+    /** 图表归一化基准（平滑）：新峰值立刻上浮，回落只走3成，避免历史列被压矮 */
+    private static volatile double sSmoothMax = 1.0;
+
     static String getSparkline(int width) {
         int n = sHistCount;
         if (n < 2) {
@@ -279,26 +282,36 @@ final class TokenHook {
         start = winStart;
         n = winCount;
         // 每段增量
-        long[] delta = new long[n];
-        long maxD = 1;
+        double[] rate = new double[n];
+        double maxR = 1;
         for (int i = 0; i < n; i++) {
             int idx = (start + i) % HISTORY_SIZE;
             int prevIdx = (start + Math.max(0, i - 1)) % HISTORY_SIZE;
             long d = sHistIn[idx] - sHistIn[prevIdx];
             if (d < 0) d = 0;
-            delta[i] = d;
-            if (d > maxD) maxD = d;
+            long dt = sHistAt[idx] - sHistAt[prevIdx];
+            if (dt <= 0) dt = 1;
+            rate[i] = d * 1000.0 / dt;      // 速率 token/秒，与快照间隔无关
+            if (rate[i] > maxR) maxR = rate[i];
         }
+        // 基准平滑：新峰值立刻上浮；回落只走 3 成，历史列高度不被压矮
+        if (maxR > sSmoothMax) sSmoothMax = maxR;
+        else sSmoothMax = maxR * 0.7 + sSmoothMax * 0.3;
+        double base = Math.max(maxR, sSmoothMax);
         // ---- Braille 点阵：width 个字符 = (width*2) 列 × 4 行 ----
         int cols = width * 2;
         boolean[][] grid = new boolean[cols][4];
         for (int c = 0; c < cols; c++) {
-            // 等距重采样：把 n 个点压缩到 cols 列
-            int i = (int) ((long) c * (n - 1) / Math.max(1, cols - 1));
-            int level = (int) (delta[i] * 4 / maxD);   // 0~4 行
+            // 分段重采样：取该列覆盖范围内的最大值，避免单点采样跳过峰值（吞数据）
+            int i0 = (int) ((long) c * (n - 1) / Math.max(1, cols - 1));
+            int i1 = (int) ((long) (c + 1) * (n - 1) / Math.max(1, cols - 1));
+            if (i1 <= i0) i1 = i0 + 1;
+            double segMax = 0;
+            for (int k = i0; k < i1 && k < n; k++) if (rate[k] > segMax) segMax = rate[k];
+            int level = (int) (segMax * 4 / base);   // 0~4 行（用平滑基准）
             if (level > 4) level = 4;
             if (level < 0) level = 0;
-            if (level == 0 && maxD > 0) level = 1;     // 有数据但为 0 → 至少一条基线
+            if (level == 0 && maxR > 0) level = 1;   // 有数据但为 0 → 至少一条基线
             for (int r = 0; r < level; r++) grid[c][3 - r] = true;   // 自下向上填充
         }
         return brailleFrom(grid);
