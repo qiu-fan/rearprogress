@@ -549,11 +549,10 @@ final class AgentProgress {
         //    避免单任务思考时大岛一直残留上一次工具名（如 WriteFile）
         try {
             long toolIdle = System.currentTimeMillis() - sLastToolAt;
-            // 【1.7.8-fix10】用户令"获取到 Thinking 就替换"：AI 正在生成（token 流动）
-            //   即刻显示 Thinking，不等 30 秒工具间隔——旧条件导致连续工具调用后
-            //   思考/生成期 title 仍卡在工具名（用户实测截图 title=Term(root) 而非 Thinking）。
-            //   工具执行中 token 不流动 → 自动回落工具名，转换自然。
-            if (TokenHook.isTokenGrowing()) {
+            // 【1.7.8-fix13】用户令：3 秒没工具 + hook 到 Thinking（token 流动）才显示 Thinking——
+            //   否则思考和工具调用时间挨着时，token 还在流动会把工具名顶掉（工具名显示不出来）。
+            //   3 秒内有工具 → 落到下方工具名分支；3 秒无工具且生成中 → Thinking 跳点。
+            if (toolIdle > 3_000L && TokenHook.isTokenGrowing()) {
                 return thinkingDots();  // Thinking. / Thinking.. / Thinking...（随秒跳动）
             }
         } catch (Throwable ignored) {}
@@ -583,7 +582,8 @@ final class AgentProgress {
                 return "任务进行中";
             case DONE:
                 // 用户发消息后 AI 还在回复（token 在增长但还没开始调工具），显示 Thinking
-                if (TokenHook.isTokenGrowing()) {
+                // 【1.7.8-fix13】同样加 3 秒工具门（与主分支一致，防工具挨着思考时顶掉工具名）
+                if (System.currentTimeMillis() - sLastToolAt > 3_000L && TokenHook.isTokenGrowing()) {
                     return "Thinking";
                 }
                 return "已完成";
