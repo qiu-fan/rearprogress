@@ -153,3 +153,8 @@ cp /sdcard/Android/code/rearprogress_XXX.apk      # ❌ 没有目标路径
 1. 【已排】自适应显示注册表重构（用户提案）：字典 key=工具简要名，value={入口函数 matcher(返回bool判是否自适应), 是否显示参数, 出口函数 formatter(综合判断+文本处理,返回[左,右])}——即策略模式+注册表，解决 parseAdaptiveDisplay 大 if/else 链（37行7分支）的维护问题。**时机：1.8.0 发布后**，开 refactor/adaptive-registry-xinghui 分支，纯结构不改行为，现有用例回归对照。
 2. 【已排】SystemUI 焦点视图日志注入（1.8.1）：hook SystemUI 焦点卡渲染点，直接记录岛实际显示的 title/subText（用户要求：不靠描述、拿一手显示内容），定位残留的偶发闪。
 3. 【机制】docs/bugs.md 已建：bug 台账，回退/合并前对照确认修复去向；新报障先查是否老 bug 复发。
+
+## 构建产物存放规矩（2026-10-29 用户令）
+- **禁止**把任何构建产物/测试 APK/dex/工作树备份放进 /sdcard/Download（用户下载文件夹）。
+- 编译产物统一：/root/rpbuild（构建目录）→ /sdcard/Android/code/rearprogress_xinghui.apk（当前装机 APK）；归档进 /sdcard/Android/code/_archive/apks/。
+- 历史清理已完成：Download 里 60 个 rp_*.apk 已删、布局备份已移入代码区、4 个 1026 工作树备份已移入归档；rp_agent_clone 为 Forge 活动目录保留。
