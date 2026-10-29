@@ -552,7 +552,7 @@ final class AgentProgress {
             // 误判修复（2026-10-28）：10s 太短，工具调用间隙(如12s)也被判成思考。
             //   title 用 30s 阈值——活跃工具调用中显示工具名；真正长时间无工具+token增长才是 Thinking。
             //   槽位7 的 10s 规则（用户已验收）不受影响，仍用 THINK_IDLE_MS。
-            if (toolIdle > THINK_IDLE_MS_TITLE && (TokenHook.isTokenGrowing() || TokenHook.isRecentlyThinking())) {
+            if (toolIdle > THINK_IDLE_MS_TITLE && TokenHook.isTokenGrowing()) {
                 return thinkingDots();  // Thinking. / Thinking.. / Thinking...（随秒跳动）
             }
         } catch (Throwable ignored) {}
@@ -581,14 +581,10 @@ final class AgentProgress {
             case RUNNING:
                 return "任务进行中";
             case DONE:
-                // 用户发消息后 AI 还在回复（token 在增长但还没开始调工具），显示 Thinking 跳点
-                // 修复(2026-10-28)：3a5ec764 把跳点删了(固定"Thinking")；isTokenGrowing 3秒窗口抖动会掉出
-                //   → 加 isRecentlyThinking(10s) 防抖，流式稳定跳点、初期不抖不闪
-                try {
-                    if (TokenHook.isTokenGrowing() || TokenHook.isRecentlyThinking()) {
-                        return thinkingDots();  // Thinking. / Thinking.. / Thinking...
-                    }
-                } catch (Throwable ignored) {}
+                // 用户发消息后 AI 还在回复（token 在增长但还没开始调工具），显示 Thinking
+                if (TokenHook.isTokenGrowing()) {
+                    return "Thinking";
+                }
                 return "已完成";
             case READY:
             default:
