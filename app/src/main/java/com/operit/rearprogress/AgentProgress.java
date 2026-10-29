@@ -304,6 +304,11 @@ final class AgentProgress {
 
     // ---------------------------------------------------------------- 状态
 
+    /** 【1.8.3-dev】供 FocusNotify 空闲停推门使用 */
+    static long lastToolAt() {
+        return sLastToolAt;
+    }
+
     static void markReady() {
         sState = State.READY;
         sLastToolAt = System.currentTimeMillis();
@@ -578,7 +583,11 @@ final class AgentProgress {
             //   落回 sRecent 残留工具名 → 与 sAiTitle/跳点多源交替 → 前期闪好几下（用户实测）。
             //   现在：3 秒无工具且任务进行中即进思考态 —— 未流式 → 固定 "Thinking"（单源稳定不闪）；
             //   token 开始流式 → thinkingDots 跳点（用户验收"流式跳点正常"）。
-            if (toolIdle > 3_000L && (TokenHook.isTokenGrowing() || sState == State.RUNNING)) {
+            // 【1.8.3-dev】工具名保持期 3s→10s（与 isRecentlyThinking 窗口对齐）：实证 edit_file 等
+            //   内置文件工具不走 AIToolHandler.executeTool hook → 不更新工具时间戳 → 密集调用期
+            //   toolIdle 轻易超 3s → title 被 Thinking 顶掉（用户截图实锤：明明在调工具却显示 Thinking）。
+            if (toolIdle > 10_000L && (TokenHook.isTokenGrowing()
+                    || (sState == State.RUNNING && TokenHook.isRecentlyThinking()))) {
                 // 【1.8.2】title 一律固定 "Thinking"（实证：跳点每秒变 title → SystemUI 每秒重建焦点视图 → 闪好几下，08:35:35-42 title 7秒变~10次与用户目击闪数吻合）
                 return "Thinking";
             }
@@ -606,7 +615,11 @@ final class AgentProgress {
         // 3. 否则用状态文字（标题固定 Agent，内容在 body 里给状态）
         switch (sState) {
             case RUNNING:
-                return "任务进行中";
+                // 【1.8.3-dev】RUNNING 卡死但实际空闲 → 显示 Agent（就绪态）
+                if (TokenHook.isTokenGrowing() || TokenHook.isRecentlyThinking()) {
+                    return "任务进行中";
+                }
+                return "Agent";
             case DONE:
                 // 用户发消息后 AI 还在回复（token 在增长但还没开始调工具），显示 Thinking
                 // 【1.7.8-fix13】同样加 3 秒工具门（与主分支一致，防工具挨着思考时顶掉工具名）

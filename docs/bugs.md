@@ -28,6 +28,10 @@
 
 | 发消息后闪好几下（跳点闪） | thinkingDots 每秒变 title → SystemUI 每秒重建焦点视图（一手日志实证：08:35:35-42 title 7秒变~10次=目击闪数） | 1.8.2 title/槽位7 全固定 "Thinking" 去跳点 | 1.8.2 | ⏳ 待验证 |
 
+| 空闲时岛也闪（没说话自己闪） | MIUI任何通知更新都重建 + 我们1Hz心跳推送（1分钟164次重建实证） | 1.8.3-dev 空闲>10秒停推（无工具无token无AI活动→通知静止） | 1.8.3-dev | ⏳ 待验证 |
+| 空闲显示 Thinking+0token | sState 卡 RUNNING 无兜底 | 1.8.3-dev RUNNING空闲显示Agent | 1.8.3-dev | ⏳ 待验证 |
+| 调用工具期间显示 Thinking | edit_file等内置工具不走executeTool hook→不更新工具时间戳→3秒门被穿透 | 1.8.3-dev 工具名保持期3s→10s | 1.8.3-dev | ⏳ 待验证 |
+
 ## 待修（用户已报、未修）
 - 输出结束后 Thinking 停了但工具名残留（用户明示"稍后处理"）
 - 偶发性闪（1.7.14 后仍存在 —— 待 SystemUI 注入日志定位，见 notes.md 计划）

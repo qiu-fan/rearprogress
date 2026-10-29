@@ -305,6 +305,14 @@ final class FocusNotify {
      *   percent   → 0-100 进度条，<0 表示不显示
      */
     static void pushState(String title, String toolName, String body, int percent) {
+        // 【1.8.3-dev】空闲停推（用户报"没说话岛自己也闪"）：MIUI 对焦点通知【任何更新都整视图重建】
+        //   （一手日志：1分钟164次 requestFocusNotificationView）—— 1Hz 心跳推送 = 空闲每秒闪一下。
+        //   >10 秒无工具 + 无 token + 无 AI 近期活动 → 通知完全静止（不更新不重建不闪），有活动自动恢复。
+        if (System.currentTimeMillis() - AgentProgress.lastToolAt() > 10_000L
+                && !TokenHook.isTokenGrowing()
+                && !TokenHook.isRecentlyThinking()) {
+            return;
+        }
         // 【revert 5242bef 测试】移除 Ready 覆盖：isIdle 抖动会让 title 在 Shell(root)↔Ready 切换，
         //   副屏中心把 Ready 那条按普通通知渲染 → 焦点↔普通来回切 = 岛/背屏闪（待验证是否闪源）
 
