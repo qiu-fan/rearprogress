@@ -579,7 +579,8 @@ final class AgentProgress {
             //   现在：3 秒无工具且任务进行中即进思考态 —— 未流式 → 固定 "Thinking"（单源稳定不闪）；
             //   token 开始流式 → thinkingDots 跳点（用户验收"流式跳点正常"）。
             if (toolIdle > 3_000L && (TokenHook.isTokenGrowing() || sState == State.RUNNING)) {
-                return TokenHook.isTokenGrowing() ? thinkingDots() : "Thinking";
+                // 【1.8.2】title 一律固定 "Thinking"（实证：跳点每秒变 title → SystemUI 每秒重建焦点视图 → 闪好几下，08:35:35-42 title 7秒变~10次与用户目击闪数吻合）
+                return "Thinking";
             }
         } catch (Throwable ignored) {}
 
@@ -788,7 +789,7 @@ final class AgentProgress {
                 // isTokenGrowing(3s 窗口) 会因 token 更新间隙抖动 → 误判空闲 → 大标题闪过 "Agent | 已就绪"，
                 //   加 10 秒窗口的 isRecentlyThinking 兜底：真正空闲（token >10s 没更新）才显示已就绪。
                 if (TokenHook.isTokenGrowing() || TokenHook.isRecentlyThinking()) {
-                    return thinkingDots();  // Thinking. / Thinking.. / Thinking...
+                    return "Thinking";  // 【1.8.2】去跳点（槽位7同title一样每秒变会触发重建）
                 }
             } catch (Throwable ignored) {}
             return "Agent | 已就绪";
@@ -809,7 +810,7 @@ final class AgentProgress {
         //   2) 没有任何活动的对话 → "Agent | 已就绪"
         try {
             if (TokenHook.isTokenGrowing()) {
-                return thinkingDots();  // Thinking. / Thinking.. / Thinking...
+                    return "Thinking";  // 【1.8.2】去跳点（槽位7同title一样每秒变会触发重建）
             }
         } catch (Throwable ignored) {}
         return "Agent | 已就绪";
