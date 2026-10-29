@@ -771,13 +771,11 @@ final class AgentProgress {
         if (sLastToolAt <= 0 || idle > 3_000L) return "";   // 【fix14】工具结束 3 秒停转（原 15 秒，用户报"结束后还在转"）
         // 【1.7.8-fix1】移除"Thinking 时清空转轮"：工具调用后 AI 生成中（token 增长 + 超10s）
         //   转轮会消失（用户要求"工具调用期间不能消失"）。保留原规则：15秒无工具调用才隐藏。
-        // 3 点滑圈：沿 2x4 点阵外圈顺时针滑动，每帧恒定 3 个点（用户要求最多 3 点），8 帧一圈 800ms
-        final char[] FRAMES = {'\u2807', '\u2846', '\u28C4', '\u28E0', '\u28B0', '\u2838', '\u2819', '\u280B'};  // 八帧 3 点 braille
-        // 【1.8.1】改成 Thinking 同款机制（用户令）：纯时间函数 + 周期对齐刷新采样率。
-        //   thinkingDots：now/1000（1Hz内容 = 1Hz推送，1:1采样，任何进程同刻同值，从不倒）。
-        //   spinner 旧版：now/100（内容100ms一变 vs 渲染~300ms采样 → 每次跳3格混叠 → 视觉倒转）。
-        //   现在：now/300（内容300ms一变 = 渲染采样率，每次前进1格单调不倒，双进程同刻同值）。
-        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 300L) % FRAMES.length)]);
+        // 【1.8.3】两帧切换（用户定）：八个点【左4亮 ↔ 右4亮】，刷新逻辑与 Thinking 同款 ——
+        //   纯时间函数按秒交替（now/1000 %2），任何进程同刻同值，1:1 采样不混叠不倒转；
+        //   推送频率随降到 1Hz（对"每次更新都重建"的闪也减压）。
+        final char[] FRAMES = {'⠇', '⠸'};  // U+2847 左列4点(1237) / U+28B8 右列4点(4568)
+        return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 1000L) % FRAMES.length)]);
     }
 
     static synchronized String getToolIntervalText() {
