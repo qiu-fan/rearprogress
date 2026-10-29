@@ -305,6 +305,14 @@ final class FocusNotify {
      *   percent   → 0-100 进度条，<0 表示不显示
      */
     static void pushState(String title, String toolName, String body, int percent) {
+        // 【1.8.3-dev】空闲停推（用户报"没说话岛自己也闪"）：MIUI 对焦点通知【任何更新都整视图重建】
+        //   （一手日志：1分钟164次 requestFocusNotificationView）—— 1Hz 心跳推送 = 空闲每秒闪一下。
+        //   >10 秒无工具 + 无 token + 无 AI 近期活动 → 通知完全静止（不更新不重建不闪），有活动自动恢复。
+        if (System.currentTimeMillis() - AgentProgress.lastToolAt() > 10_000L
+                && !TokenHook.isTokenGrowing()
+                && !TokenHook.isRecentlyThinking()) {
+            return;
+        }
         // 【revert 5242bef 测试】移除 Ready 覆盖：isIdle 抖动会让 title 在 Shell(root)↔Ready 切换，
         //   副屏中心把 Ready 那条按普通通知渲染 → 焦点↔普通来回切 = 岛/背屏闪（待验证是否闪源）
 
@@ -455,11 +463,11 @@ final class FocusNotify {
     /** 真正的通知发送节流：距离上次实际发送不足节流下限就跳过（避免高频重渲染闪空窗） */
     private static volatile long sLastSendAt = 0L;
     /** 非转轮活跃时的最快刷新间隔（防"一次工具调用内 4ms 连发"导致背屏重渲染抖动） */
-    private static final long THROTTLE_MS = 100L;  // 低于转轮帧率100ms,保证每帧都推上不跳帧  // 用户要求:100ms刷新+内容变立刻推送
+    private static final long THROTTLE_MS = 300L;   // 1.7.9 合并修正：取 fix 线 300ms（100ms 是闪源，bisect 实证）
     /** 空闲心跳间隔：内容没变也按 1Hz 刷新（图表、工具调用频率需要节拍） */
     private static final long HEARTBEAT_MS = 1000L;
     /** 转轮活跃时的心跳间隔：100ms（用户要求"快速连续不断旋转"，仅工具调用后15秒窗口内） */
-    private static final long FAST_TICK_MS = 100L;  // revert 测试：100ms→300ms（100ms高频更新致SystemUI重建焦点视图间隙=岛闪）
+    private static final long FAST_TICK_MS = 300L;  // 1.7.9 合并修正：同上（心跳间隔也回 300）
     private static volatile boolean sHeartbeatOn = false;
 
     /**
@@ -762,8 +770,11 @@ final class FocusNotify {
         final boolean SLOT_TEST = false;
         String t1 = SLOT_TEST ? "【1-通知标题】" : title;
         String t2 = SLOT_TEST ? "【2-通知副标题】" : toolName;
-        // 用户指定（1.4.1）：正文显示"目前进行的对话数"，不再显示工具调用累计数
-        String t3 = ChatCounter.text();
+        // 【1.7.8-fix11】contentText 不再放"进行中：N"（1.4.1 遗留）：MIUI 焦点卡把 android.text
+        //   画到岛旁边 → 用户看到岛旁裸数字（实测 dumpsys android.text=进行中：1）。
+        //   进行中：N 已由槽位9 subContent 显示（焦点通知副标题/图表右边，用户指定位置）。
+        //   contentText 回归命令正文（背屏 MAML 读 extras.android.text 的原设计）。
+        String t3 = body;
 
         b.setContentTitle(t1);
         if (t2 != null && !t2.isEmpty()) {
