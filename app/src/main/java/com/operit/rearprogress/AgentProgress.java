@@ -687,6 +687,9 @@ final class AgentProgress {
         return -1;
     }
 
+    /** 上次工具调用时间（FocusNotify 静默判定用） */
+    static long lastToolAt() { return sLastToolAt; }
+
     static int toolCount() {
         return sToolCount;
     }
