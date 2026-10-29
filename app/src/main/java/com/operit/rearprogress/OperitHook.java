@@ -840,6 +840,10 @@ final class OperitHook {
                         if (System.currentTimeMillis() - lastAt > IDLE_THRESHOLD_MS) {
                             idled = true;
                             FocusNotify.stop();
+                            // 【1.8.3-dev 防御】stop 后重置静默计时：任何重试/多线程路径
+                            //   都无法在 60 秒内再次触发 stop —— 修"每秒 stopLocal/forwardStop
+                            //   三行循环刷屏"（用户截图 15:05 实证）。
+                            sLastNotifyAt = System.currentTimeMillis();
                             boolean deleted = f.exists() && f.delete();
                             enabled = false;
                             LogX.i(TAG, "silent " + (IDLE_THRESHOLD_MS / 1000)
