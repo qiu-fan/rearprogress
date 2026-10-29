@@ -92,6 +92,45 @@ public final class SysUiHot {
         } catch (Throwable t) {
             wlog("HOT rightTextFont hook threw: " + t);
         }
+        // 【1.8.1】焦点卡渲染日志注入：直接记录岛实际显示的文本（用户要求拿一手显示内容，
+        //   不再靠描述）。hook TextView.setText，调用堆栈含 focus/island 才记 —— 免精确类名。
+        try {
+            hookFocusRenderLog();
+        } catch (Throwable t) {
+            wlog("HOT renderLog hook threw: " + t);
+        }
+    }
+
+    /** 焦点卡/岛渲染文本日志：logcat(RearProgress) + hot.log 双通道，tag SYSUI_SHOW */
+    private static void hookFocusRenderLog() throws Exception {
+        Method setText = android.widget.TextView.class.getMethod("setText", CharSequence.class);
+        sModule.hook(setText).intercept(chain -> {
+            Object r = chain.proceed();
+            try {
+                CharSequence t = (CharSequence) chain.getArg(0);
+                if (t != null && t.length() > 0) {
+                    String ts = t.toString();
+                    // 内容排噪：岛时钟/纯时间不记
+                    if (ts.matches("\\s*\\d{1,2}:\\d{2}.*")) return r;
+                    StackTraceElement[] st = new Throwable().getStackTrace();
+                    for (StackTraceElement e : st) {
+                        String cn = e.getClassName();
+                        if (cn.contains("focus") || cn.contains("Focus")
+                                || cn.contains("Island") || cn.contains("island")
+                                || cn.contains("otification") || cn.contains("emoteView")) {
+                            Object v = chain.getThisObject();
+                            String who = v != null ? v.getClass().getSimpleName() : "?";
+                            String line = "SYSUI_SHOW [" + who + "] " + t;
+                            Log.i(TAG, line);
+                            wlog(line);
+                            break;
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+            return r;
+        });
+        wlog("HOT focusRenderLog hooked (TextView.setText)");
     }
 
     /** 从 PluginFactory.createPluginContext 的返回值里拿插件 classloader */
