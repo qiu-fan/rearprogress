@@ -812,6 +812,8 @@ final class FocusNotify {
             n.extras.putString("token_in", TokenHook.fmt(TokenHook.getPrevTotalIn()));
             n.extras.putString("token_out", TokenHook.fmt(TokenHook.getPrevTotalOut()));
             n.extras.putString("tool_flow", AgentProgress.getToolFlow());
+            // 【1.8.3转轮修复】spin_char进通知extras→框架规整lu_spin_char→MAML模板可读(原只在广播里,模板读不到→spin=[])
+            n.extras.putString("spin_char", (System.currentTimeMillis() / 1000L) % 2L == 0L ? "◄" : "►");
             n.extras.putString("tool_name", AgentProgress.getLastToolName());
             n.extras.putString("time_range", TokenHook.getTimeRange());
             n.extras.putString("task_time", TokenHook.getTaskTime());
