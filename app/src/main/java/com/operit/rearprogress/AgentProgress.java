@@ -649,13 +649,9 @@ final class AgentProgress {
         // 【1.7.8-fix12】频率不再拼进 toolName（fix10 用户令）：toolName=subText=岛 token 行，
         //   岛上不显示"X.Xs/次"（背屏频率走 forwardMirror extra "interval" 独立通道）。
         //   转轮保留在 token 行末尾（469e703 恢复的功能，用户要求）。
-        String result = base;
-        // 转轮动画拼到末尾：spinner() 内部已处理 15s 无工具隐藏。
-        try {
-            String sp = spinner();
-            if (!sp.isEmpty()) result = result.isEmpty() ? sp : result + " " + sp;
-        } catch (Throwable ignored) {}
-        return result;
+        // 【1.8.3-dev 动效引擎】转轮不再进通知(通知推送=重建=闪)：两帧切换由
+        // SystemUI 侧动效引擎直接写岛的 subText view(SysUiHot.motion engine v3)。
+        return base;
     }
 
     /** 不含转轮的基础值（自适应副标题 / AI 工具名 / token 用量） */

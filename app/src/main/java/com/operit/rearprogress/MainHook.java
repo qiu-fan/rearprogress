@@ -90,6 +90,8 @@ public class MainHook extends XposedModule {
 
             mCl = param.getClassLoader();
             log(android.util.Log.INFO, TAG, "package ready: " + pkg);
+            // 【1.8.3-dev】副屏中心注入 hot dex(观测/驱动 MAML token行,转轮引擎)
+            installHotDex();
 
             resolveHandles();
             installMamlTemplateHook();

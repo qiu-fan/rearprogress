@@ -58,6 +58,12 @@ public final class SysUiHot {
     public static void install(XposedModule module, ClassLoader sysUiCl) {
         sModule = module;
         wlog("HOT v5 loaded");
+        wlog("HOT v5 loaded proc=" + android.app.Application.getProcessName());
+        if (!"com.android.systemui".equals(android.app.Application.getProcessName())) {
+            try { hookFocusRenderLog(); } catch (Throwable t) { wlog("HOT renderLog threw: " + t); }
+            wlog("HOT subscreen mode only renderLog");
+            return;
+        }
         boolean direct = false;
         try {
             direct = hookWhitelist(sysUiCl);
@@ -103,7 +109,7 @@ public final class SysUiHot {
 
     /** 焦点卡/岛渲染文本日志：logcat(RearProgress) + hot.log 双通道，tag SYSUI_SHOW */
     private static void hookFocusRenderLog() throws Exception {
-        Method setText = android.widget.TextView.class.getMethod("setText", CharSequence.class);
+        Method setText = android.widget.TextView.class.getMethod("setText", CharSequence.class, android.widget.TextView.BufferType.class);
         sModule.hook(setText).intercept(chain -> {
             Object r = chain.proceed();
             try {
@@ -112,6 +118,31 @@ public final class SysUiHot {
                     String ts = t.toString();
                     // 内容排噪：岛时钟/纯时间不记
                     if (ts.matches("\\s*\\d{1,2}:\\d{2}.*")) return r;
+                            // 【动效引擎v3】每次渲染都刷新捕获引用(MIUI重建后引用自动指向活view)
+                            Object cv = chain.getThisObject();
+                            if (cv instanceof android.widget.TextView) {
+                                if (ts.startsWith("Thinking")) {
+                                    sDotsView = (android.widget.TextView) cv;
+                                    startMotionEngine();
+                                } else if (ts.trim().startsWith("↑") && ts.contains("↓")) {
+                                    // token行(↑↓): 去掉旧帧字符作为静态base
+                                    // 手工去尾部帧字符: trim空格 + braille区(U+2800到U+28FF)
+                                    String raw = ts.trim();
+                                    int end = raw.length();
+                                    while (end > 0) {
+                                        char c = raw.charAt(end - 1);
+                                        if (c == ' ' || (c >= 0x2800 && c <= 0x28FF)) end--;
+                                        else break;
+                                    }
+                                    String base = raw.substring(0, end);
+                                    sSpinnerView = (android.widget.TextView) cv;
+                                    if (!base.equals(sTokenBase)) {
+                                        sTokenBase = base;
+                                        sSpinnerDeadline = System.currentTimeMillis() + 60_000L;
+                                    }
+                                    startMotionEngine();
+                                }
+                            }
                     StackTraceElement[] st = new Throwable().getStackTrace();
                     for (StackTraceElement e : st) {
                         String cn = e.getClassName();
@@ -375,5 +406,62 @@ public final class SysUiHot {
         } catch (Throwable t) {
             wlog("HOT probe miss " + cls + ": " + t);
         }
+    }
+
+    // ================= 【1.8.3-dev 动效引擎 v3】=================
+    // 用户方向: 直接更新岛的文本(SystemUI进程内), 不更新通知→不触发重建→跳点/转轮不闪。
+    // v2 崩溃教训: ① setText必须走主线程 Handler(view.post会投到死view,裸线程触发
+    // checkThread崩溃链) ② 每轮检查 isAttachedToWindow, 失效等下次渲染重新捕获。
+    private static volatile android.widget.TextView sDotsView = null;
+    private static volatile android.widget.TextView sSpinnerView = null;
+    private static volatile String sTokenBase = "";
+    private static volatile long sSpinnerDeadline = 0L;
+    private static android.os.Handler sMainHandler = null;
+    private static volatile boolean sMotionOn = false;
+    private static volatile long sDiagTick = 0L;
+
+    private static void startMotionEngine() {
+        if (sMotionOn) return;
+        sMotionOn = true;
+        if (sMainHandler == null) {
+            sMainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        }
+        Thread t = new Thread(() -> {
+            wlog("HOT motion engine v3 started");
+            while (true) {
+                try { Thread.sleep(1000L); } catch (Throwable ignored) {}
+                try {
+                    long now = System.currentTimeMillis();
+                    long sec = now / 1000L;
+                    sDiagTick++;
+                    if (sDiagTick % 5 == 0) {
+                        android.widget.TextView dv0 = sDotsView, sv0 = sSpinnerView;
+                        wlog("DIAG dots=" + (dv0 == null ? "null" : String.valueOf(dv0.isAttachedToWindow()))
+                            + " spin=" + (sv0 == null ? "null" : String.valueOf(sv0.isAttachedToWindow()))
+                            + " base=[" + sTokenBase + "] dl=" + (now < sSpinnerDeadline));
+                    }
+                    // ① Thinking 跳点: Thinking / Thinking. / Thinking.. 按秒循环
+                    android.widget.TextView dv = sDotsView;
+                    if (dv != null && dv.isAttachedToWindow()) {
+                        int n = (int) (sec % 3) + 1;
+                        StringBuilder sb = new StringBuilder("Thinking");
+                        for (int i = 0; i < n; i++) sb.append('.');
+                        final String dtxt = sb.toString();
+                        final android.widget.TextView fdv = dv;
+                        sMainHandler.post(() -> { try { fdv.setText(dtxt); Log.i(TAG, "ENGINE_WRITE " + dtxt); } catch (Throwable t3) { wlog("ENGINE_ERR " + t3); } });
+                    }
+                    // ② 转轮两帧(用户定): 左4亮 ⣿(U+2847) ↔ 右4亮 ⢸(U+28B8), 按秒交替
+                    android.widget.TextView sv = sSpinnerView;
+                    if (sv != null && now < sSpinnerDeadline && sv.isAttachedToWindow()) {
+                        String frame = (sec % 2 == 0) ? "⡇" : "⢸";
+                        final String stxt = sTokenBase + " " + frame;
+                        final android.widget.TextView fsv = sv;
+                        sMainHandler.post(() -> { try { fsv.setText(stxt); } catch (Throwable ignored) {} });
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }, "rp-motion-engine");
+        t.setDaemon(true);
+        t.start();
     }
 }
