@@ -683,8 +683,8 @@ final class TokenHook {
         if (v < 1000) return Long.toString(v);
         if (v < 1_000_000L) {
             double k = v / 1000.0;
-            if (k < 10) return String.format(java.util.Locale.US, "%.1fK", k);
-            return String.format(java.util.Locale.US, "%.0fK", k);
+            // 用户令(2026-10-30): K段固定一位小数(16.0K/219.0K),不再>=10砍小数
+            return String.format(java.util.Locale.US, "%.1fK", k);
         }
         double m = v / 1_000_000.0;
         return String.format(java.util.Locale.US, "%.2fM", m);
