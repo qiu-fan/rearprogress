@@ -31,7 +31,8 @@
 | 空闲时岛也闪（没说话自己闪） | MIUI任何通知更新都重建 + 我们1Hz心跳推送（1分钟164次重建实证） | 1.8.3-dev 空闲>10秒停推（无工具无token无AI活动→通知静止） | 1.8.3-dev | ⏳ 待验证 |
 | 空闲显示 Thinking+0token | sState 卡 RUNNING 无兜底 | 1.8.3-dev RUNNING空闲显示Agent | 1.8.3-dev | ⏳ 待验证 |
 | 调用工具期间显示 Thinking | edit_file等内置工具不走executeTool hook→不更新工具时间戳→3秒门被穿透 | 1.8.3-dev 工具名保持期3s→10s | 1.8.3-dev | ⏳ 待验证 |
-
+| 跳点消失（用户要回 Thinking./../... 动画） | 1.8.2 固定 Thinking 后 thinkingDots 无人调用；但直写通知 title 又触发 MIUI 整视图重建=闪 | cefd586→991aba5 引擎v3：SystemUI 侧主线程 Handler 直写 title view（hook setText 精确 equals("Thinking") 防自续命，同 view 切走即停写），不走通知更新不重建 | 1.8.3-dev | ⏳ 待重启验证（ENGINE_WRITE 日志实证+用户目视跳点回归） |
+| 转轮（token 行 braille）刷新跳帧/被砍 | 通知驱动转轮与 SystemUI ~300ms 渲染采样错拍（100ms 内容周期跳3格混叠）；1.8.3 移出 subText 后旧链路失效 | cefd586→991aba5 转轮改数据驱动：FocusNotify putExtra("spin_char", ⡇/⢸ 按秒交替) 搭通知更新便车 → MAML 模板 lu_spin_char 帧 → content_subtext 拼接；活跃期随 token 推送变（零额外闪），空闲停推冻结 | 1.8.3-dev | ⏳ 待重启验证（活跃两帧切换/空闲冻结不闪） |
 ## 待修（用户已报、未修）
 - 输出结束后 Thinking 停了但工具名残留（用户明示"稍后处理"）
 - 偶发性闪（1.7.14 后仍存在 —— 待 SystemUI 注入日志定位，见 notes.md 计划）
