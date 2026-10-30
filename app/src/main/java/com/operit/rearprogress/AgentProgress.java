@@ -36,6 +36,8 @@ final class AgentProgress {
     private static volatile long sAiAt = 0L;
     /** 最后一次工具调用时间戳，用于任务结束判断 */
     private static volatile long sLastToolAt = 0L;
+    /** 【1.8.3 用户令】工具执行显示窗口截止时刻：命令参数带timeoutMs时,超时时间内title显示工具名、展开态大标题显示"执行中" */
+    private static volatile long sToolExecUntil = 0L;
     /** 任务结束后通知自动消失的延迟（10分钟） */
     private static final long AUTO_HIDE_DELAY = 10 * 60 * 1000L;
 
@@ -507,6 +509,19 @@ final class AgentProgress {
         sToolCount++;
         if (name != null && !name.isEmpty()) sLastToolName = name;
         sLastToolAt = System.currentTimeMillis();
+        // 【1.8.3 用户令·工具执行窗口】参数带timeoutMs → [now, now+timeout]内显示工具名+执行中；
+        //   无显式超时 → 窗口=0(不生效,保持原逻辑)。每个工具开始时重算,防上一工具残留。
+        sToolExecUntil = 0L;
+        if (detail != null) {
+            try {
+                java.util.regex.Matcher _tm = java.util.regex.Pattern
+                        .compile("timeoutMs[=:]\\s*(\\d+)").matcher(detail);
+                if (_tm.find()) {
+                    long _tv = Long.parseLong(_tm.group(1));
+                    if (_tv > 0) sToolExecUntil = System.currentTimeMillis() + _tv;
+                }
+            } catch (Throwable ignored) {}
+        }
         recordToolTime();  // 记一次工具调用时间戳（30s 窗口频率统计）
 
         // 映射到短名：先精确匹配；带包前缀的长名（如 workflow:get_workflow）
@@ -587,7 +602,8 @@ final class AgentProgress {
             //   内置文件工具不走 AIToolHandler.executeTool hook → 不更新工具时间戳 → 密集调用期
             //   toolIdle 轻易超 3s → title 被 Thinking 顶掉（用户截图实锤：明明在调工具却显示 Thinking）。
             // 【1.8.3-dev 用户令】仅确认正在思考+3秒内没工具调用才显示Thinking
-            if (toolIdle > 3_000L && (TokenHook.isTokenGrowing()
+            // 【1.8.3 用户令】执行窗口内不进Thinking(显示工具名)——命令在跑却显示Thinking的修复
+            if (System.currentTimeMillis() >= sToolExecUntil && toolIdle > 3_000L && (TokenHook.isTokenGrowing()
                     || (sState == State.RUNNING && TokenHook.isRecentlyThinking()))) {
                 // 【1.8.2】title 一律固定 "Thinking"（实证：跳点每秒变 title → SystemUI 每秒重建焦点视图 → 闪好几下，08:35:35-42 title 7秒变~10次与用户目击闪数吻合）
                 return "Thinking";
@@ -790,6 +806,8 @@ final class AgentProgress {
 
     static synchronized String getToolIntervalText() {
         long now = System.currentTimeMillis();
+        // 【1.8.3 用户令】命令执行窗口内：展开态大标题标注"执行中"
+        if (now < sToolExecUntil) return "Agent | 执行中";
         // 用户要求：展开态调用工具慢于10s一次就显示 Agent | 已就绪；
         //   但 AI 正在思考（token 增长）时要和大岛一致，显示带点的 Thinking
         if (sLastToolAt > 0 && now - sLastToolAt > 10_000L) {
