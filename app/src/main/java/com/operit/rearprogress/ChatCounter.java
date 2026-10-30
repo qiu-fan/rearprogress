@@ -21,6 +21,8 @@ final class ChatCounter {
             "/data/data/com.ai.assistance.operit/databases/app_database";
     /** 判定"进行中"的时间窗口：最近 3 分钟内有消息交互 */
     private static final long WINDOW_MS = 3 * 60_000L;
+    /** 【v1.5】并发标签候选窗口:回合必以用户消息行开始,10分钟内必在候选,长回合不掉出(3分钟实测缺口) */
+    private static final long PREFIX_WINDOW_MS = 10 * 60_000L;
     /** 结果缓存时长 */
     private static final long REFRESH_MS = 10_000L;
     private static volatile int sActive = 0;
@@ -28,6 +30,8 @@ final class ChatCounter {
     private static volatile boolean sRunning = false;
     /** 最近完成消息最新的对话id（并发标签归属方,按 mx 降序头部） */
     private static volatile String sTopChatId = "";
+    /** 候选窗口内对话数(≥2才显示前缀) */
+    private static volatile int sCandidates = 0;
     /** 稳定字母映射: 活跃chatId -> A/B/C...（活跃期保持,退出活跃释放字母） */
     private static final LinkedHashMap<String, String> sLetterMap = new LinkedHashMap<>();
     private ChatCounter() {}
@@ -51,7 +55,7 @@ final class ChatCounter {
      *  单任务返回空串不加噪音。用于双AI并发时用户辨识当前画面是谁。 */
     static String activePrefix() {
         refreshIfNeeded();
-        if (sActive < 2) return "";
+        if (sCandidates < 2) return "";   // v1.5: 候选窗口(10min)≥2并发,长回合不掉出;计数仍3min口径
         String top = sTopChatId;
         if (top == null || top.isEmpty()) return "";
         synchronized (sLetterMap) {
@@ -86,7 +90,8 @@ final class ChatCounter {
         Cursor c = null;
         try {
             db = SQLiteDatabase.openDatabase(DB_PATH, null, SQLiteDatabase.OPEN_READONLY);
-            long since = System.currentTimeMillis() - WINDOW_MS;
+            long nowMs = System.currentTimeMillis();
+            long since = nowMs - PREFIX_WINDOW_MS;   // v1.5: 查10min候选,hot按3min口径另算
             // 口径：每个对话取最后一条消息时间，只数窗口内有消息交互的
             //   （chats.updatedAt 会被 touch 刷新，导致空对话/久未说话的也被算成"进行中"）
             // 按 mx 降序: 头部=最近活跃(并发标签归属方)
@@ -95,11 +100,17 @@ final class ChatCounter {
                             + "GROUP BY chatId HAVING mx >= CAST(? AS INTEGER) ORDER BY mx DESC",
                     new String[]{String.valueOf(since)});
             ArrayList<String> ids = new ArrayList<>();
+            java.util.ArrayList<Long> mxList = new java.util.ArrayList<>();
             while (c.moveToNext()) {
                 String id = c.getString(0);
-                if (id != null && !id.isEmpty()) ids.add(id);
+                if (id != null && !id.isEmpty()) { ids.add(id); mxList.add(c.getLong(1)); }
             }
-            sActive = ids.size();
+            // hot=3分钟口径(保持"进行中：N"语义不变),候选=10分钟全量
+            long hotSince = nowMs - WINDOW_MS;
+            int hot = 0;
+            for (int i = 0; i < ids.size(); i++) { if (mxList.get(i) >= hotSince) hot++; }
+            sActive = hot;
+            sCandidates = ids.size();
             sTopChatId = ids.isEmpty() ? "" : ids.get(0);
             synchronized (sLetterMap) {
                 sLetterMap.keySet().retainAll(ids);
