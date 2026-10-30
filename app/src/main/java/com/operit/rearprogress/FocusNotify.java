@@ -183,6 +183,8 @@ final class FocusNotify {
             if (ctx == null) return;
             android.content.Intent i = new android.content.Intent(ACTION_PUSH);
             i.putExtra("title", title == null ? "" : title);
+            // 【1.8.3-dev 转轮帧】搭通知更新便车(活跃期随推送变,空闲停推冻结,零额外推送)
+            i.putExtra("spin_char", (System.currentTimeMillis() / 1000L) % 2L == 0L ? "⡇" : "⢸");
             i.putExtra("tool", toolName == null ? "" : toolName);
             i.putExtra("body", body == null ? "" : body);
             i.putExtra("percent", percent);
@@ -342,6 +344,8 @@ final class FocusNotify {
                 if (ctx != null) {
                     android.content.Intent i = new android.content.Intent(ACTION_PUSH);
                     i.putExtra("title", title == null ? "" : title);
+                    // 【1.8.3-dev 转轮帧】搭通知更新便车(活跃期随推送变,空闲停推冻结,零额外推送)
+                    i.putExtra("spin_char", (System.currentTimeMillis() / 1000L) % 2L == 0L ? "⡇" : "⢸");
                     i.putExtra("tool", toolName == null ? "" : toolName);
                     i.putExtra("body", body == null ? "" : body);
                     i.putExtra("percent", percent);
@@ -407,6 +411,8 @@ final class FocusNotify {
             if (ctx == null) return;
             android.content.Intent i = new android.content.Intent(ACTION_MIRROR);
             i.putExtra("title", title == null ? "" : title);
+            // 【1.8.3-dev 转轮帧】搭通知更新便车(活跃期随推送变,空闲停推冻结,零额外推送)
+            i.putExtra("spin_char", (System.currentTimeMillis() / 1000L) % 2L == 0L ? "⡇" : "⢸");
             i.putExtra("tool", toolName == null ? "" : toolName);
             i.putExtra("body", body == null ? "" : body);
             i.putExtra("percent", percent);

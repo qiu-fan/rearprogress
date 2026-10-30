@@ -586,7 +586,8 @@ final class AgentProgress {
             // 【1.8.3-dev】工具名保持期 3s→10s（与 isRecentlyThinking 窗口对齐）：实证 edit_file 等
             //   内置文件工具不走 AIToolHandler.executeTool hook → 不更新工具时间戳 → 密集调用期
             //   toolIdle 轻易超 3s → title 被 Thinking 顶掉（用户截图实锤：明明在调工具却显示 Thinking）。
-            if (toolIdle > 10_000L && (TokenHook.isTokenGrowing()
+            // 【1.8.3-dev 用户令】仅确认正在思考+3秒内没工具调用才显示Thinking
+            if (toolIdle > 3_000L && (TokenHook.isTokenGrowing()
                     || (sState == State.RUNNING && TokenHook.isRecentlyThinking()))) {
                 // 【1.8.2】title 一律固定 "Thinking"（实证：跳点每秒变 title → SystemUI 每秒重建焦点视图 → 闪好几下，08:35:35-42 title 7秒变~10次与用户目击闪数吻合）
                 return "Thinking";

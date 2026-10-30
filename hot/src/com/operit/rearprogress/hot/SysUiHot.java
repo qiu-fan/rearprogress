@@ -121,7 +121,14 @@ public final class SysUiHot {
                             // 【动效引擎v3】每次渲染都刷新捕获引用(MIUI重建后引用自动指向活view)
                             Object cv = chain.getThisObject();
                             if (cv instanceof android.widget.TextView) {
-                                if (ts.startsWith("Thinking")) {
+                                if (ts.equals("Thinking")) {
+                                    // 精确匹配: 引擎自写的带点文本不再捕获(防自续命死循环)
+                                    sDotsView = (android.widget.TextView) cv;
+                                    startMotionEngine();
+                                } else if (cv == sDotsView) {
+                                    // 同一view被写成别的文本=title已切走→引擎停写
+                                    sDotsView = null;
+                                } else if (false) {
                                     sDotsView = (android.widget.TextView) cv;
                                     startMotionEngine();
                                 } else if (ts.trim().startsWith("↑") && ts.contains("↓")) {

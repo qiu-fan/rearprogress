@@ -41,9 +41,7 @@
   <Var name="lu_title" type="string" expression="''" const="true"/>
   <Var name="lu_big_text" type="string" expression="''" const="true"/>
   <Var name="lu_sub_text" type="string" expression="''" const="true"/>
-  <!-- 【1.8.3-dev 转轮】时间驱动两帧(标准MAML DateTime,时钟走秒同机制,不碰通知不闪) -->
-  <DateTime name="dt_now" format="ss"/>
-  <Var name="spinner_frame" type="string" expression="ifelse(mod(#dt_now, 2) == 0, ' ⡇', ' ⢸')"/>
+  <Var name="lu_spin_char" type="string" expression="''" const="true"/>
 
   <!-- 展开态扩展数据（agent 统计） -->
   <Var name="lu_token_path" type="string" expression="''" const="true"/>
@@ -119,6 +117,7 @@
     <VariableCommand name="lu_title" expression="jsonGetString($data, 'lu_title')" type="string"/>
     <VariableCommand name="lu_big_text" expression="jsonGetString($data, 'lu_big_text')" type="string"/>
     <VariableCommand name="lu_sub_text" expression="jsonGetString($data, 'lu_sub_text')" type="string"/>
+    <VariableCommand name="lu_spin_char" expression="jsonGetString($data, 'lu_spin_char')" type="string"/>
     <!-- 展开态 agent 统计 -->
     <VariableCommand name="lu_token_path" expression="jsonGetString($data, 'lu_token_path')" type="string"/>
     <VariableCommand name="lu_hit_rate" expression="jsonGetString($data, 'lu_hit_rate')" type="string"/>
@@ -138,7 +137,7 @@
   </Function>
 
   <Function name="logData">
-    <ExternCommand command="FLLogD" strPara="('liveupdate_layout2 | title=' + @lu_title + ' subtext=' + @lu_sub_text + ' bigtext=' + @lu_big_text)"/>
+    <ExternCommand command="FLLogD" strPara="('liveupdate_layout2 | title=' + @lu_title + ' subtext=' + @lu_sub_text + ' bigtext=' + @lu_big_text + ' spin=[' + @lu_spin_char + ']')"/>
   </Function>
 
   <Function name="refreshIconColor">
@@ -230,7 +229,7 @@
   <!-- SubText（第二行：token + hit率）—— token_offset 控制 token 行独立上移，不影响 A/B/C/D -->
   <Var name="token_offset" type="number" expression="(5.2 * #scale)"/>
   <Var name="subtext_y" type="number" expression="(#title_y + #title_measure.text_height + #title_gap - #token_offset)"/>
-  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text + @spinner_frame" width="#text_w" name="content_subtext" fontPath="etc/rp_leica_mono.otf" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
+  <Text visibility="#has_subtext" x="#text_x" y="#subtext_y" size="#text_size" color="#CCFFFFFF" textExp="@lu_sub_text + @lu_spin_char" width="#text_w" name="content_subtext" fontPath="etc/rp_leica_mono.otf" multiLine="true" lineClamp="#subtext_max_lines" ellipsis="true"/>
 
   <!-- BigText（第三行，可选）—— 消息区整体按 body_offset 上移，不带动上方标题 -->
   <Var name="text_y" type="number" expression="(ifelse(#has_subtext, (#subtext_y + #subtext_measure.text_height), (#title_y + #title_measure.text_height + #title_gap)) - #body_offset)"/>
