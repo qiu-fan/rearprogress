@@ -463,7 +463,7 @@ public final class SysUiHot {
                     // ② 转轮两帧(用户定): 左4亮 ⣿(U+2847) ↔ 右4亮 ⢸(U+28B8), 按秒交替
                     android.widget.TextView sv = sSpinnerView;
                     if (sv != null && now < sSpinnerDeadline && sv.isAttachedToWindow()) {
-                        String frame = (sec % 2 == 0) ? "⡇" : "⢸";
+                        String frame = (sec % 2 == 0) ? "◄" : "►";   // 用户定:两帧必须视觉分明,braille缺字已废,改左右三角(字体实证有字形)
                         final String stxt = sTokenBase + " " + frame;
                         final android.widget.TextView fsv = sv;
                         sMainHandler.post(() -> { try { fsv.setText(stxt); } catch (Throwable ignored) {} });
