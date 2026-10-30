@@ -113,6 +113,7 @@ public final class SysUiHot {
         sModule.hook(setText).intercept(chain -> {
             Object r = chain.proceed();
             try {
+                if (sSelfWrite) return r;   // 【1.8.3跳点修复】引擎自写带点文本:不进日志/捕获,防cv==sDotsView自杀
                 CharSequence t = (CharSequence) chain.getArg(0);
                 if (t != null && t.length() > 0) {
                     String ts = t.toString();
@@ -419,6 +420,8 @@ public final class SysUiHot {
     // 用户方向: 直接更新岛的文本(SystemUI进程内), 不更新通知→不触发重建→跳点/转轮不闪。
     // v2 崩溃教训: ① setText必须走主线程 Handler(view.post会投到死view,裸线程触发
     // checkThread崩溃链) ② 每轮检查 isAttachedToWindow, 失效等下次渲染重新捕获。
+    /** 引擎自写标志：hook 捕获逻辑据此跳过，防引擎写入触发"同view切走→清空"自杀(1.8.3跳点修复) */
+    private static volatile boolean sSelfWrite = false;
     private static volatile android.widget.TextView sDotsView = null;
     private static volatile android.widget.TextView sSpinnerView = null;
     private static volatile String sTokenBase = "";
@@ -455,7 +458,7 @@ public final class SysUiHot {
                         for (int i = 0; i < n; i++) sb.append('.');
                         final String dtxt = sb.toString();
                         final android.widget.TextView fdv = dv;
-                        sMainHandler.post(() -> { try { fdv.setText(dtxt); Log.i(TAG, "ENGINE_WRITE " + dtxt); } catch (Throwable t3) { wlog("ENGINE_ERR " + t3); } });
+                        sMainHandler.post(() -> { try { sSelfWrite = true; fdv.setText(dtxt); Log.i(TAG, "ENGINE_WRITE " + dtxt); } catch (Throwable t3) { wlog("ENGINE_ERR " + t3); } finally { sSelfWrite = false; } });
                     }
                     // ② 转轮两帧(用户定): 左4亮 ⣿(U+2847) ↔ 右4亮 ⢸(U+28B8), 按秒交替
                     android.widget.TextView sv = sSpinnerView;
