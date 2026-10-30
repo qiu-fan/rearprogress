@@ -38,6 +38,8 @@ final class AgentProgress {
     private static volatile long sLastToolAt = 0L;
     /** 【1.8.3 用户令】工具执行显示窗口截止时刻：命令参数带timeoutMs时,超时时间内title显示工具名、展开态大标题显示"执行中" */
     private static volatile long sToolExecUntil = 0L;
+    /** 【3.4预留】工具返回即结束执行窗口(OperitHook返回点调用,待星回ack接线);超时看门狗兜底 */
+    static void onToolFinished() { sToolExecUntil = 0L; }
     /** 任务结束后通知自动消失的延迟（10分钟） */
     private static final long AUTO_HIDE_DELAY = 10 * 60 * 1000L;
 
@@ -571,7 +573,14 @@ final class AgentProgress {
      *   有工具调用 → 显示工具名 + diff 统计
      *   否则 → 状态文字（已就绪 / 任务进行中 / 已完成）
      */
+    /** 【3.2重构】统一显示入口: 先按优先级表算基础标题,再加并发对话标签(A:/B:)——表见 docs/front-display.md */
     static String title() {
+        String base = resolveTitle();
+        String p = ChatCounter.activePrefix();
+        return p.isEmpty() ? base : p + base;
+    }
+    /** 优先级表(单一来源): 1锁 2自适应 3AI标题 4执行窗口Thinking门 5Thinking 6工具名 7状态兜底 */
+    private static String resolveTitle() {
         // 【1.7.8-fix15】hook 到新工具内容后【强制显示 2 秒】（用户令，优先级最高，
         //   压过自适应/Thinking/sAiTitle 判定）—— 消除工具执行期 title 在 Thinking↔工具名间反复闪过。
         if (System.currentTimeMillis() < sLockedUntil) {
@@ -804,7 +813,13 @@ final class AgentProgress {
         return String.valueOf(FRAMES[(int) ((System.currentTimeMillis() / 1000L) % FRAMES.length)]);
     }
 
+    /** 【3.2重构】展开态大标题统一入口: 基础表+并发标签(与title同源,消灭两端各判各的) */
     static synchronized String getToolIntervalText() {
+        String base = resolveIntervalText();
+        String p = ChatCounter.activePrefix();
+        return p.isEmpty() ? base : p + base;
+    }
+    private static synchronized String resolveIntervalText() {
         long now = System.currentTimeMillis();
         // 【1.8.3 用户令】命令执行窗口内：展开态大标题标注"执行中"
         if (now < sToolExecUntil) return "Agent | 执行中";
