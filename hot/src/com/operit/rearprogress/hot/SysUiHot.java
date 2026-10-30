@@ -101,7 +101,7 @@ public final class SysUiHot {
         }
     }
 
-    /** 焦点卡/岛渲染文本日志 + 【动效引擎】跳点视图捕获 */
+    /** 焦点卡/岛渲染文本日志：logcat(RearProgress) + hot.log 双通道，tag SYSUI_SHOW */
     private static void hookFocusRenderLog() throws Exception {
         Method setText = android.widget.TextView.class.getMethod("setText", CharSequence.class);
         sModule.hook(setText).intercept(chain -> {
@@ -120,11 +120,6 @@ public final class SysUiHot {
                                 || cn.contains("otification") || cn.contains("emoteView")) {
                             Object v = chain.getThisObject();
                             String who = v != null ? v.getClass().getSimpleName() : "?";
-                            // 【动效引擎】捕获岛 title 视图（内容为 Thinking* 的那一个），供直接驱动跳点
-                            if (v instanceof android.widget.TextView && ts.startsWith("Thinking")) {
-                                sThinkingView = (android.widget.TextView) v;
-                                startDotsEngine();
-                            }
                             String line = "SYSUI_SHOW [" + who + "] " + t;
                             Log.i(TAG, line);
                             wlog(line);
@@ -380,34 +375,5 @@ public final class SysUiHot {
         } catch (Throwable t) {
             wlog("HOT probe miss " + cls + ": " + t);
         }
-    }
-
-    // ================= 【1.8.3-dev 动效引擎】=================
-    // 用户方向：直接更新岛的文本（SystemUI 进程内），不更新通知 → 不触发 requestFocusNotificationView
-    // 重建 → 跳点每秒变也不闪。通知侧 title 保持固定 "Thinking"。
-    private static volatile android.widget.TextView sThinkingView = null;
-    private static volatile boolean sDotsEngineOn = false;
-
-    private static void startDotsEngine() {
-        if (sDotsEngineOn) return;
-        sDotsEngineOn = true;
-        Thread t = new Thread(() -> {
-            wlog("HOT dots engine started");
-            while (true) {
-                try { Thread.sleep(1000L); } catch (Throwable ignored) {}
-                try {
-                    android.widget.TextView v = sThinkingView;
-                    if (v == null) continue;
-                    long sec = System.currentTimeMillis() / 1000L;
-                    int n = (int) (sec % 3) + 1;
-                    StringBuilder sb = new StringBuilder("Thinking");
-                    for (int i = 0; i < n; i++) sb.append('.');
-                    final String txt = sb.toString();
-                    v.post(() -> { try { v.setText(txt); } catch (Throwable ignored) {} });
-                } catch (Throwable ignored) {}
-            }
-        });
-        t.setDaemon(true);
-        t.start();
     }
 }
