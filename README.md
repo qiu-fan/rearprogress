@@ -24,6 +24,14 @@
 状态机：`已就绪` →（有工具调用）`任务进行中` →（收到回复完成）`已完成`
 AI 可主动写 `/data/local/tmp/agent_progress.txt` 上传进度，优先显示在主标题，5 分钟过期。
 
+## 界面预览
+
+| 正面胶囊 | 展开态（跳点） |
+|---|---|
+| ![胶囊](docs/screenshots/island_capsule.jpg) | ![展开态](docs/screenshots/island_expanded.jpg) |
+| **背屏卡片** | **App 界面** |
+| ![背屏](docs/screenshots/rear_screen.png) | ![App](docs/screenshots/app_ui.jpg) |
+
 ## 完整链路
 
 ```
