@@ -40,6 +40,9 @@ final class AgentProgress {
     private static volatile long sToolExecUntil = 0L;
     /** 【3.4预留】工具返回即结束执行窗口(OperitHook返回点调用,待星回ack接线);超时看门狗兜底 */
     static void onToolFinished() { sToolExecUntil = 0L; }
+    /** 【2026-11-01 用户令】use_package右侧自适应:token行临时显示所用包名,60s或下一个工具为止 */
+    private static volatile String sPkgSub = null;
+    private static volatile long sPkgSubUntil = 0L;
     /** 任务结束后通知自动消失的延迟（10分钟） */
     private static final long AUTO_HIDE_DELAY = 10 * 60 * 1000L;
 
@@ -514,6 +517,7 @@ final class AgentProgress {
         // 【1.8.3 用户令·工具执行窗口】参数带timeoutMs → [now, now+timeout]内显示工具名+执行中；
         //   无显式超时 → 窗口=0(不生效,保持原逻辑)。每个工具开始时重算,防上一工具残留。
         sToolExecUntil = 0L;
+        sPkgSubUntil = 0L;   // 新工具开始→包名右侧显示失效(use_package分支会重新设)
         if (detail != null) {
             try {
                 java.util.regex.Matcher _tm = java.util.regex.Pattern
@@ -541,6 +545,9 @@ final class AgentProgress {
                 }
                 name = pkg.length() > 14 ? pkg.substring(0, 14) + "…" : pkg;
                 LogX.i("RearProgress", "use_package -> " + name);
+                // 【2026-11-01 用户令】右侧(token行)自适应显示所用包名,与左侧同60s寿命
+                sPkgSub = name;
+                sPkgSubUntil = System.currentTimeMillis() + 60_000L;
             }
             // 拿不到包名时退回原工具名
         } else if (!shortName.equals(name) || !name.contains(":")) {
@@ -687,6 +694,8 @@ final class AgentProgress {
     private static String toolNameBase() {
         // 0. 自适应显示优先（工具执行期间临时覆盖）
         if (sAdaptiveSub != null) return sAdaptiveSub;
+        // 0.5 【2026-11-01 用户令】use_package后60s内:右侧显示所用包名(下个工具开始即失效)
+        if (sPkgSub != null && System.currentTimeMillis() < sPkgSubUntil) return sPkgSub;
         // 1. AI 上传的工具名优先
         if (hasAiTool()) return sAiTool;
 
