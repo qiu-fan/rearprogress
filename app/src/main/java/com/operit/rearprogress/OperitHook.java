@@ -41,6 +41,7 @@ final class OperitHook {
     static void install(final XposedInterface xposed, ClassLoader cl) {
         try {
             LogX.i(TAG, "OperitHook.install enter v0.23");
+            installNativeCountHook(xposed);
             AgentProgress.markReady();
             startEnabledWatcher();
             Class<?> handlerCls = Class.forName(
@@ -716,6 +717,55 @@ final class OperitHook {
             LogX.i(TAG, "HOOKED EnhancedAIService.notifyReplyCompleted -> 已完成 触发点");
         } catch (Throwable e) {
             LogX.e(TAG, "installReplyCompletedHook failed", e);
+        }
+    }
+
+    /**
+     * 【2026-11-01 用户令】"进行中:N"对齐原生实时计数。
+     * Operit 自己的前台通知里有"运行对话 N"(App内部状态,实时准确);镜像侧原按 messages 表
+     * 3分钟窗口推算,长回合中途不落新消息行会漏数。这里 hook NotificationManager.notify
+     * 解析该计数存入 ChatCounter,显示层90s内新鲜则优先用它(过期退回DB推算)。
+     * 只读不改: proceed 原调用,仅旁路解析 EXTRA_TEXT。
+     */
+    private static void installNativeCountHook(final XposedInterface xposed) {
+        try {
+            java.util.regex.Pattern pat = java.util.regex.Pattern.compile("运行对话\\s*(\\d+)");
+            int hooked = 0;
+            for (Method m : android.app.NotificationManager.class.getDeclaredMethods()) {
+                if (!"notify".equals(m.getName())) continue;
+                Class<?>[] ps = m.getParameterTypes();
+                int notifIdx = -1;
+                for (int i = 0; i < ps.length; i++) {
+                    if (ps[i] == android.app.Notification.class) { notifIdx = i; break; }
+                }
+                if (notifIdx < 0) continue;
+                final int ni = notifIdx;
+                try {
+                    xposed.hook(m).intercept(chain -> {
+                        Object r = chain.proceed();
+                        try {
+                            Object arg = chain.getArg(ni);
+                            if (arg instanceof android.app.Notification) {
+                                android.app.Notification n = (android.app.Notification) arg;
+                                CharSequence cs = null;
+                                if (n.extras != null) {
+                                    cs = n.extras.getCharSequence(android.app.Notification.EXTRA_TEXT);
+                                }
+                                if (cs == null) cs = n.tickerText;
+                                if (cs != null) {
+                                    java.util.regex.Matcher mm = pat.matcher(cs.toString());
+                                    if (mm.find()) ChatCounter.onNativeRunning(Integer.parseInt(mm.group(1)));
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                        return r;
+                    });
+                    hooked++;
+                } catch (Throwable ignored) {}
+            }
+            LogX.i(TAG, "HOOKED NotificationManager.notify -> 运行对话 native count, overloads=" + hooked);
+        } catch (Throwable e) {
+            LogX.e(TAG, "installNativeCountHook failed", e);
         }
     }
 
