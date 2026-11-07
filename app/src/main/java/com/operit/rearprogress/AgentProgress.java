@@ -620,8 +620,11 @@ final class AgentProgress {
         } catch (Throwable ignored) {}
 
         // 3. 有工具调用时，标题用工具名
+        // 【2026-11-01 用户bug】工具名老化60s:超60s无新工具→落到状态文字(Agent/已完成)。
+        //   根因: sRecent跨会话不清+左侧idleForReady需ChatCounter空闲(双AI下几乎永不空闲)
+        //   → 进入软件后左侧一直显示旧工具名(如CopyFile)。执行窗口内长命令不受影响(第4级已兜)。
         synchronized (AgentProgress.class) {
-            if (!sRecent.isEmpty()) {
+            if (!sRecent.isEmpty() && System.currentTimeMillis() - sLastToolAt <= 60_000L) {
                 String[] last = sRecent.get(sRecent.size() - 1);
                 String toolName = last[0];
 
