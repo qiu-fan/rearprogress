@@ -122,8 +122,11 @@ public final class SysUiHot {
                             // 【动效引擎v3】每次渲染都刷新捕获引用(MIUI重建后引用自动指向活view)
                             Object cv = chain.getThisObject();
                             if (cv instanceof android.widget.TextView) {
-                                if (ts.equals("Thinking")) {
-                                    // 精确匹配: 引擎自写的带点文本不再捕获(防自续命死循环)
+                                if (ts.endsWith("Thinking")) {
+                                    // 【2026-11-07 前缀兼容】A/B标签多开时title="A:Thinking"，
+                                    //   旧精确equals必败→引擎捕获不到→无跳点(用户实证)。
+                                    //   后缀匹配兼容前缀;引擎自写文本以'.'结尾天然不命中(防自续命)。
+                                    sDotsPrefix = ts.length() > 8 ? ts.substring(0, ts.length() - 8) : "";
                                     sDotsView = (android.widget.TextView) cv;
                                     startMotionEngine();
                                 } else if (cv == sDotsView) {
@@ -423,6 +426,8 @@ public final class SysUiHot {
     /** 引擎自写标志：hook 捕获逻辑据此跳过，防引擎写入触发"同view切走→清空"自杀(1.8.3跳点修复) */
     private static volatile boolean sSelfWrite = false;
     private static volatile android.widget.TextView sDotsView = null;
+    /** 【2026-11-07】title前缀(如"A:")——A/B标签拼在Thinking前,引擎写入必须保留否则前缀闪没 */
+    private static volatile String sDotsPrefix = "";
     private static volatile android.widget.TextView sSpinnerView = null;
     private static volatile String sTokenBase = "";
     private static volatile long sSpinnerDeadline = 0L;
@@ -454,7 +459,8 @@ public final class SysUiHot {
                     android.widget.TextView dv = sDotsView;
                     if (dv != null && dv.isAttachedToWindow()) {
                         int n = (int) (sec % 3) + 1;
-                        StringBuilder sb = new StringBuilder("Thinking");
+                        StringBuilder sb = new StringBuilder(sDotsPrefix);  // 保留A:/B:前缀
+                        sb.append("Thinking");
                         for (int i = 0; i < n; i++) sb.append('.');
                         final String dtxt = sb.toString();
                         final android.widget.TextView fdv = dv;
